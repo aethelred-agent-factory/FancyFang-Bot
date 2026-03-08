@@ -1545,28 +1545,36 @@ def unified_analyse(
         ohlc, highs, lows, closes, vols = [], [], [], [], []
         for c in candles:
             try:
+                # API mapping: [timestamp, interval, last, open, high, low, close, volume, ...]
                 o, h, l, cl = float(c[3]), float(c[4]), float(c[5]), float(c[6])
                 v = float(c[7]) if len(c) > 7 else 0.0
                 ohlc.append((o, h, l, cl))
                 highs.append(h); lows.append(l); closes.append(cl); vols.append(v)
-            except Exception:
+            except Exception as e:
                 continue
 
         if not closes:
+            logger.error(f"  {symbol}: No valid close prices parsed from candles.")
             return None
 
         # 3. Indicator calculation (cheap — always executed)
-        rsi, prev_rsi, rsi_hist = calc_rsi(closes)
-        bb = calc_bb(closes)
-        ema_series = calc_ema_series(closes, 21)
-        ema21 = ema_series[-1] if ema_series else None
-        ema_slope, slope_change = calc_ema_slope(ema_series)
-        atr = calc_atr(highs, lows, closes)
-        vol_spike = calc_volume_spike(vols)
-        regime, entropy = calc_market_regime(closes)
-        kalman_series = calc_kalman_series(closes)
-        kalman_price  = kalman_series[-1] if kalman_series else None
-        kalman_slope  = kalman_series[-1] - kalman_series[-2] if len(kalman_series) >= 2 else 0.0
+        try:
+            rsi, prev_rsi, rsi_hist = calc_rsi(closes)
+            bb = calc_bb(closes)
+            ema_series = calc_ema_series(closes, 21)
+            ema21 = ema_series[-1] if ema_series else None
+            ema_slope, slope_change = calc_ema_slope(ema_series)
+            atr = calc_atr(highs, lows, closes)
+            vol_spike = calc_volume_spike(vols)
+            regime, entropy = calc_market_regime(closes)
+            kalman_series = calc_kalman_series(closes)
+            kalman_price  = kalman_series[-1] if kalman_series else None
+            kalman_slope  = kalman_series[-1] - kalman_series[-2] if len(kalman_series) >= 2 else 0.0
+        except Exception as e:
+            import traceback
+            logger.error(f"  {symbol}: Indicator calculation failed: {e}")
+            logger.error(traceback.format_exc())
+            return None
 
         # ── Pre-score gate ─────────────────────────────────────────────────────
         # Build a partial TickerData with the cheap fields we already have, then
@@ -1660,7 +1668,7 @@ def unified_analyse(
             "vol_spike": vol_spike, "bb_width": bb["width_pct"] if bb else 0.0,
             "atr_stop_pct": stop_pct, "raw_ohlc": ohlc[-10:], "spread": spread,
             "dist_to_node_below": dist_to_node_below, "dist_to_node_above": dist_to_node_above,
-            "ema_slope": ema_slope, "slope_change": slope_change, "fr_change": fr_change,
+            "ema_slope": ema_slope, "slope_change": slope_change, "fr_change": funding_rate_change,
             "rsi_1h": rsi_1h, "rsi_4h": rsi_4h, "scan_timestamp": now_utc_iso,
             "regime": regime, "entropy": entropy, "kalman_price": kalman_price, "kalman_slope": kalman_slope,
             # ── Upgrade fields ────────────────────────────────────────────────

@@ -3,6 +3,7 @@
 ## [2026-03-08.3] - Performance Tuning & Logic Fixes
 
 ### Fixed
+- **Analysis Crash:** Resolved a critical `NameError` (`fr_change`) in `phemex_common.unified_analyse` that was causing every ticker analysis to fail silently, resulting in empty scan results (`W0 L0`).
 - **Fast-Track Deadlock:** Implemented `try...finally` in `on_scan_result` to ensure symbols are always removed from `fast_track_opened`, preventing permanent margin lock-ups on verification failures.
 - **Candidate Processing:** Changed `break` to `continue` in the simulation candidate loop, ensuring that one insufficient margin check doesn't block other eligible trades in the same scan.
 
