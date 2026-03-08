@@ -996,8 +996,9 @@ def compute_drawdown(trades: List[Trade]) -> Tuple[float, float]:
 
 def compute_sharpe(trades: List[Trade], timeframe: str = "15m") -> float:
     """Annualised Sharpe ratio (risk-free rate = 0) from per-trade PnL."""
+    # REF: Tier 2: Statistical Instability (Zero Division)
     if len(trades) < 2:
-        return 0.0
+        return np.nan
     pnls = np.array([t.pnl_usdt or 0.0 for t in trades], dtype=float)
     avg_hold = float(np.mean([t.hold_candles for t in trades])) or 1.0
     cpy = CANDLES_PER_YEAR.get(timeframe, 35_040)
@@ -1005,14 +1006,15 @@ def compute_sharpe(trades: List[Trade], timeframe: str = "15m") -> float:
     mean_r = float(np.mean(pnls))
     std_r  = float(np.std(pnls, ddof=1))
     if std_r == 0:
-        return 0.0
+        return np.nan
     return float(mean_r / std_r * math.sqrt(trades_per_year))
 
 
 def compute_sortino(trades: List[Trade], timeframe: str = "15m") -> float:
     """Annualised Sortino ratio — only penalises downside deviation."""
+    # REF: Tier 2: Statistical Instability (Zero Division)
     if len(trades) < 2:
-        return 0.0
+        return np.nan
     pnls = np.array([t.pnl_usdt or 0.0 for t in trades], dtype=float)
     avg_hold = float(np.mean([t.hold_candles for t in trades])) or 1.0
     cpy = CANDLES_PER_YEAR.get(timeframe, 35_040)
@@ -1020,11 +1022,18 @@ def compute_sortino(trades: List[Trade], timeframe: str = "15m") -> float:
     mean_r  = float(np.mean(pnls))
     neg_pnl = pnls[pnls < 0]
     if len(neg_pnl) < 2:
-        return float("inf") if mean_r > 0 else 0.0
+        return np.nan
     down_std = float(np.std(neg_pnl, ddof=1))
     if down_std == 0:
-        return 0.0
+        return np.nan
     return float(mean_r / down_std * math.sqrt(trades_per_year))
+
+
+def fmt_stat(val: float, fmt: str = ".2f") -> str:
+    """Formats a float, handling NaN by returning 'N/A'."""
+    if np.isnan(val):
+        return "N/A"
+    return format(val, fmt)
 
 
 def max_streaks(trades: List[Trade]) -> Tuple[int, int]:
@@ -1166,11 +1175,11 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
 
     # ── NEW: Risk metrics ─────────────────────────────────────────────
     dd_c = Fore.RED if max_dd > 0 else Fore.GREEN
-    sh_c = Fore.GREEN if sharpe >= 1.0 else (Fore.YELLOW if sharpe >= 0 else Fore.RED)
-    so_c = Fore.GREEN if sortino >= 1.5 else (Fore.YELLOW if sortino >= 0 else Fore.RED)
+    sh_c = Fore.GREEN if (not np.isnan(sharpe) and sharpe >= 1.0) else (Fore.YELLOW if (not np.isnan(sharpe) and sharpe >= 0) else Fore.RED)
+    so_c = Fore.GREEN if (not np.isnan(sortino) and sortino >= 1.5) else (Fore.YELLOW if (not np.isnan(sortino) and sortino >= 0) else Fore.RED)
     print(f"  Max Drawdown: {dd_c}{max_dd:+.4f} USDT  ({max_dd_pct:.1f}%){Style.RESET_ALL}")
-    print(f"  Sharpe (ann): {sh_c}{sharpe:+.2f}{Style.RESET_ALL}   "
-          f"Sortino (ann): {so_c}{sortino:+.2f}{Style.RESET_ALL}")
+    print(f"  Sharpe (ann): {sh_c}{fmt_stat(sharpe)}{Style.RESET_ALL}   "
+          f"Sortino (ann): {so_c}{fmt_stat(sortino)}{Style.RESET_ALL}")
     print(f"  Max Streak  : {Fore.GREEN}{mws}W{Style.RESET_ALL} / {Fore.RED}{mls}L{Style.RESET_ALL}")
     print(f"  Best Trade  : {Fore.GREEN}{best_t.pnl_usdt:+.4f}{Style.RESET_ALL} "
           f"({best_t.symbol} {best_t.direction})")

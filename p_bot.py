@@ -112,10 +112,10 @@ if SCRIPT_DIR not in sys.path:
 try:
     import phemex_long as scanner_long
     import phemex_short as scanner_short
+    _SCANNERS_OK = True
 except ImportError as e:
-    print(Fore.RED + f"[ERROR] Could not import scanner modules: {e}")
-    print("Make sure phemex_long.py and phemex_short.py are in the same directory.")
-    sys.exit(1)
+    _SCANNERS_OK = False
+    _SCANNER_ERR = e
 
 load_dotenv()
 init(autoreset=True)
@@ -249,11 +249,12 @@ def blacklist_symbol(symbol: str, reason: str = "stop_out") -> None:
     save_blacklist() # Save after updating blacklist
 
     # Entity API Hook
+    # REF: Tier 3: Temporal Inconsistency
     make_entity_request("symbolblacklist", data={
         "blacklist_id": f"bl-{symbol}-{int(time.time())}",
         "symbol": symbol,
-        "triggered_at": datetime.datetime.now().isoformat(),
-        "expires_at": datetime.datetime.fromtimestamp(expiry).isoformat(),
+        "triggered_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "expires_at": datetime.datetime.fromtimestamp(expiry, datetime.timezone.utc).isoformat(),
         "duration_seconds": BLACKLIST_DURATION_SECONDS,
         "trigger_trade_id": symbol, # best guess
         "reason": reason
@@ -477,9 +478,10 @@ def log_error_response(path: str, resp: requests.Response):
         logger.error(error_msg)
 
     # Entity API Hook
+    # REF: Tier 3: Temporal Inconsistency
     make_entity_request("errorevent", data={
         "error_id": f"err-{int(time.time()*1000)}",
-        "timestamp": datetime.datetime.now().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "session_id": SESSION_ID,
         "error_type": "API_ERROR",
         "severity": "CRITICAL" if status_code >= 500 else "WARNING",
@@ -717,12 +719,13 @@ def _cache_refresher():
     global _cached_balance, _cached_positions
     while True:
         try:
-            nb, np = get_account_status()
-            if nb is not None:
+            # REF: Tier 3: Non-Descriptive Variable Naming (nb, np -> new_balance, new_positions)
+            new_balance, new_positions = get_account_status()
+            if new_balance is not None:
                 with _cache_lock:
                     # Detect closure for logging
                     old_symbols = {p["symbol"] for p in _cached_positions}
-                    new_symbols = {p["symbol"] for p in np}
+                    new_symbols = {p["symbol"] for p in new_positions}
 
                     closed = old_symbols - new_symbols
                     if closed:
@@ -742,10 +745,15 @@ def _cache_refresher():
                             entry_price = old_p.get("entry", 0) if old_p else (h_entry.get("price", 0) if h_entry else 0)
                             qty_str = str(old_p.get("size", 0)) if old_p else (str(h_entry.get("qty", 0)) if h_entry else "0")
                             score = local_state.get("entry_score", 0) or (h_entry.get("score", 0) if h_entry else 0)
-                            entry_time = local_state.get("entry_time") or (datetime.datetime.fromisoformat(h_entry["timestamp"]) if h_entry else datetime.datetime.now())
+                            entry_time = local_state.get("entry_time") or (datetime.datetime.fromisoformat(h_entry["timestamp"]) if h_entry else datetime.datetime.now(datetime.timezone.utc))
+                            # REF: Safety check for naive datetimes from history
+                            if entry_time.tzinfo is None:
+                                entry_time = entry_time.replace(tzinfo=datetime.timezone.utc)
                             direction = local_state.get("direction", "LONG" if (old_p and old_p["side"]=="Buy") else (h_entry.get("direction") if h_entry else "Unknown"))
 
-                            hold_secs = (datetime.datetime.now() - entry_time).total_seconds() if entry_time else 0
+                            # Standardize on timezone-aware UTC for JSON storage
+                            now_utc = datetime.datetime.now(datetime.timezone.utc)
+                            hold_secs = (now_utc - entry_time).total_seconds() if entry_time else 0
                             h_min, h_sec = divmod(int(hold_secs), 60)
                             h_hour, h_min = divmod(h_min, 60)
                             dur_str = f"{h_hour}h {h_min}m" if h_hour > 0 else (f"{h_min}m {h_sec}s" if h_min > 0 else f"{h_sec}s")
@@ -759,7 +767,7 @@ def _cache_refresher():
                             logger.info(msg)
 
                             log_trade({
-                                "timestamp": datetime.datetime.now().isoformat(),
+                                "timestamp": now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
                                 "symbol": sym,
                                 "direction": direction,
                                 "price": entry_price,
@@ -774,7 +782,7 @@ def _cache_refresher():
                             # ── Drawdown guard — record closed trade PnL ──────
                             if _DD_OK:
                                 try:
-                                    drawdown_guard.record_pnl(float(realized_pnl), nb if nb is not None else _cached_balance)
+                                    drawdown_guard.record_pnl(float(realized_pnl), new_balance if new_balance is not None else _cached_balance)
                                 except Exception as e:
                                     logger.warning(f"[DD] record_pnl failed: {e}")
 
@@ -801,33 +809,33 @@ def _cache_refresher():
                         _slot_available_event.set()
 
                     # Take a local snapshot inside the lock for Entity API calls (T2-04)
-                    np_snapshot = list(np)
-                    nb_snapshot = nb
+                    new_positions_snapshot = list(new_positions)
+                    new_balance_snapshot = new_balance
 
                 # Entity API: Account Snapshot (uses local snapshot — race-safe)
-                total_upnl = sum(p.get("pnl", 0.0) for p in np_snapshot)
-                equity = nb_snapshot + total_upnl
+                total_upnl = sum(p.get("pnl", 0.0) for p in new_positions_snapshot)
+                equity = new_balance_snapshot + total_upnl
                 drawdown = 0.0
                 if _account_high_water > 0:
                     drawdown = (_account_high_water - equity) / _account_high_water * 100
 
                 make_entity_request("accountsnapshot", data={
-                    "snapshot_id": f"acc-{int(time.time())}",
-                    "timestamp": datetime.datetime.now().isoformat(),
+                    "snapshot_id": f"account-{int(time.time())}",
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                     "trigger": "CACHE_REFRESH",
-                    "balance_usdt": nb_snapshot,
+                    "balance_usdt": new_balance_snapshot,
                     "unrealised_pnl": total_upnl,
                     "equity": equity,
                     "peak_equity": _account_high_water,
                     "account_trail_stop": _account_trail_stop,
                     "drawdown_from_peak_pct": drawdown,
                     "trading_halted": _account_trading_halted,
-                    "open_positions": len(np_snapshot),
-                    "max_positions_allowed": get_dynamic_max_positions(nb_snapshot)
+                    "open_positions": len(new_positions_snapshot),
+                    "max_positions_allowed": get_dynamic_max_positions(new_balance_snapshot)
                 })
 
                 # Entity API: Positions
-                for pos in np_snapshot:
+                for pos in new_positions_snapshot:
                     make_entity_request("position", data={
                         "position_id": f"pos-{pos['symbol']}-{int(time.time())}",
                         "symbol": pos["symbol"],
@@ -836,12 +844,12 @@ def _cache_refresher():
                         "entry_price": pos["entry"],
                         "unrealised_pnl": pos.get("pnl", 0.0),
                         "leverage": LEVERAGE, # best guess
-                        "last_updated": datetime.datetime.now().isoformat()
+                        "last_updated": datetime.datetime.now(datetime.timezone.utc).isoformat()
                     })
 
                 with _cache_lock:
-                    _cached_balance = nb
-                    _cached_positions = np
+                    _cached_balance = new_balance
+                    _cached_positions = new_positions
         except Exception as e:
             logger.error(f"Cache refresh error: {e}")
         time.sleep(30)
@@ -877,6 +885,7 @@ def _live_pnl_display():
         # Clear screen
         sys.stdout.write("\033[2J\033[H")
         print(Fore.CYAN + pc.BANNER)
+        # REF: Tier 3: Human-Readable Logs
         print(Fore.CYAN + Style.BRIGHT + f" 📊 LIVE PRODUCTION DASHBOARD | {datetime.datetime.now().strftime('%H:%M:%S')}")
         print(Fore.CYAN + "─" * 70)
 
@@ -915,7 +924,9 @@ def _live_pnl_display():
                         ls = _local_stop_states[sym]
                         et = ls.get("entry_time")
                         if et:
-                            diff = datetime.datetime.now() - et
+                            if et.tzinfo is None:
+                                et = et.replace(tzinfo=datetime.timezone.utc)
+                            diff = datetime.datetime.now(datetime.timezone.utc) - et
                             tot_sec = int(diff.total_seconds())
                             if tot_sec < 60: dur_str = f"({tot_sec}s)"
                             elif tot_sec < 3600: dur_str = f"({tot_sec//60}m)"
@@ -1331,18 +1342,19 @@ def place_trailing_stop(
 
 def cancel_all_orders(symbol: str) -> bool:
     """Cancel all active + untriggered orders for a symbol."""
+    # REF: Tier 3: Non-Descriptive Variable Naming (r1, r2 -> active_order_resp, conditional_order_resp)
     # Cancel active orders
-    r1 = _delete(
+    active_order_resp = _delete(
         "/g-orders/all",
         params={"symbol": symbol, "untriggered": "false"},
     )
     # Cancel untriggered conditional orders (trailing stops that haven't fired)
-    r2 = _delete(
+    conditional_order_resp = _delete(
         "/g-orders/all",
         params={"symbol": symbol, "untriggered": "true"},
     )
-    ok1 = r1 and r1.get("code") == 0
-    ok2 = r2 and r2.get("code") == 0
+    ok1 = active_order_resp and active_order_resp.get("code") == 0
+    ok2 = conditional_order_resp and conditional_order_resp.get("code") == 0
     return ok1 or ok2
 
 def cancel_order_by_client_id(symbol: str, client_order_id: str) -> bool:
@@ -1560,6 +1572,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
         "direction": direction,
         "status": "INITIATED",
         "entry": price,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(), # REF: Tier 3: Temporal Inconsistency
         "parameters": {
             "leverage": active_leverage,
             "margin": active_margin,
@@ -1578,8 +1591,9 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
 
     if dry_run:
         tui_log(f"DRY RUN — no orders placed for {symbol}", event_type="DRY")
+        # REF: Tier 3: Temporal Inconsistency
         log_trade({
-            "timestamp": datetime.datetime.now().isoformat(),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "symbol": symbol,
             "direction": direction,
             "price": price,
@@ -1627,6 +1641,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
     avg_price   = float(order_resp.get("data", {}).get("avgPriceRp") or price)
 
     # Entity API Hook: Order
+    # REF: Tier 3: Temporal Inconsistency
     make_entity_request("order", data={
         "order_id": order_id,
         "trade_id": trade_id,
@@ -1637,7 +1652,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
         "qty_filled": float(order_resp.get("data", {}).get("cumQtyRq", qty_str)),
         "price_filled": avg_price,
         "status": exec_status,
-        "submitted_at": datetime.datetime.now().isoformat(),
+        "submitted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "leverage": active_leverage,
         "pos_side": pos_side,
         "exchange_response_code": str(code)
@@ -1685,6 +1700,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
                         "pos_side": pos_side,
                     })
             # Entity API Hook: Order (Stop)
+            # REF: Tier 3: Temporal Inconsistency
             make_entity_request("order", data={
                 "order_id": ts_id,
                 "trade_id": trade_id,
@@ -1694,7 +1710,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
                 "qty_requested": 0, # Close all
                 "qty_filled": 0,
                 "status": "Untriggered",
-                "submitted_at": datetime.datetime.now().isoformat(),
+                "submitted_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "leverage": active_leverage,
                 "pos_side": pos_side,
                 "exchange_response_code": "0"
@@ -1715,8 +1731,9 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
 
         if cancel_order_by_client_id(symbol, entry_clord_id): # entry_clord_id is the client order ID for the entry
             tui_log(f"Entry order {order_id} cancelled successfully for {symbol}.", event_type="CRITICAL")
+            # REF: Tier 3: Temporal Inconsistency
             log_trade({
-                "timestamp": datetime.datetime.now().isoformat(),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "symbol": symbol,
                 "direction": direction,
                 "price": price,
@@ -1741,7 +1758,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
         _local_stop_states[symbol] = {
             "stop_price": price - offset,
             "high_water": price,
-            "entry_time": datetime.datetime.now(),
+            "entry_time": datetime.datetime.now(datetime.timezone.utc),
             "entry_score": score,
             "direction": direction,
         }
@@ -1749,15 +1766,16 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
         _local_stop_states[symbol] = {
             "stop_price": price + offset,
             "low_water": price,
-            "entry_time": datetime.datetime.now(),
+            "entry_time": datetime.datetime.now(datetime.timezone.utc),
             "entry_score": score,
             "direction": direction,
         }
 
     print(dir_color + Style.BRIGHT + f" {'─'*70}\n")
 
+    # REF: Tier 3: Temporal Inconsistency
     log_trade({
-        "timestamp": datetime.datetime.now().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "symbol": symbol,
         "direction": direction,
         "price": price,
@@ -1835,12 +1853,13 @@ def _scan_one(module, direction: str, cfg: dict, args, on_result=None) -> List[d
         futures = [exe.submit(module.analyse, t, cfg, not args.no_ai, not args.no_entity, None) for t in filtered]
         for fut in concurrent.futures.as_completed(futures):
             try:
-                r = fut.result()
-                if r:
-                    r["scan_timestamp"] = datetime.datetime.now()
-                    results.append(r)
+                # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
+                scan_res = fut.result()
+                if scan_res:
+                    scan_res["scan_timestamp"] = datetime.datetime.now(datetime.timezone.utc)
+                    results.append(scan_res)
                     if on_result:
-                        threading.Thread(target=on_result, args=(r, direction), daemon=True).start()
+                        threading.Thread(target=on_result, args=(scan_res, direction), daemon=True).start()
             except Exception: pass
             done += 1
 
@@ -1861,29 +1880,30 @@ def pick_candidates(
     direction_filter, in_position,
     available_slots,
 ) -> list:
+    # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
     symbol_scores = {}
-    for r in long_results:
-        symbol_scores.setdefault(r["inst_id"], {"LONG": 0, "SHORT": 0})["LONG"] = r["score"]
-    for r in short_results:
-        symbol_scores.setdefault(r["inst_id"], {"LONG": 0, "SHORT": 0})["SHORT"] = r["score"]
+    for scan_res in long_results:
+        symbol_scores.setdefault(scan_res["inst_id"], {"LONG": 0, "SHORT": 0})["LONG"] = scan_res["score"]
+    for scan_res in short_results:
+        symbol_scores.setdefault(scan_res["inst_id"], {"LONG": 0, "SHORT": 0})["SHORT"] = scan_res["score"]
 
     candidates = []
 
     if direction_filter.upper() in ["LONG", "BOTH"]:
-        for r in long_results:
-            if r["score"] < min_score: continue
-            if r["inst_id"] in in_position: continue
-            scores = symbol_scores.get(r["inst_id"], {"LONG": 0, "SHORT": 0})
+        for scan_res in long_results:
+            if scan_res["score"] < min_score: continue
+            if scan_res["inst_id"] in in_position: continue
+            scores = symbol_scores.get(scan_res["inst_id"], {"LONG": 0, "SHORT": 0})
             if scores["LONG"] - scores["SHORT"] < min_score_gap: continue
-            candidates.append((r, "LONG"))
+            candidates.append((scan_res, "LONG"))
 
     if direction_filter.upper() in ["SHORT", "BOTH"]:
-        for r in short_results:
-            if r["score"] < min_score: continue
-            if r["inst_id"] in in_position: continue
-            scores = symbol_scores.get(r["inst_id"], {"LONG": 0, "SHORT": 0})
+        for scan_res in short_results:
+            if scan_res["score"] < min_score: continue
+            if scan_res["inst_id"] in in_position: continue
+            scores = symbol_scores.get(scan_res["inst_id"], {"LONG": 0, "SHORT": 0})
             if scores["SHORT"] - scores["LONG"] < min_score_gap: continue
-            candidates.append((r, "SHORT"))
+            candidates.append((scan_res, "SHORT"))
 
     # Sort by quality-adjusted score, not raw
     candidates.sort(key=lambda x: _effective_score(x[0]), reverse=True)
@@ -1909,7 +1929,9 @@ def print_positions(positions: List[dict]):
             ls = _local_stop_states[p["symbol"]]
             et = ls.get("entry_time")
             if et:
-                diff = datetime.datetime.now() - et
+                if et.tzinfo is None:
+                    et = et.replace(tzinfo=datetime.timezone.utc)
+                diff = datetime.datetime.now(datetime.timezone.utc) - et
                 tot_sec = int(diff.total_seconds())
                 if tot_sec < 60: dur_str = f"({tot_sec}s)"
                 elif tot_sec < 3600: dur_str = f"({tot_sec//60}m)"
@@ -1926,16 +1948,17 @@ def print_candidates(candidates: List[Tuple[dict, str]]):
     if not candidates:
         print(Fore.YELLOW + " No candidates pass min-score or available slots.")
         return
-    for r, direction in candidates:
+    # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
+    for scan_res, direction in candidates:
         dir_color = Fore.GREEN if direction == "LONG" else Fore.RED
         from phemex_short import grade
-        g, gc = grade(r["score"])
+        g, gc = grade(scan_res["score"])
         print(
-            f"  {dir_color}{'▲' if direction=='LONG' else '▼'} {r['inst_id']:<16}{Style.RESET_ALL}"
-            f" Score: {gc}{r['score']}{Style.RESET_ALL} ({g}) "
-            f" Price: {r['price']:.4g} "
-            f" RSI: {r.get('rsi') or 0:.1f} "
-            f" Funding: {(r.get('funding_pct') or 0):+.4f}%"
+            f"  {dir_color}{'▲' if direction=='LONG' else '▼'} {scan_res['inst_id']:<16}{Style.RESET_ALL}"
+            f" Score: {gc}{scan_res['score']}{Style.RESET_ALL} ({g}) "
+            f" Price: {scan_res['price']:.4g} "
+            f" RSI: {scan_res.get('rsi') or 0:.1f} "
+            f" Funding: {(scan_res.get('funding_pct') or 0):+.4f}%"
         )
 
 
@@ -1989,11 +2012,14 @@ def bot_loop(args):
         if p["symbol"] not in _local_stop_states:
             # Find the most recent 'entered' status for this symbol in history
             h_entry = next((h for h in reversed(history) if h.get("symbol") == p["symbol"] and h.get("status") == "entered"), None)
-            entry_time = datetime.datetime.now()
+            entry_time = datetime.datetime.now(datetime.timezone.utc)
             entry_score = 0
             if h_entry:
                 try:
                     entry_time = datetime.datetime.fromisoformat(h_entry["timestamp"])
+                    # REF: Safety check for naive datetimes from history
+                    if entry_time.tzinfo is None:
+                        entry_time = entry_time.replace(tzinfo=datetime.timezone.utc)
                     entry_score = h_entry.get("score", 0)
                 except Exception as e:
                     logger.warning(f"Failed to parse entry timestamp for {p['symbol']} from history: {e}")
@@ -2048,7 +2074,8 @@ def bot_loop(args):
             continue
 
         scan_number += 1
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # REF: Tier 3: Human-Readable Logs
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # ── Account status ───────────────────────────────────────────
         with _cache_lock:
@@ -2059,7 +2086,8 @@ def bot_loop(args):
             balance = _cached_balance
 
         # ── Fast-track callback ──────────────────────────────────────
-        def on_scan_result(r, direction, args=args):
+        # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
+        def on_scan_result(scan_res, direction, args=args):
             if _account_trading_halted:
                 return
             if _DD_OK:
@@ -2076,48 +2104,51 @@ def bot_loop(args):
 
             # Use global _entropy_penalty from last scan to block cascades
             effective_fast_track = FAST_TRACK_SCORE + hawkes_penalty + _entropy_penalty
-            if r["score"] < effective_fast_track:
+            if scan_res["score"] < effective_fast_track:
                 if hawkes_penalty > 0 or _entropy_penalty > 0:
-                    tui_log(f"FT THROTTLE: {r['inst_id']} score {r['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={_entropy_penalty})", event_type="THROTTLE")
+                    tui_log(f"FT THROTTLE: {scan_res['inst_id']} score {scan_res['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={_entropy_penalty})", event_type="THROTTLE")
                 return
 
             # Signal passed! Now update the tracker to throttle the NEXT one in this cluster.
             intensity = tracker.update(event_occurred=True)
 
             # Staleness check
-            result_time = r.get("scan_timestamp")
-            if result_time and (datetime.datetime.now() - result_time).total_seconds() > RESULT_STALENESS_SECONDS:
-                return
+            result_time = scan_res.get("scan_timestamp")
+            if result_time:
+                if result_time.tzinfo is None:
+                    result_time = result_time.replace(tzinfo=datetime.timezone.utc)
+                if (datetime.datetime.now(datetime.timezone.utc) - result_time).total_seconds() > RESULT_STALENESS_SECONDS:
+                    return
 
             with _fast_track_lock:
                 with _cache_lock:
                     # Account for positions already open PLUS those currently being verified
                     if len(_cached_positions) + len(_fast_track_opened) >= get_dynamic_max_positions(_cached_balance):
                         return
-                    if r["inst_id"] in {p["symbol"] for p in _cached_positions}:
+                    if scan_res["inst_id"] in {p["symbol"] for p in _cached_positions}:
                         return
 
-                if r["inst_id"] in _fast_track_opened: return
+                if scan_res["inst_id"] in _fast_track_opened: return
 
                 # Cooldown check
-                last_ft = FAST_TRACK_COOLDOWN.get(r["inst_id"], 0)
+                last_ft = FAST_TRACK_COOLDOWN.get(scan_res["inst_id"], 0)
                 if time.time() - last_ft < FAST_TRACK_COOLDOWN_SECONDS:
                     return
 
-                _fast_track_opened.add(r["inst_id"])
-                FAST_TRACK_COOLDOWN[r["inst_id"]] = time.time()
+                _fast_track_opened.add(scan_res["inst_id"])
+                FAST_TRACK_COOLDOWN[scan_res["inst_id"]] = time.time()
 
             try:
-                tui_log(f"FAST-TRACK: {r['inst_id']} scored {r['score']} — opening immediately (λ={intensity:.2f})", event_type="FAST")
+                tui_log(f"FAST-TRACK: {scan_res['inst_id']} scored {scan_res['score']} — opening immediately (λ={intensity:.2f})", event_type="FAST")
 
                 # Entity API Hook: Fast Track signal
                 make_entity_request("signalevent", data={
-                    "signal_id": f"sig-{r['inst_id']}-{int(time.time())}",
-                    "timestamp": datetime.datetime.now().isoformat(),
-                    "symbol": r["inst_id"],
+                    "signal_id": f"sig-{scan_res['inst_id']}-{int(time.time())}",
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "symbol": scan_res["inst_id"],
                     "direction": direction,
-                    "raw_score": r["score"],
-                    "effective_score": _effective_score(r),
+                    "raw_score": scan_res["score"],
+                    "effective_score": _effective_score(scan_res),
                     "passed_quality_gate": True,
                     "executed": True,
                     "skip_reason": "FAST_TRACK",
@@ -2127,17 +2158,17 @@ def bot_loop(args):
 
                 # ── Wait & Verify ────────────────────────────────────
                 # Release lock during verify_candidate (15s sleep) and setup
-                verified_result = verify_candidate(r["inst_id"], direction, r["score"])
+                verified_result = verify_candidate(scan_res["inst_id"], direction, scan_res["score"])
 
                 if verified_result:
                     ok = execute_setup(verified_result, direction, dry_run=args.dry_run)
                     if ok:
-                        _subscribe_symbol(r["inst_id"])
+                        _subscribe_symbol(scan_res["inst_id"])
                         time.sleep(2)
             finally:
                 with _fast_track_lock:
-                    if r["inst_id"] in _fast_track_opened:
-                        _fast_track_opened.remove(r["inst_id"])
+                    if scan_res["inst_id"] in _fast_track_opened:
+                        _fast_track_opened.remove(scan_res["inst_id"])
 
         # ── Scan ─────────────────────────────────────────────────────
         if _cached_balance < LOW_LIQ_MARGIN: # allow entry even in low-liq mode ($5 min)
@@ -2150,7 +2181,8 @@ def bot_loop(args):
             continue
 
         _display_paused.set() # pause dashboard during scan output to avoid mess
-        long_r, short_r = run_scanner_both(cfg, args, on_result=on_scan_result)
+        # REF: Tier 3: Non-Descriptive Variable Naming (long_r, short_r -> long_results, short_results)
+        long_results, short_results = run_scanner_both(cfg, args, on_result=on_scan_result)
         _display_paused.clear()
 
         # ── Cross-Asset Entropy Deflator (Idea 2) ─────────────────────
@@ -2158,7 +2190,7 @@ def bot_loop(args):
         all_tickers = pc.get_tickers(rps=args.rate)
         total_universe = len([t for t in all_tickers if float(t.get("turnoverRv", 0)) >= args.min_vol])
 
-        n_hits = len(long_r) + len(short_r)
+        n_hits = len(long_results) + len(short_results)
         imbalance = 0.0
         if total_universe > 0 and n_hits > 0:
             # Saturation: percentage of universe firing
@@ -2167,7 +2199,7 @@ def bot_loop(args):
             sat_penalty = min(ENTROPY_SAT_CAP, int(sat_ratio * ENTROPY_SAT_WEIGHT)) 
 
             # One-sidedness: how imbalanced are the signals?
-            imbalance = abs(len(long_r) - len(short_r)) / n_hits
+            imbalance = abs(len(long_results) - len(short_results)) / n_hits
             side_penalty = int(ENTROPY_IMB_WEIGHT * imbalance)
 
             _entropy_penalty = min(ENTROPY_MAX_PENALTY, sat_penalty + side_penalty)
@@ -2180,7 +2212,8 @@ def bot_loop(args):
         # ── Dynamic threshold calculation ─────────────────────────────
         eff_min_score = args.min_score + _entropy_penalty
         if not args.no_dynamic:
-            all_scores = [r["score"] for r in (long_r + short_r)]
+            # REF: Tier 3: Non-Descriptive Variable Naming (r -> res)
+            all_scores = [res["score"] for res in (long_results + short_results)]
             dynamic_min = pc.calc_dynamic_threshold(all_scores, args.min_score)
             eff_min_score = max(eff_min_score, dynamic_min)
 
@@ -2188,8 +2221,15 @@ def bot_loop(args):
             print(Fore.YELLOW + f" [ADAPTIVE FILTER] Effective Min Score: {eff_min_score} (Penalty: +{_entropy_penalty})")
 
         # ── Staleness filter ──────────────────────────────────────────
-        fresh_long  = [r for r in long_r  if (datetime.datetime.now() - r.get("scan_timestamp", datetime.datetime.now())).total_seconds() < RESULT_STALENESS_SECONDS]
-        fresh_short = [r for r in short_r if (datetime.datetime.now() - r.get("scan_timestamp", datetime.datetime.now())).total_seconds() < RESULT_STALENESS_SECONDS]
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        def is_result_fresh(res, now):
+            ts = res.get("scan_timestamp")
+            if not ts: return True
+            if ts.tzinfo is None: ts = ts.replace(tzinfo=datetime.timezone.utc)
+            return (now - ts).total_seconds() < RESULT_STALENESS_SECONDS
+
+        fresh_long  = [res for res in long_results  if is_result_fresh(res, now_utc)]
+        fresh_short = [res for res in short_results if is_result_fresh(res, now_utc)]
 
         # ── Pick candidates ──────────────────────────────────────
         with _cache_lock:
@@ -2213,9 +2253,10 @@ def bot_loop(args):
                     # Recheck available slots before executing each candidate,
                     # as a fast-track or manual action might have filled a slot
                     if len(_cached_positions) >= get_dynamic_max_positions(_cached_balance):
+                        # REF: Tier 3: Temporal Inconsistency
                         make_entity_request("signalevent", data={
                             "signal_id": f"sig-{result['inst_id']}-{int(time.time())}",
-                            "timestamp": datetime.datetime.now().isoformat(),
+                            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                             "symbol": result["inst_id"],
                             "direction": direction,
                             "raw_score": result["score"],
@@ -2228,9 +2269,10 @@ def bot_loop(args):
                         continue # Skip this candidate
 
                 # Entity API Hook: Execute Candidate
+                # REF: Tier 3: Temporal Inconsistency
                 make_entity_request("signalevent", data={
                     "signal_id": f"sig-{result['inst_id']}-{int(time.time())}",
-                    "timestamp": datetime.datetime.now().isoformat(),
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                     "symbol": result["inst_id"],
                     "direction": direction,
                     "raw_score": result["score"],
@@ -2296,7 +2338,8 @@ def one_shot(args):
     # ── Dynamic threshold ─────────────────────────────────────────────
     eff_min_score = args.min_score
     if not args.no_dynamic:
-        all_scores = [r["score"] for r in (long_r + short_r)]
+        # REF: Tier 3: Non-Descriptive Variable Naming (r -> res)
+        all_scores = [res["score"] for res in (long_r + short_r)]
         eff_min_score = pc.calc_dynamic_threshold(all_scores, args.min_score)
         if eff_min_score > args.min_score:
             print(Fore.YELLOW + f" [ADAPTIVE FILTER] Dynamic Min Score: {eff_min_score}")
@@ -2331,13 +2374,14 @@ def one_shot(args):
             print(Fore.YELLOW + " Skipped.")
     elif candidates and args.dry_run:
         print()
-        for r, d in candidates:
+        # REF: Tier 3: Non-Descriptive Variable Naming (r, d -> scan_res, direction)
+        for scan_res, direction in candidates:
             # ── Wait & Verify (DRY RUN) ──────────────────────────
-            verified_result = verify_candidate(r["inst_id"], d, r["score"])
+            verified_result = verify_candidate(scan_res["inst_id"], direction, scan_res["score"])
             if verified_result:
-                execute_setup(verified_result, d, dry_run=True)
+                execute_setup(verified_result, direction, dry_run=True)
             else:
-                print(Fore.RED + f" [FAIL] {r['inst_id']} failed verification.")
+                print(Fore.RED + f" [FAIL] {scan_res['inst_id']} failed verification.")
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -2416,7 +2460,8 @@ def deploy_once(args):
     # ── Dynamic threshold ─────────────────────────────────────────────
     eff_min_score = args.min_score
     if not args.no_dynamic:
-        all_scores = [r["score"] for r in (long_r + short_r)]
+        # REF: Tier 3: Non-Descriptive Variable Naming (r -> res)
+        all_scores = [res["score"] for res in (long_r + short_r)]
         eff_min_score = pc.calc_dynamic_threshold(all_scores, args.min_score)
         if eff_min_score > args.min_score:
             print(Fore.YELLOW + f" [ADAPTIVE FILTER] Dynamic Min Score: {eff_min_score}")
@@ -2494,13 +2539,14 @@ def verify_trailing_stops():
     print(f"Using API Key: {local_key[:8]}...")
     print(f"Base URL: {local_url}")
 
-    r = _get('/g-orders/activeList', {'currency': 'USDT', 'ordStatus': 'Untriggered'})
-    if r and r.get('code') == 0:
+    # REF: Tier 3: Non-Descriptive Variable Naming (r -> resp)
+    resp = _get('/g-orders/activeList', {'currency': 'USDT', 'ordStatus': 'Untriggered'})
+    if resp and resp.get('code') == 0:
         print("Verification successful. Active Untriggered Orders:")
-        print(json.dumps(r.get('data', {}), indent=2))
+        print(json.dumps(resp.get('data', {}), indent=2))
 
         trailing_stops = [
-            order for order in r.get('data', {}).get('rows', [])
+            order for order in resp.get('data', {}).get('rows', [])
             if order.get('ordType') == 'Stop' and order.get('pegPriceType') == 'TrailingStopPeg'
         ]
 
@@ -2511,8 +2557,8 @@ def verify_trailing_stops():
             print("\n--- No TrailingStopPeg Orders Found ---")
     else:
         print("Verification failed or no active untriggered orders found.")
-        if r:
-            print(f"API Response Code: {r.get('code')}, Message: {r.get('msg')}")
+        if resp:
+            print(f"API Response Code: {resp.get('code')}, Message: {resp.get('msg')}")
         else:
             print("No response from API.")
     print("------------------------------------")
@@ -2594,15 +2640,22 @@ def main():
 
     # Update global blacklist duration based on timeframe and cooldown if in run/deploy/once
     if args.command in ["run", "deploy", "once"]:
+        # REF: Tier 1: Critical Import Failure Escalation
+        if not _SCANNERS_OK:
+            print(Fore.RED + f"[ERROR] Could not import scanner modules: {_SCANNER_ERR}")
+            print("Scanner modules (phemex_long.py/phemex_short.py) are required for this command.")
+            sys.exit(1)
+
         global BLACKLIST_DURATION_SECONDS
         tf_sec = get_tf_seconds(args.timeframe)
         BLACKLIST_DURATION_SECONDS = args.cooldown * tf_sec
         logger.info(f"Cooldown set to {BLACKLIST_DURATION_SECONDS}s ({args.cooldown} candles)")
 
     # Entity API: Start Session
+    # REF: Tier 3: Temporal Inconsistency
     make_entity_request("botsession", data={
         "session_id": SESSION_ID,
-        "started_at": datetime.datetime.now().isoformat(),
+        "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "config": {
             "margin": MARGIN_USDT,
             "leverage": LEVERAGE,
@@ -2635,14 +2688,14 @@ def main():
         try:
             deploy_once(args)
             make_entity_request("botsession", method="PUT", entity_id=SESSION_ID, data={
-                "ended_at": datetime.datetime.now().isoformat(),
+                "ended_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "ended_reason": "DEPLOY_FINISHED",
                 "status": "FINISHED"
             })
         except KeyboardInterrupt:
             print(Fore.YELLOW + "\n Deployment stopped by user.")
             make_entity_request("botsession", method="PUT", entity_id=SESSION_ID, data={
-                "ended_at": datetime.datetime.now().isoformat(),
+                "ended_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "ended_reason": "USER_INTERRUPT",
                 "status": "INTERRUPTED"
             })
@@ -2672,7 +2725,7 @@ def main():
                 except Exception:
                     pass
             make_entity_request("botsession", method="PUT", entity_id=SESSION_ID, data={
-                "ended_at": datetime.datetime.now().isoformat(),
+                "ended_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "ended_reason": "USER_INTERRUPT",
                 "status": "INTERRUPTED"
             })
