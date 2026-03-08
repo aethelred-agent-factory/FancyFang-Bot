@@ -55,7 +55,8 @@ class DrawdownGuard:
         self._state = DrawdownState()
 
     def _today(self) -> str:
-        return datetime.datetime.utcnow().strftime("%Y-%m-%d")
+        # REF: Tier 3: Temporal Inconsistency
+        return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
     def _maybe_reset(self, current_balance: float) -> None:
         """Reset state if we've crossed into a new UTC day."""

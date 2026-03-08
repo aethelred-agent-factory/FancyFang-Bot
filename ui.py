@@ -32,10 +32,21 @@ except ImportError:
 W = 96  # standard terminal width
 
 # ── Horizontal rules ──────────────────────────────────────────────────────────
-def hr_double(color=Fore.CYAN): return color + "═" * W + Style.RESET_ALL
-def hr_thin(color=Fore.CYAN):   return color + "─" * W + Style.RESET_ALL
-def hr_dash(color=""):          return color + "┄" * W + Style.RESET_ALL
-def hr_heavy():                 return Fore.WHITE + Style.BRIGHT + "━" * W + Style.RESET_ALL
+def hr_double(color=Fore.CYAN):
+    """Return a double-line horizontal rule string."""
+    return color + "═" * W + Style.RESET_ALL
+
+def hr_thin(color=Fore.CYAN):
+    """Return a thin horizontal rule string."""
+    return color + "─" * W + Style.RESET_ALL
+
+def hr_dash(color=""):
+    """Return a dashed horizontal rule string."""
+    return color + "┄" * W + Style.RESET_ALL
+
+def hr_heavy():
+    """Return a heavy horizontal rule string."""
+    return Fore.WHITE + Style.BRIGHT + "━" * W + Style.RESET_ALL
 
 # ── Score gauge ───────────────────────────────────────────────────────────────
 def score_gauge(score: int, width: int = 24) -> str:
@@ -53,6 +64,7 @@ def score_gauge(score: int, width: int = 24) -> str:
 # ── Mini sparkline (equity curve etc.) ───────────────────────────────────────
 _SPARK = "▁▂▃▄▅▆▇█"
 def sparkline(values, width: int = 16) -> str:
+    """Return a unicode sparkline string from a list of values."""
     if not values: return "─" * width
     lo, hi = min(values), max(values)
     span   = hi - lo or 1
@@ -76,40 +88,56 @@ def grade_badge(score: int) -> str:
 
 # ── Section header ────────────────────────────────────────────────────────────
 def section(title: str, color=Fore.CYAN, char="═") -> str:
+    """Return a centered section header with horizontal padding."""
     pad   = f"  {title}  "
     side  = (W - len(pad)) // 2
     line  = char * side + pad + char * (W - side - len(pad))
     return color + Style.BRIGHT + line + Style.RESET_ALL
 
 def section_left(title: str, color=Fore.CYAN) -> str:
+    """Return a left-aligned section header string."""
     line = f"  {title}  " + "─" * max(0, W - len(title) - 4)
     return color + Style.BRIGHT + line + Style.RESET_ALL
 
 # ── Coloured stat value ───────────────────────────────────────────────────────
 def pnl_color(val: float) -> str:
+    """Return Fore.LIGHTGREEN_EX for positive, Fore.RED for negative."""
     return Fore.LIGHTGREEN_EX if val > 0 else (Fore.RED if val < 0 else Fore.WHITE)
 
 def colored(val, fmt="+.4f", pos_color=Fore.LIGHTGREEN_EX, neg_color=Fore.RED) -> str:
+    """Return a formatted and coloured value string."""
     c = pos_color if float(val) >= 0 else neg_color
     return f"{c}{val:{fmt}}{Style.RESET_ALL}"
 
 # ── Direction label ───────────────────────────────────────────────────────────
 def dir_label(direction: str) -> str:
+    """Return a coloured ▲ LONG or ▼ SHORT label."""
     if direction == "LONG":
         return f"{Fore.LIGHTGREEN_EX}▲ LONG{Style.RESET_ALL}"
     return f"{Fore.RED}▼ SHORT{Style.RESET_ALL}"
 
 # ── Win-rate bar ──────────────────────────────────────────────────────────────
 def wr_bar(pct: float, width: int = 20) -> str:
+    """Return a horizontal bar gauge string for win rate."""
     filled = int(pct / 100 * width)
     color  = Fore.LIGHTGREEN_EX if pct >= 55 else (Fore.YELLOW if pct >= 45 else Fore.RED)
     return f"{color}{'█' * filled}{'░' * (width - filled)}{Style.RESET_ALL}"
 
 # ── Box drawing helpers ───────────────────────────────────────────────────────
-def box_top(w=W):    return Fore.CYAN + "┌" + "─" * (w - 2) + "┐" + Style.RESET_ALL
-def box_mid(w=W):    return Fore.CYAN + "├" + "─" * (w - 2) + "┤" + Style.RESET_ALL
-def box_bot(w=W):    return Fore.CYAN + "└" + "─" * (w - 2) + "┘" + Style.RESET_ALL
+def box_top(w=W):
+    """Return a top box-border string."""
+    return Fore.CYAN + "┌" + "─" * (w - 2) + "┐" + Style.RESET_ALL
+
+def box_mid(w=W):
+    """Return a middle box-border string."""
+    return Fore.CYAN + "├" + "─" * (w - 2) + "┤" + Style.RESET_ALL
+
+def box_bot(w=W):
+    """Return a bottom box-border string."""
+    return Fore.CYAN + "└" + "─" * (w - 2) + "┘" + Style.RESET_ALL
+
 def box_row(text, w=W):
+    """Return a single row of a box containing text."""
     inner = w - 4
     return Fore.CYAN + "│ " + Style.RESET_ALL + f"{text:<{inner}}" + Fore.CYAN + " │" + Style.RESET_ALL
 

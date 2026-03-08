@@ -150,6 +150,7 @@ COOLDOWN_SECONDS = 4 * 4 * 3600
 # Exit signal configuration
 EXIT_SIGNAL_SCORE_THRESHOLD = 100
 EXIT_SIGNAL_SCAN_INTERVAL    = 60   # seconds between opposite signal checks
+LAST_EXIT_SCAN_TIME: Dict[str, float] = {}
 # ── System Thresholds & Parameters ──────────────────────────────────────────
 # Moved from hardcoded logic for better tuning and observability.
 
@@ -463,17 +464,18 @@ def save_paper_account(data: dict) -> None:
 
 def _close_all_positions() -> None:
     """Manually closes every active paper position at the current market price."""
-    acc = load_paper_account()
-    if not acc["positions"]:
+    # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
+    account = load_paper_account()
+    if not account["positions"]:
         print(Fore.YELLOW + "  No positions to close.")
         return
 
-    print(Fore.CYAN + f"  Closing {len(acc['positions'])} positions...")
+    print(Fore.CYAN + f"  Closing {len(account['positions'])} positions...")
 
     # --- Kill Cinematic ---
     play_animation(animations.kill)
 
-    for pos in acc["positions"]:
+    for pos in account["positions"]:
         symbol = pos["symbol"]
         side   = pos["side"]
         entry  = pos["entry"]
@@ -489,11 +491,13 @@ def _close_all_positions() -> None:
                 now = entry
 
         pnl = (now - entry) * size if side == "Buy" else (entry - now) * size
-        acc["balance"] += (pos.get("margin", 0.0) + pnl)
+        account["balance"] += (pos.get("margin", 0.0) + pnl)
 
         with state.lock:
             state.last_exit_times[symbol] = time.time()
 
+        # Standardize on timezone-aware UTC for JSON storage while keeping logs human-readable
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
         pnl_emoji = "✅" if pnl > 0 else "❌"
         send_telegram_message(
             f"⏹ *SIM TRADES MANUALLY CLOSED (V2)*\n\n"
@@ -501,7 +505,7 @@ def _close_all_positions() -> None:
             f"*Side:* {side}\n"
             f"*Exit Price:* {now}\n"
             f"*PnL:* {pnl_emoji} {pnl:+.4f} USDT\n"
-            f"*Time:* {datetime.datetime.now().strftime('%H:%M:%S')}"
+            f"*Time:* {now_utc.strftime('%H:%M:%S')}"
         )
 
         _log_closed_trade(
@@ -582,8 +586,9 @@ def _ws_on_message(ws: websocket.WebSocketApp, message: str) -> None:
 def _ws_on_open(ws: websocket.WebSocketApp) -> None:
     """Subscribes to all currently open positions on WebSocket connect."""
     logger.info("WebSocket connection opened.")
-    acc     = load_paper_account()
-    symbols = [p["symbol"] for p in acc.get("positions", [])]
+    # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
+    account = load_paper_account()
+    symbols = [p["symbol"] for p in account.get("positions", [])]
     if symbols:
         ws.send(json.dumps({"id": 1, "method": "market24h_p.subscribe", "params": symbols}))
 
@@ -752,9 +757,13 @@ def _check_stops_live(symbol: str) -> None:
 
         # Duration
         hold_time = 0
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
         if exit_to_process["entry_time"]:
             try:
-                hold_time = (datetime.datetime.now() - datetime.datetime.fromisoformat(exit_to_process["entry_time"])).total_seconds()
+                entry_time_dt = datetime.datetime.fromisoformat(exit_to_process["entry_time"])
+                if entry_time_dt.tzinfo is None:
+                    entry_time_dt = entry_time_dt.replace(tzinfo=datetime.timezone.utc)
+                hold_time = (now_utc - entry_time_dt).total_seconds()
             except Exception as e:
                 logger.warning(f"Failed to parse entry time for {symbol}: {e}")
         h_min, h_sec = divmod(int(hold_time), 60)
@@ -768,7 +777,7 @@ def _check_stops_live(symbol: str) -> None:
             f"*Exit Price:* {exit_to_process['exit_price']}\n"
             f"*PnL:* {pnl_emoji} {exit_to_process['pnl']:+.4f} USDT\n"
             f"*Duration:* {dur_str}\n"
-            f"*Time:* {datetime.datetime.now().strftime('%H:%M:%S')}"
+            f"*Time:* {now_utc.strftime('%H:%M:%S')}"
         )
         _log_closed_trade(
             symbol, exit_to_process["side"], exit_to_process["entry"],
@@ -797,10 +806,16 @@ def _log_closed_trade(
     hold_time = 0
     if entry_time:
         try:
-            hold_time = (datetime.datetime.now() - datetime.datetime.fromisoformat(entry_time)).total_seconds()
+                # REF: Tier 3: Temporal Inconsistency
+                entry_time_dt = datetime.datetime.fromisoformat(entry_time)
+                if entry_time_dt.tzinfo is None:
+                    entry_time_dt = entry_time_dt.replace(tzinfo=datetime.timezone.utc)
+                hold_time = (datetime.datetime.now(datetime.timezone.utc) - entry_time_dt).total_seconds()
         except ValueError:
             logger.error("Invalid entry_time format — using zero hold time.")
 
+    # Standardize on timezone-aware UTC for JSON storage
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
     record = {
         "symbol":      symbol,
         "direction":   "LONG" if direction == "Buy" else "SHORT",
@@ -810,7 +825,7 @@ def _log_closed_trade(
         "hold_time_s": int(hold_time),
         "score":       entry_score,
         "reason":      reason,
-        "timestamp":   datetime.datetime.now().isoformat(),
+        "timestamp":   now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
         "signals":     signals or [],
         "slippage":    round(slippage, 8),
     }
@@ -1016,7 +1031,9 @@ def _draw_positions_section(
             if entry_time_str:
                 try:
                     entry_dt = datetime.datetime.fromisoformat(entry_time_str)
-                    diff = datetime.datetime.now() - entry_dt
+                    if entry_dt.tzinfo is None:
+                        entry_dt = entry_dt.replace(tzinfo=datetime.timezone.utc)
+                    diff = datetime.datetime.now(datetime.timezone.utc) - entry_dt
                     tot_sec = int(diff.total_seconds())
                     if tot_sec < 60: dur_str = f"{tot_sec}s"
                     elif tot_sec < 3600: dur_str = f"{tot_sec//60}m"
@@ -1277,7 +1294,9 @@ def _draw_consolidated_positions(
         if entry_time_str:
             try:
                 entry_dt = datetime.datetime.fromisoformat(entry_time_str)
-                diff = datetime.datetime.now() - entry_dt
+                if entry_dt.tzinfo is None:
+                    entry_dt = entry_dt.replace(tzinfo=datetime.timezone.utc)
+                diff = datetime.datetime.now(datetime.timezone.utc) - entry_dt
                 tot_sec = int(diff.total_seconds())
                 if tot_sec < 60: dur_str = f"{tot_sec}s"
                 elif tot_sec < 3600: dur_str = f"{tot_sec//60}m"
@@ -1715,7 +1734,11 @@ def update_pnl_and_stops() -> None:
         hold_time = 0
         if ex.get("entry_time"):
             try:
-                hold_time = (datetime.datetime.now() - datetime.datetime.fromisoformat(ex["entry_time"])).total_seconds()
+                # REF: Tier 3: Temporal Inconsistency
+                entry_time_dt = datetime.datetime.fromisoformat(ex["entry_time"])
+                if entry_time_dt.tzinfo is None:
+                    entry_time_dt = entry_time_dt.replace(tzinfo=datetime.timezone.utc)
+                hold_time = (datetime.datetime.now(datetime.timezone.utc) - entry_time_dt).total_seconds()
             except Exception:
                 pass
         h_min, h_sec = divmod(int(hold_time), 60)
@@ -1728,7 +1751,7 @@ def update_pnl_and_stops() -> None:
             f"*Exit Price:* {ex['exit_price']}\n"
             f"*PnL:* {pnl_emoji} {ex['pnl']:+.4f} USDT\n"
             f"*Duration:* {dur_str}\n"
-            f"*Time:* {datetime.datetime.now().strftime('%H:%M:%S')}"
+            f"*Time:* {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}"
         )
         _log_closed_trade(
             symbol, ex['side'], ex['entry'], ex['exit_price'], ex['size'],
@@ -2062,8 +2085,8 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             "trail_dist":    trail_dist,      # ATR-based trail distance stored for updates
             "high_water":    high_water,
             "low_water":     low_water,
-            "timestamp":     datetime.datetime.now().isoformat(),
-            "entry_time":    datetime.datetime.now().isoformat(),
+            "timestamp":     datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "entry_time":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "entry_score":   score,
             "signals":       signals,
         }
@@ -2087,7 +2110,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
         f"*Direction:* {direction}\n"
         f"*Price:* {price}\n"
         f"*Score:* {score}\n"
-        f"*Time:* {datetime.datetime.now().strftime('%H:%M:%S')}"
+        f"*Time:* {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}"
     )
 
     p_bot.log_trade({
@@ -2138,8 +2161,9 @@ def _get_cluster_threshold_penalty(intensity: float) -> int:
     if intensity > HAWKES_INTENSITY_MID:      return 15
     return 0
 
-def on_scan_result(r: dict, direction: str) -> None:
-    result_time_raw = r.get("scan_timestamp")
+# REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
+def on_scan_result(scan_res: dict, direction: str) -> None:
+    result_time_raw = scan_res.get("scan_timestamp")
     if result_time_raw:
         try:
             # Parse ISO string back to datetime for comparison
@@ -2148,7 +2172,10 @@ def on_scan_result(r: dict, direction: str) -> None:
             else:
                 result_time = result_time_raw
 
-            if (datetime.datetime.now() - result_time).total_seconds() > RESULT_STALENESS_SECONDS:
+            if result_time.tzinfo is None:
+                result_time = result_time.replace(tzinfo=datetime.timezone.utc)
+
+            if (datetime.datetime.now(datetime.timezone.utc) - result_time).total_seconds() > RESULT_STALENESS_SECONDS:
                 return
         except (ValueError, TypeError):
             pass
@@ -2163,9 +2190,9 @@ def on_scan_result(r: dict, direction: str) -> None:
         current_penalty = state.entropy_penalty
     
     effective_fast_track = FAST_TRACK_SCORE + hawkes_penalty + current_penalty
-    if r["score"] < effective_fast_track:
+    if scan_res["score"] < effective_fast_track:
         if hawkes_penalty > 0 or current_penalty > 0:
-            tui_log(f"FT THROTTLE: {r['inst_id']} score {r['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={current_penalty})")
+            tui_log(f"FT THROTTLE: {scan_res['inst_id']} score {scan_res['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={current_penalty})")
         return
 
     # Signal passed! Now update the tracker to throttle the NEXT one in this cluster.
@@ -2186,28 +2213,29 @@ def on_scan_result(r: dict, direction: str) -> None:
             return
 
         current_syms = {p["symbol"] for p in current_positions}
-        if r["inst_id"] in current_syms or r["inst_id"] in state.fast_track_opened:
+        if scan_res["inst_id"] in current_syms or scan_res["inst_id"] in state.fast_track_opened:
             return
 
-        if r["score"] < FAST_TRACK_SCORE: # redundant but safe
+        if scan_res["score"] < FAST_TRACK_SCORE: # redundant but safe
             return
 
-        last_ft = state.fast_track_cooldowns.get(r["inst_id"], 0)
+        last_ft = state.fast_track_cooldowns.get(scan_res["inst_id"], 0)
         if time.time() - last_ft < FAST_TRACK_COOLDOWN_SECONDS:
             return
 
-        state.fast_track_opened.add(r["inst_id"])
-        state.fast_track_cooldowns[r["inst_id"]] = time.time()
+        state.fast_track_opened.add(scan_res["inst_id"])
+        state.fast_track_cooldowns[scan_res["inst_id"]] = time.time()
 
-    tui_log(f"⚡ FAST-TRACK: {r['inst_id']} score {r['score']}! (λ={intensity:.2f})")
+    tui_log(f"⚡ FAST-TRACK: {scan_res['inst_id']} score {scan_res['score']}! (λ={intensity:.2f})")
 
     # ── Wait & Verify ────────────────────────────────────
-    verified_result = verify_sim_candidate(r["inst_id"], direction, r["score"])
+    verified_result = verify_sim_candidate(scan_res["inst_id"], direction, scan_res["score"])
 
     if verified_result:
         execute_sim_setup(verified_result, direction)
 
     with state.lock:
+        symbol = scan_res["inst_id"]
         if symbol in state.fast_track_opened:
             state.fast_track_opened.remove(symbol)
 
@@ -2251,8 +2279,9 @@ def sim_bot_loop(args) -> None:
 
         positions      = get_sim_positions()
         # Recompute dynamic max positions and available slots
-        acc            = load_paper_account()
-        acc_balance    = acc.get("balance", 0.0)
+        # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
+        account        = load_paper_account()
+        acc_balance    = account.get("balance", 0.0)
 
         # No slot cap — scan every cycle, gate on margin at execution time
         tui_log(f"Scanning LIVE market ({args.timeframe})...")
@@ -2297,7 +2326,7 @@ def sim_bot_loop(args) -> None:
         if eff_min_score > args.min_score:
             tui_log(f"ADAPTIVE FILTER: Effective min_score = {eff_min_score} (Penalty: +{new_entropy_penalty})")
 
-        now_dt = datetime.datetime.now()
+        now_dt = datetime.datetime.now(datetime.timezone.utc)
 
         fresh_long  = [r for r in long_r  if is_fresh(r, now_dt)]
         fresh_short = [r for r in short_r if is_fresh(r, now_dt)]

@@ -108,10 +108,12 @@ def log_system_event(event_type: str, message: str, level: int = logging.INFO):
     This ensures a permanent record of all significant system actions.
     Uses a background worker to avoid blocking the hot path on disk I/O.
     """
+    # REF: Tier 3: Human-Readable Logs
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_msg = f"[{timestamp}] [{event_type.upper()}] {message}"
 
     # 1. Queue the audit file message
+    # REF: Tier 3: Human-Readable Logs
     _audit_queue.put(formatted_msg)
 
     # 2. Also log via the standard logging system so it appears in TUI
@@ -335,20 +337,24 @@ def safe_request(method: str, url: str, params: dict = None, json_data: dict = N
         resp = sess.request(method, url, params=params, json=json_data,
                             headers=headers, timeout=timeout, stream=stream)
 
+        # REF: Tier 2: Brittle Rate Limit Recovery
         if resp.status_code == 429:
-            retry_after = resp.headers.get("Retry-After") or resp.headers.get("x-ratelimit-retry-after-Contract")
-            wait = float(retry_after) if retry_after else 5.0
+            max_retries = 5
+            for attempt in range(max_retries):
+                retry_after = resp.headers.get("Retry-After") or resp.headers.get("x-ratelimit-retry-after-Contract")
+                wait = float(retry_after) if retry_after else (0.5 * (2 ** attempt))
 
-            # Set global backoff immediately
-            with _rate_lock:
-                _global_backoff_until = time.time() + wait
+                # Set global backoff immediately
+                with _rate_lock:
+                    _global_backoff_until = time.time() + wait
 
-            logger.warning(f"Rate Limit (429) on {url}. Global backoff for {wait}s")
+                logger.warning(f"Rate Limit (429) on {url} (attempt {attempt+1}/{max_retries}). Global backoff for {wait}s")
 
-            time.sleep(wait)
-            # Retry once
-            resp = sess.request(method, url, params=params, json=json_data,
-                                headers=headers, timeout=timeout, stream=stream)
+                time.sleep(wait)
+                resp = sess.request(method, url, params=params, json=json_data,
+                                    headers=headers, timeout=timeout, stream=stream)
+                if resp.status_code != 429:
+                    break
 
             if resp.status_code == 429:
                 return None
@@ -1353,8 +1359,9 @@ def prefetch_all_funding_rates(rps: float = None):
             if not sym: continue
             fr_raw = item.get("fundingRate") or item.get("fundingRateRr")
             if fr_raw is not None:
-                fr = float(fr_raw)
-                CACHE.set(f"funding:{sym}", (fr, fr, 0.0))
+                # REF: Tier 3: Non-Descriptive Variable Naming (fr -> funding_rate)
+                funding_rate = float(fr_raw)
+                CACHE.set(f"funding:{sym}", (funding_rate, funding_rate, 0.0))
                 populated += 1
 
         logger.info("Funding prefetch: %d symbols cached", populated)
@@ -1523,11 +1530,12 @@ def unified_analyse(
             return None
 
         # 1. Funding check (direction-specific thresholds handled in score_func or caller)
-        fr, prev_fr, fr_change = get_funding_rate_info(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
-        if fr is None:
+        # REF: Tier 3: Non-Descriptive Variable Naming (fr -> funding_rate)
+        funding_rate, prev_funding_rate, funding_rate_change = get_funding_rate_info(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        if funding_rate is None:
             fr_raw = ticker.get("fundingRateRr")
-            fr = float(fr_raw) if fr_raw is not None else 0.0
-            fr_change = 0.0
+            funding_rate = float(fr_raw) if fr_raw is not None else 0.0
+            funding_rate_change = 0.0
 
         # 2. Fetch klines
         candles = get_candles(symbol, timeframe=cfg["TIMEFRAME"], limit=cfg.get("CANDLES", 100), rps=cfg.get("RATE_LIMIT_RPS"))
@@ -1568,10 +1576,10 @@ def unified_analyse(
         # per-scanner analyse() implementations while still using unified logic.
         pre_data = TickerData(
             inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
-            change_24h=pct_change(last, open24), funding_rate=fr, patterns=[],
+            change_24h=pct_change(last, open24), funding_rate=funding_rate, patterns=[],
             dist_low_pct=pct_change(last, low24), dist_high_pct=pct_change(last, high24),
             vol_spike=vol_spike, has_div=False, rsi_1h=None, rsi_4h=None,
-            fr_change=fr_change or 0.0, spread=None,
+            fr_change=funding_rate_change or 0.0, spread=None,
             dist_to_node_below=None, dist_to_node_above=None,
             ema_slope=ema_slope, slope_change=slope_change,
             raw_ohlc=ohlc[-10:], vol_24h=vol24,
@@ -1618,10 +1626,10 @@ def unified_analyse(
         # 8. Data Aggregation — full TickerData with all upgrade fields populated
         data = TickerData(
             inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
-            change_24h=pct_change(last, open24), funding_rate=fr, patterns=raw_patterns,
+            change_24h=pct_change(last, open24), funding_rate=funding_rate, patterns=raw_patterns,
             dist_low_pct=pct_change(last, low24), dist_high_pct=pct_change(last, high24),
             vol_spike=vol_spike, has_div=has_div, rsi_1h=rsi_1h, rsi_4h=rsi_4h,
-            fr_change=fr_change or 0.0, spread=spread,
+            fr_change=funding_rate_change or 0.0, spread=spread,
             dist_to_node_below=dist_to_node_below, dist_to_node_above=dist_to_node_above,
             ema_slope=ema_slope, slope_change=slope_change,
             raw_ohlc=ohlc[-10:], vol_24h=vol24,
@@ -1640,10 +1648,12 @@ def unified_analyse(
         confidence, conf_color, conf_notes = calc_confidence_func(data, score, bb_pct)
         stop_pct = (0.5 * atr / last * 100.0) if (atr and last > 0) else None
 
+        # REF: Tier 3: Temporal Inconsistency
+        now_utc_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         result = {
             "inst_id": symbol, "price": last, "change_24h": data.change_24h,
             "vol_24h": vol24, "rsi": rsi, "prev_rsi": prev_rsi, "bb_pct": bb_pct,
-            "ema21": ema21, "funding_pct": fr * 100.0 if fr is not None else None,
+            "ema21": ema21, "funding_pct": funding_rate * 100.0 if funding_rate is not None else None,
             "score": score, "signals": signals, "patterns": raw_patterns,  # [T1-FIX] was `patterns` (NameError)
             "confidence": confidence, "conf_color": conf_color, "conf_notes": conf_notes,
             "dist_low": data.dist_low_pct, "dist_high": data.dist_high_pct,
@@ -1651,7 +1661,7 @@ def unified_analyse(
             "atr_stop_pct": stop_pct, "raw_ohlc": ohlc[-10:], "spread": spread,
             "dist_to_node_below": dist_to_node_below, "dist_to_node_above": dist_to_node_above,
             "ema_slope": ema_slope, "slope_change": slope_change, "fr_change": fr_change,
-            "rsi_1h": rsi_1h, "rsi_4h": rsi_4h, "scan_timestamp": datetime.datetime.now().isoformat(),
+            "rsi_1h": rsi_1h, "rsi_4h": rsi_4h, "scan_timestamp": now_utc_iso,
             "regime": regime, "entropy": entropy, "kalman_price": kalman_price, "kalman_slope": kalman_slope,
             # ── Upgrade fields ────────────────────────────────────────────────
             "best_bid":    best_bid,       # Upgrade #1 slippage / #10 imbalance
@@ -1662,9 +1672,9 @@ def unified_analyse(
         # 11. Entity API Hook
         if enable_entity and ENTITY_API_KEY:
             pc_res = make_entity_request("ScanResult", method="POST", data={
-                "scan_id": scan_id, "timestamp": datetime.datetime.now().isoformat(),
+                "scan_id": scan_id, "timestamp": now_utc_iso,
                 "inst_id": symbol, "price": last, "change_24h": data.change_24h or 0.0,
-                "rsi": rsi or 50.0, "funding_rate": round(fr * 100, 8) if fr is not None else 0.0,
+                "rsi": rsi or 50.0, "funding_rate": round(funding_rate * 100, 8) if funding_rate is not None else 0.0,
                 "score": score, "signals": signals, "atr_stop_pct": stop_pct or 0.0,
                 "vol_spike": vol_spike or 0.0, "spread": spread or 0.0, "direction": direction.capitalize()
             })
