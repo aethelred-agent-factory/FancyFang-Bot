@@ -166,10 +166,10 @@ HAWKES_INTENSITY_HIGH     = float(os.getenv("HAWKES_HIGH", "2.0"))     # -> +30 
 HAWKES_INTENSITY_MID      = float(os.getenv("HAWKES_MID", "1.2"))      # -> +15 penalty
 
 # Entropy Deflator Parameters
-ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "40"))
-ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "40"))
-ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "30"))
-ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "20"))
+ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "35"))
+ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "30"))
+ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "25"))
+ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "15"))
 ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "15"))
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2229,15 +2229,15 @@ def on_scan_result(scan_res: dict, direction: str) -> None:
     tui_log(f"⚡ FAST-TRACK: {scan_res['inst_id']} score {scan_res['score']}! (λ={intensity:.2f})")
 
     # ── Wait & Verify ────────────────────────────────────
-    verified_result = verify_sim_candidate(scan_res["inst_id"], direction, scan_res["score"])
-
-    if verified_result:
-        execute_sim_setup(verified_result, direction)
-
-    with state.lock:
-        symbol = scan_res["inst_id"]
-        if symbol in state.fast_track_opened:
-            state.fast_track_opened.remove(symbol)
+    try:
+        verified_result = verify_sim_candidate(scan_res["inst_id"], direction, scan_res["score"])
+        if verified_result:
+            execute_sim_setup(verified_result, direction)
+    finally:
+        with state.lock:
+            symbol = scan_res["inst_id"]
+            if symbol in state.fast_track_opened:
+                state.fast_track_opened.remove(symbol)
 
 
 def sim_bot_loop(args) -> None:
@@ -2350,7 +2350,7 @@ def sim_bot_loop(args) -> None:
                     eff_free = get_sim_free_margin(state.balance, state.positions)
                     eff_free -= len(state.fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)
                     if eff_free < MIN_FREE_MARGIN:
-                        break
+                        continue
 
                 # ── Wait & Verify ────────────────────────────────────
                 verified_result = verify_sim_candidate(res["inst_id"], direction, res["score"])

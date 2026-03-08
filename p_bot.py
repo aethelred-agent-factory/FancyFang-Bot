@@ -121,10 +121,10 @@ load_dotenv()
 init(autoreset=True)
 
 # ── Entropy Deflator Parameters (v2) ───────────────────────────
-ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "40"))
-ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "40"))
-ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "30"))
-ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "20"))
+ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "35"))
+ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "30"))
+ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "25"))
+ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "15"))
 ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "15"))
 
 # ────────────────────────────────────────────────────────────────────

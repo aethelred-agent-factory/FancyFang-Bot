@@ -1,5 +1,14 @@
 # Changelog - FancyBot Revised
 
+## [2026-03-08.3] - Performance Tuning & Logic Fixes
+
+### Fixed
+- **Fast-Track Deadlock:** Implemented `try...finally` in `on_scan_result` to ensure symbols are always removed from `fast_track_opened`, preventing permanent margin lock-ups on verification failures.
+- **Candidate Processing:** Changed `break` to `continue` in the simulation candidate loop, ensuring that one insufficient margin check doesn't block other eligible trades in the same scan.
+
+### Changed
+- **Entropy Deflator Tuning:** Reduced `ENTROPY_SAT_WEIGHT` (40 -> 30) and `ENTROPY_MAX_PENALTY` (40 -> 35) to allow high-quality setups (140+) to punch through during moderate market clusters.
+
 ## [2026-03-08.2] - Architectural Refactor & Stability Pass
 
 ### Fixed
