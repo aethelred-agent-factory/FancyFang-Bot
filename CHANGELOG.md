@@ -1,6 +1,20 @@
 # Changelog - FancyBot Revised
 
-## [2026-03-08] - Logic Overhaul & UI Sync
+## [2026-03-08.2] - Architectural Refactor & Stability Pass
+
+### Fixed
+- **Race Conditions:** Eliminated over eight independent manual threading locks in `sim_bot.py` by consolidating global state into a unified, thread-safe `SimBotState` class.
+- **Synchronous I/O Latency:** Refactored `log_system_event` in `phemex_common.py` to use a background thread and queue, preventing disk I/O from blocking critical trading paths.
+- **Syntax & Runtime Errors:** Fixed a NameError for `dataclass` and `_bot_logs` in `sim_bot.py`, and a syntax error in `drawdown_guard.py`'s f-string formatting.
+- **Graceful Failures:** Replaced hard `sys.exit(1)` on dependency failure with a custom `InitializationError` for better modularity.
+
+### Changed
+- **State Management:** Refactored `sim_bot.py`, `risk_manager.py`, and `drawdown_guard.py` from module-level global variables to class-based architectures (`SimBotState`, `RiskManager`, `DrawdownGuard`).
+- **I/O Efficiency:** Implemented an in-memory write-through cache for the paper account state in `sim_bot.py`, significantly reducing JSON parsing overhead in the main loop.
+- **Externalized Configuration:** Moved magic numbers for Hawkes penalties, Leverage ATR thresholds, and Entropy Deflator parameters into configurable constants and environment variables.
+- **Code Clarity:** Renamed terse module aliases (e.g., `_sa`, `_rm`, `_dd`) to descriptive names (`analytics`, `risk_mgr`, `drawdown_guard`) and implemented comprehensive PEP 484 type hints.
+
+## [2026-03-08.1] - Logic Overhaul & UI Sync
 
 ### Added
 - **Dynamic ATR Leverage:** Implemented `pick_sim_leverage` in `sim_bot.py`. Leverage (5x to 30x) is now automatically selected based on asset volatility (ATR%) and volume spikes.

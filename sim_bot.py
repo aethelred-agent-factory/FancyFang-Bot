@@ -33,6 +33,7 @@ import sys
 import threading
 import time
 from collections import deque
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -56,30 +57,31 @@ import animations
 try:
     import p_bot
 except ImportError:
-    print(Fore.RED + "CRITICAL: 'p_bot.py' not found. This module is required for risk parameters.")
-    sys.exit(1)
+    msg = "CRITICAL: 'p_bot.py' not found. This module is required for risk parameters."
+    print(Fore.RED + msg)
+    raise pc.InitializationError(msg)
 
 # ── Upgrade modules (graceful degradation if missing) ─────────────────────────
 try:
-    import signal_analytics as _sa
+    import signal_analytics as analytics
     _ANALYTICS_OK = True
 except ImportError:
     _ANALYTICS_OK = False
 
 try:
-    import risk_manager as _rm
+    import risk_manager as risk_mgr
     _RISK_MGR_OK = True
 except ImportError:
     _RISK_MGR_OK = False
 
 try:
-    import drawdown_guard as _dd
+    import drawdown_guard as drawdown_guard
     _DD_OK = True
 except ImportError:
     _DD_OK = False
 
 try:
-    import telegram_controller as _tg
+    import telegram_controller as telegram
     _TG_OK = True
 except ImportError:
     _TG_OK = False
@@ -98,7 +100,7 @@ SIM_COOLDOWN_FILE   = SCRIPT_DIR / "sim_cooldowns.json"
 INITIAL_BALANCE     = float(os.getenv("INITIAL_BALANCE", "100.0"))
 TAKER_FEE_RATE      = pc.TAKER_FEE  # Use common constant (0.06%)
 
-def get_sim_free_margin(balance: float, positions: list) -> float:
+def get_sim_free_margin(balance: float, positions: List[Dict[str, Any]]) -> float:
     """Returns balance not committed to open positions."""
     used = sum(p.get("margin", 0.0) for p in positions)
     return balance - used
@@ -118,13 +120,13 @@ def pick_sim_leverage(atr_stop_pct: float | None, vol_spike: float = 1.0, is_low
     spike_adj = 5 if vol_spike >= 3.0 else (2 if vol_spike >= 2.0 else 0)
     effective_atr = atr_stop_pct + spike_adj
 
-    if effective_atr >= 4.0:
+    if effective_atr >= LEV_ATR_V_HIGH:
         lev = 5
-    elif effective_atr >= 2.5:
+    elif effective_atr >= LEV_ATR_HIGH:
         lev = 10
-    elif effective_atr >= 1.5:
+    elif effective_atr >= LEV_ATR_MID:
         lev = 15
-    elif effective_atr >= 0.8:
+    elif effective_atr >= LEV_ATR_LOW:
         lev = 20
     else:
         lev = 30
@@ -148,47 +150,115 @@ COOLDOWN_SECONDS = 4 * 4 * 3600
 # Exit signal configuration
 EXIT_SIGNAL_SCORE_THRESHOLD = 100
 EXIT_SIGNAL_SCAN_INTERVAL    = 60   # seconds between opposite signal checks
-LAST_EXIT_SCAN_TIME: Dict[str, float] = {}
+# ── System Thresholds & Parameters ──────────────────────────────────────────
+# Moved from hardcoded logic for better tuning and observability.
+
+# Leverage Scaling (pick_sim_leverage)
+LEV_ATR_V_HIGH = float(os.getenv("LEV_ATR_V_HIGH", "4.0"))   # -> 5x
+LEV_ATR_HIGH   = float(os.getenv("LEV_ATR_HIGH", "2.5"))     # -> 10x
+LEV_ATR_MID    = float(os.getenv("LEV_ATR_MID", "1.5"))      # -> 15x
+LEV_ATR_LOW    = float(os.getenv("LEV_ATR_LOW", "0.8"))      # -> 20x
+
+# Hawkes Cluster Throttling (_get_cluster_threshold_penalty)
+HAWKES_INTENSITY_CRITICAL = float(os.getenv("HAWKES_CRITICAL", "3.0")) # -> +50 penalty
+HAWKES_INTENSITY_HIGH     = float(os.getenv("HAWKES_HIGH", "2.0"))     # -> +30 penalty
+HAWKES_INTENSITY_MID      = float(os.getenv("HAWKES_MID", "1.2"))      # -> +15 penalty
+
+# Entropy Deflator Parameters
+ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "40"))
+ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "40"))
+ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "30"))
+ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "20"))
+ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "15"))
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Global State Management
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class SimBotState:
+    """Consolidated thread-safe state for the Simulation Bot."""
+    # Paper Account State (In-memory cache)
+    balance: float = INITIAL_BALANCE
+    positions: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # Market Data
+    live_prices: Dict[str, float] = field(default_factory=dict)
+    
+    # Cooldowns & Throttling
+    last_exit_times: Dict[str, float] = field(default_factory=dict)
+    fast_track_cooldowns: Dict[str, float] = field(default_factory=dict)
+    fast_track_opened: set[str] = field(default_factory=set)
+    
+    # Analytics & Stats
+    rolling_stats: Dict[str, Any] = field(default_factory=lambda: {"wins": 0, "losses": 0, "win_pnl": 0.0, "loss_pnl": 0.0})
+    equity_history: List[float] = field(default_factory=list)
+    pnl_histories: Dict[str, List[float]] = field(default_factory=dict)
+    entropy_penalty: int = 0
+    
+    # System Control
+    is_running: bool = True
+    display_thread_running: bool = False
+    ws_app: Optional[websocket.WebSocketApp] = None
+    ws_thread: Optional[threading.Thread] = None
+    
+    # Events
+    slot_available_event: threading.Event = field(default_factory=threading.Event)
+    display_paused_event: threading.Event = field(default_factory=threading.Event)
+    
+    # Locks
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    file_io_lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def load_account(self):
+        """Loads paper account from disk into memory."""
+        with self.file_io_lock:
+            if not PAPER_ACCOUNT_FILE.exists():
+                self.save_account()
+                return
+
+            for attempt in range(5):
+                try:
+                    content = PAPER_ACCOUNT_FILE.read_text()
+                    if not content: continue
+                    data = json.loads(content)
+                    with self.lock:
+                        self.balance = float(data.get("balance", INITIAL_BALANCE))
+                        self.positions = data.get("positions", [])
+                    return
+                except (json.JSONDecodeError, ValueError, OSError):
+                    time.sleep(0.05 * (attempt + 1))
+
+    def save_account(self):
+        """Flushes in-memory account state to disk."""
+        with self.file_io_lock:
+            with self.lock:
+                data = {"balance": self.balance, "positions": self.positions}
+            try:
+                temp_file = PAPER_ACCOUNT_FILE.with_suffix(".tmp")
+                temp_file.write_text(json.dumps(data, indent=2))
+                temp_file.replace(PAPER_ACCOUNT_FILE)
+            except Exception as e:
+                logging.getLogger("sim_bot").error(f"Failed to save paper account: {e}")
+
+    def update_price(self, symbol: str, price: float):
+        """Thread-safe update of live prices."""
+        with self.lock:
+            self.live_prices[symbol] = price
+
+    def get_price(self, symbol: str) -> Optional[float]:
+        """Thread-safe retrieval of live price."""
+        with self.lock:
+            return self.live_prices.get(symbol)
+
+# Instantiate global state
+state = SimBotState()
 
 # Unicode Block Elements U+2581–U+2588 (8 chars; index math in sparkline() depends on count=8)
 _SPARK_CHARS = "▁▂▃▄▅▆▇█"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Global State
-# ─────────────────────────────────────────────────────────────────────────────
-
-_live_prices:  Dict[str, float] = {}
-_prices_lock  = threading.Lock()
-_cooldown_lock = threading.Lock()
-_stop_lock     = threading.Lock()
-_log_lock      = threading.Lock()
-_display_lock  = threading.Lock()
-_fast_track_lock = threading.Lock()
-_file_io_lock  = threading.Lock() # Lock for paper_account.json access
-
-_ws_app:    Optional[websocket.WebSocketApp] = None
-_ws_thread: Optional[threading.Thread]       = None
-
-_slot_available_event  = threading.Event()
-_display_paused        = threading.Event()
-_display_thread_running = False
-
-_rolling_stats = {"wins": 0, "losses": 0, "win_pnl": 0.0, "loss_pnl": 0.0}
-
-FAST_TRACK_COOLDOWN: Dict[str, float] = {}  # symbol → timestamp of last fast-track
-_fast_track_opened:  set[str]         = set()
-LAST_EXIT_TIME:      Dict[str, float] = {}  # symbol → timestamp of last position close
-
 # TUI log buffer
 _bot_logs: deque[str] = deque(maxlen=100)
-
-# Equity sparkline history
-_equity_history: List[float] = []
-_max_history     = 50
-
-# Per-position PnL history — keyed by symbol
-_pnl_histories: Dict[str, list] = {}
-_pnl_lock = threading.Lock()
 
 # Braille dot patterns for 2x4 resolution per cell
 BRAILLE_MAP = [
@@ -317,12 +387,12 @@ def render_pnl_chart(
 
 def update_pnl_history(symbol: str, current_pnl: float):
     """Adds a new PnL data point to the history for the given symbol."""
-    with _pnl_lock:
-        if symbol not in _pnl_histories:
-            _pnl_histories[symbol] = []
-        _pnl_histories[symbol].append(current_pnl)
+    with state.lock:
+        if symbol not in state.pnl_histories:
+            state.pnl_histories[symbol] = []
+        state.pnl_histories[symbol].append(current_pnl)
         # Keep last 200 data points
-        _pnl_histories[symbol] = _pnl_histories[symbol][-200:]
+        state.pnl_histories[symbol] = state.pnl_histories[symbol][-200:]
 
 # ── Logging Setup ─────────────────────────────────────────────────────
 # Use the shared colored logging setup from phemex_common with buffer capture
@@ -346,14 +416,14 @@ def tui_log(msg: str, event_type: str = "SIM") -> None:
 
 def play_animation(anim_fn):
     """Safely plays a cinematic animation by pausing the TUI thread."""
-    _display_paused.set()
+    state.display_paused_event.set()
     time.sleep(0.5) # Let TUI finish its last frame
     animations.clear()
     try:
         anim_fn()
     finally:
         animations.clear()
-        _display_paused.clear()
+        state.display_paused_event.clear()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -375,38 +445,20 @@ def send_telegram_message(message: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def load_paper_account() -> dict:
-    """Loads the paper account, creating it with defaults if it doesn't exist."""
-    if not PAPER_ACCOUNT_FILE.exists():
-        data = {"balance": INITIAL_BALANCE, "positions": []}
-        save_paper_account(data)
-        return data
-
-    # Retry loop to handle concurrent read/writes
-    for attempt in range(5):
-        try:
-            with _file_io_lock:
-                content = PAPER_ACCOUNT_FILE.read_text()
-                if not content:
-                    raise ValueError("Empty file")
-                return json.loads(content)
-        except (json.JSONDecodeError, ValueError, OSError) as e:
-            if attempt == 4:
-                logger.error(f"Failed to decode paper_account.json after {attempt+1} attempts — reinitializing.")
-                return {"balance": INITIAL_BALANCE, "positions": []}
-            time.sleep(0.05 * (attempt + 1))
-    return {"balance": INITIAL_BALANCE, "positions": []}
+    """Loads the paper account, using the in-memory state if available."""
+    # Ensure memory is populated at least once (or just return memory)
+    # We will use the class methods directly in the main logic later, 
+    # but for compatibility during migration:
+    with state.lock:
+        return {"balance": state.balance, "positions": state.positions}
 
 
 def save_paper_account(data: dict) -> None:
-    """Persists the current paper account state to disk."""
-    with _file_io_lock:
-        try:
-            # Write to a temporary file first then rename to ensure atomicity
-            temp_file = PAPER_ACCOUNT_FILE.with_suffix(".tmp")
-            temp_file.write_text(json.dumps(data, indent=2))
-            temp_file.replace(PAPER_ACCOUNT_FILE)
-        except Exception as e:
-            logger.error(f"Failed to save paper account: {e}")
+    """Persists the current paper account state to disk from memory."""
+    with state.lock:
+        state.balance = data.get("balance", state.balance)
+        state.positions = data.get("positions", state.positions)
+    state.save_account()
 
 
 def _close_all_positions() -> None:
@@ -427,8 +479,7 @@ def _close_all_positions() -> None:
         entry  = pos["entry"]
         size   = float(pos["size"])
 
-        with _prices_lock:
-            now = _live_prices.get(symbol)
+        now = state.get_price(symbol)
 
         if now is None:
             try:
@@ -440,8 +491,8 @@ def _close_all_positions() -> None:
         pnl = (now - entry) * size if side == "Buy" else (entry - now) * size
         acc["balance"] += (pos.get("margin", 0.0) + pnl)
 
-        with _cooldown_lock:
-            LAST_EXIT_TIME[symbol] = time.time()
+        with state.lock:
+            state.last_exit_times[symbol] = time.time()
 
         pnl_emoji = "✅" if pnl > 0 else "❌"
         send_telegram_message(
@@ -459,19 +510,18 @@ def _close_all_positions() -> None:
         )
         print(Fore.GREEN + f"  Closed {symbol} at {now}")
 
-    acc["positions"] = []
-    save_paper_account(acc)
+    state.positions = []
+    state.save_account()
     save_sim_cooldowns()
-    _slot_available_event.set()
+    state.slot_available_event.set()
     print(Fore.GREEN + Style.BRIGHT + "  All positions closed successfully.")
 
 
 def save_sim_cooldowns() -> None:
     """Persists active re-entry and fast-track cooldowns to disk, pruning expired entries."""
-    with _cooldown_lock:
-        active_exit = {s: ts for s, ts in LAST_EXIT_TIME.items() if time.time() - ts < COOLDOWN_SECONDS}
-    with _fast_track_lock:
-        active_ft = {s: ts for s, ts in FAST_TRACK_COOLDOWN.items() if time.time() - ts < FAST_TRACK_COOLDOWN_SECONDS}
+    with state.lock:
+        active_exit = {s: ts for s, ts in state.last_exit_times.items() if time.time() - ts < COOLDOWN_SECONDS}
+        active_ft   = {s: ts for s, ts in state.fast_track_cooldowns.items() if time.time() - ts < FAST_TRACK_COOLDOWN_SECONDS}
 
     data = {
         "last_exit": active_exit,
@@ -485,12 +535,10 @@ def save_sim_cooldowns() -> None:
 
 def load_sim_cooldowns() -> None:
     """Loads re-entry and fast-track cooldowns from disk and discards any that have expired."""
-    global LAST_EXIT_TIME, FAST_TRACK_COOLDOWN
     if not SIM_COOLDOWN_FILE.exists():
         return
     try:
         data = json.loads(SIM_COOLDOWN_FILE.read_text())
-        # Support old format (just exit times) and new format (dict with keys)
         if isinstance(data, dict) and "last_exit" in data and "fast_track" in data:
             exit_data = data["last_exit"]
             ft_data   = data["fast_track"]
@@ -498,17 +546,16 @@ def load_sim_cooldowns() -> None:
             exit_data = data
             ft_data   = {}
 
-        with _cooldown_lock:
-            LAST_EXIT_TIME = {
+        with state.lock:
+            state.last_exit_times = {
                 s: float(ts) for s, ts in exit_data.items()
                 if time.time() - float(ts) < COOLDOWN_SECONDS
             }
-        with _fast_track_lock:
-            FAST_TRACK_COOLDOWN = {
+            state.fast_track_cooldowns = {
                 s: float(ts) for s, ts in ft_data.items()
                 if time.time() - float(ts) < FAST_TRACK_COOLDOWN_SECONDS
             }
-        logger.info(f"Loaded {len(LAST_EXIT_TIME)} exit and {len(FAST_TRACK_COOLDOWN)} fast-track cooldowns.")
+        logger.info(f"Loaded {len(state.last_exit_times)} exit and {len(state.fast_track_cooldowns)} fast-track cooldowns.")
     except (json.JSONDecodeError, ValueError, AttributeError):
         logger.error("Failed to load simulation cooldowns — JSON is invalid.")
 
@@ -526,8 +573,7 @@ def _ws_on_message(ws: websocket.WebSocketApp, message: str) -> None:
             symbol = tick.get("symbol")
             close  = tick.get("closeRp")
             if symbol and close is not None:
-                with _prices_lock:
-                    _live_prices[symbol] = float(close)
+                state.update_price(symbol, float(close))
                 _check_stops_live(symbol)
     except json.JSONDecodeError as e:
         logger.debug(f"WS message parse error: {e}")
@@ -547,7 +593,7 @@ def _ws_heartbeat(ws: websocket.WebSocketApp, stop_event: threading.Event) -> No
     while not stop_event.is_set():
         time.sleep(5)
         # Check if this heartbeat instance is still the active one
-        if ws is not _ws_app:
+        if ws is not state.ws_app:
             logger.debug("Heartbeat thread detected stale WS app — exiting.")
             break
         try:
@@ -566,15 +612,14 @@ def _ws_heartbeat(ws: websocket.WebSocketApp, stop_event: threading.Event) -> No
 
 def _ws_run_loop() -> None:
     """Maintains the WebSocket connection, reconnecting while positions are open."""
-    global _ws_app
     ws_url = "wss://testnet.phemex.com/ws" if "testnet" in pc.BASE_URL else "wss://ws.phemex.com"
 
     retries = 0
     while True:
         stop_event = threading.Event()
-        _ws_app = websocket.WebSocketApp(ws_url, on_message=_ws_on_message, on_open=_ws_on_open)
-        threading.Thread(target=_ws_heartbeat, args=(_ws_app, stop_event), daemon=True).start()
-        _ws_app.run_forever()
+        state.ws_app = websocket.WebSocketApp(ws_url, on_message=_ws_on_message, on_open=_ws_on_open)
+        threading.Thread(target=_ws_heartbeat, args=(state.ws_app, stop_event), daemon=True).start()
+        state.ws_app.run_forever()
 
         # Signal heartbeat to stop after run_forever exits
         stop_event.set()
@@ -592,19 +637,19 @@ def _ws_run_loop() -> None:
 
 def _ensure_ws_started() -> None:
     """Starts the WebSocket thread if it is not already running."""
-    global _ws_thread
-    if _ws_thread is None or not _ws_thread.is_alive():
-        _ws_thread = threading.Thread(target=_ws_run_loop, daemon=True)
-        _ws_thread.start()
+    if state.ws_thread is None or not state.ws_thread.is_alive():
+        state.ws_thread = threading.Thread(target=_ws_run_loop, daemon=True)
+        state.ws_thread.start()
 
 
 def _subscribe_symbol(symbol: str) -> None:
     """Subscribes the WebSocket to a new symbol after a short delay."""
     def _do_sub() -> None:
         time.sleep(1.5)
-        if _ws_app and _ws_app.sock and _ws_app.sock.connected:
-            symbols = [p["symbol"] for p in load_paper_account().get("positions", [])]
-            _ws_app.send(json.dumps({"id": 1, "method": "market24h_p.subscribe", "params": symbols}))
+        if state.ws_app and state.ws_app.sock and state.ws_app.sock.connected:
+            with state.lock:
+                symbols = [p["symbol"] for p in state.positions]
+            state.ws_app.send(json.dumps({"id": 1, "method": "market24h_p.subscribe", "params": symbols}))
 
     threading.Thread(target=_do_sub, daemon=True).start()
 
@@ -617,16 +662,14 @@ def _check_stops_live(symbol: str) -> None:
     """Evaluates trailing-stop and take-profit levels for a symbol on each price tick."""
     # Narrow lock scope — copy data then release lock
     exit_to_process = None
-    with _stop_lock:
-        acc       = load_paper_account()
-        positions = acc.get("positions", [])
+    with state.lock:
+        positions = state.positions
         pos_idx   = next((i for i, p in enumerate(positions) if p["symbol"] == symbol), None)
         if pos_idx is None:
             return
 
         pos = positions[pos_idx]
-        with _prices_lock:
-            current_price = _live_prices.get(symbol)
+        current_price = state.live_prices.get(symbol)
         if current_price is None:
             return
 
@@ -664,13 +707,12 @@ def _check_stops_live(symbol: str) -> None:
                 exit_price = pos["take_profit"]
 
         if not (stop_hit or tp_hit):
-            save_paper_account(acc)
+            state.save_account()
             return
 
         exit_reason = "Stop Hit" if stop_hit else "Take Profit Hit"
         pnl = (exit_price - entry) * size if side == "Buy" else (entry - exit_price) * size
-        acc["balance"] += (pos.get("margin", 0.0) + pnl)
-
+        
         # Prepare for I/O outside the lock
         exit_to_process = {
             "symbol": symbol,
@@ -685,15 +727,16 @@ def _check_stops_live(symbol: str) -> None:
             "stop_hit": stop_hit
         }
 
-        positions.pop(pos_idx)
-        save_paper_account(acc)
-
+        # Update in-memory state
+        state.balance += (pos.get("margin", 0.0) + pnl)
+        state.positions.pop(pos_idx)
+        state.last_exit_times[symbol] = time.time()
+        
     # Process I/O outside the lock
     if exit_to_process:
-        with _cooldown_lock:
-            LAST_EXIT_TIME[symbol] = time.time()
+        state.save_account()
         save_sim_cooldowns()
-        _slot_available_event.set()
+        state.slot_available_event.set()
 
         tui_log(f"{exit_to_process['exit_reason'].upper()} HIT: {symbol} {exit_to_process['side']} closed at {exit_to_process['exit_price']}", event_type="EXIT")
 
@@ -773,7 +816,7 @@ def _log_closed_trade(
     }
 
     history: List[dict] = []
-    with _file_io_lock:
+    with state.file_io_lock:
         if results_file.exists():
             try:
                 history = json.loads(results_file.read_text())
@@ -785,7 +828,7 @@ def _log_closed_trade(
     # ── Upgrade #8: Signal analytics recording ────────────────────────────────
     if _ANALYTICS_OK:
         try:
-            _sa.record_trade(
+            analytics.record_trade(
                 signal_types = record.get("signals", ["UNKNOWN"]),
                 entry_price  = entry,
                 exit_price   = exit_price,
@@ -793,26 +836,27 @@ def _log_closed_trade(
                 direction    = record["direction"],
                 symbol       = symbol,
             )
-        except Exception as _sa_err:
-            logger.debug(f"signal_analytics record error: {_sa_err}")
+        except Exception as analytics_err:
+            logger.debug(f"signal_analytics record error: {analytics_err}")
 
     # --- Update rolling stats for Kelly ---
-    global _rolling_stats
-    if pnl > 0:
-        _rolling_stats["wins"] += 1
-        _rolling_stats["win_pnl"] += pnl
-    else:
-        _rolling_stats["losses"] += 1
-        _rolling_stats["loss_pnl"] += pnl
+    with state.lock:
+        if pnl > 0:
+            state.rolling_stats["wins"] += 1
+            state.rolling_stats["win_pnl"] += pnl
+        else:
+            state.rolling_stats["losses"] += 1
+            state.rolling_stats["loss_pnl"] += pnl
 
     # ── Upgrade #7: Notify drawdown guard ─────────────────────────────────────
     if _DD_OK:
-        current_bal = load_paper_account().get("balance", 0.0)
-        _dd.record_pnl(pnl, current_balance=current_bal)
+        with state.lock:
+            current_bal = state.balance
+        drawdown_guard.record_pnl(pnl, current_balance=current_bal)
 
     # ── Upgrade #12: Notify risk manager ─────────────────────────────────────
     if _RISK_MGR_OK:
-        _rm.record_trade_result(pnl)
+        risk_mgr.record_trade_result(pnl)
 
     m, s = divmod(int(hold_time), 60)
     tui_log(
@@ -1218,7 +1262,7 @@ def _draw_consolidated_positions(
         now        = current_prices.get(sym)
         is_long    = side == "Buy"
 
-        hist = _pnl_histories.get(sym, [0.0])
+        hist = state.pnl_histories.get(sym, [0.0])
         upnl = 0.0
         if now:
             upnl = (now - entry) * size if is_long else (entry - now) * size
@@ -1311,7 +1355,7 @@ def _draw_system_logs_section(
     print(term.move_xy(2, row) + term.cyan(_box_top("SYSTEM LOG", w)))
     row += 1
 
-    with _log_lock:
+    with state.lock:
         # deques don't support slicing, convert to list first
         display_logs = list(logs)[-6:]
 
@@ -1361,22 +1405,25 @@ def _draw_footer(term: blessed.Terminal, row: int, max_width: int = 80) -> None:
 
 def _live_pnl_display() -> None:
     """Full-screen TUI dashboard — runs in a dedicated daemon thread."""
-    global _display_thread_running, _equity_history
     term         = blessed.Terminal()
     results_file = SCRIPT_DIR / "sim_trade_results.json"
 
     with term.fullscreen(), term.cbreak(), term.hidden_cursor():
         try:
             # [T1-FIX] Guard loop with existing running flag for clean shutdown
-            while _display_thread_running:
-                if _display_paused.is_set():
+            while state.display_thread_running:
+                if state.display_paused_event.is_set():
                     time.sleep(0.5)
                     continue
 
-                acc       = load_paper_account()
-                positions = acc.get("positions", [])
+                with state.lock:
+                    balance = state.balance
+                    positions = state.positions[:] # Copy
+                    live_prices = state.live_prices.copy()
 
                 history: List[dict] = []
+                # Still need to read history from file for the totals, 
+                # but we could cache this too if needed.
                 if results_file.exists():
                     try:
                         history = json.loads(results_file.read_text())
@@ -1389,27 +1436,26 @@ def _live_pnl_display() -> None:
                 win_rate         = (len(wins) / total_trades * 100) if total_trades > 0 else 0.0
                 total_closed_pnl = sum(t["pnl"] for t in history)
                 current_time     = datetime.datetime.now().strftime("%H:%M:%S")
-                balance          = acc.get("balance", 0.0)
 
-                with _prices_lock:
-                    current_upnl = 0.0
-                    locked_margin = 0.0
-                    for p in positions:
-                        locked_margin += p.get("margin", 0.0)
-                        if _live_prices.get(p["symbol"]):
-                            now = _live_prices[p["symbol"]]
-                            entry = p["entry"]
-                            size = float(p["size"])
-                            pos_pnl = (now - entry) * size if p["side"] == "Buy" else (entry - now) * size
-                            current_upnl += pos_pnl
-                            update_pnl_history(p["symbol"], pos_pnl)
+                current_upnl = 0.0
+                locked_margin = 0.0
+                for p in positions:
+                    locked_margin += p.get("margin", 0.0)
+                    now = live_prices.get(p["symbol"])
+                    if now:
+                        entry = p["entry"]
+                        size = float(p["size"])
+                        pos_pnl = (now - entry) * size if p["side"] == "Buy" else (entry - now) * size
+                        current_upnl += pos_pnl
+                        update_pnl_history(p["symbol"], pos_pnl)
 
                 equity = balance + locked_margin + current_upnl
 
                 # Update equity history here (state mutation), strictly outside render function
-                _equity_history.append(equity)
-                if len(_equity_history) > _max_history:
-                    _equity_history.pop(0)
+                with state.lock:
+                    state.equity_history.append(equity)
+                    if len(state.equity_history) > 50: # _max_history
+                        state.equity_history.pop(0)
 
                 max_w = 120
                 print(term.clear)
@@ -1421,21 +1467,21 @@ def _live_pnl_display() -> None:
                     term, balance, locked_margin, current_upnl, equity,
                     total_trades, len(wins), len(losses),
                     win_rate, total_closed_pnl, row, max_w,
-                    _equity_history
+                    state.equity_history
                 )
                 row = _draw_history_section(term, history, row, max_w)
-                row = _draw_equity_chart_section(term, _equity_history, row, max_w)
+                row = _draw_equity_chart_section(term, state.equity_history, row, max_w)
                 row = _draw_system_logs_section(term, _bot_logs, row, max_w)
 
                 # Consolidated Positions at the bottom
-                _draw_consolidated_positions(term, positions, _live_prices, max_w)
+                _draw_consolidated_positions(term, positions, live_prices, max_w)
 
                 # Footer fixed at the very bottom line
                 _draw_footer(term, term.height - 1, max_w)
 
                 key = term.inkey(timeout=0.8)
                 if key.lower() == "s":
-                    _display_paused.set()
+                    state.display_paused_event.set()
                     confirm_row = row + 1
                     print(
                         term.move_xy(4, confirm_row)
@@ -1446,15 +1492,15 @@ def _live_pnl_display() -> None:
                     if term.inkey().lower() == "y":
                         _close_all_positions()
                         time.sleep(1)
-                    _display_paused.clear()
+                    state.display_paused_event.clear()
                 elif key.lower() == "q":
                     break
 
         except KeyboardInterrupt:
             pass
         finally:
-            with _display_lock:
-                _display_thread_running = False
+            with state.lock:
+                state.display_thread_running = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1524,13 +1570,13 @@ def update_pnl_and_stops() -> None:
 
     # Narrow lock scope — only hold lock while reading/writing the account structure.
     # Move all I/O (Telegram, Logging) outside the lock.
-    with _stop_lock:
-        acc = load_paper_account()
-        if not acc["positions"]:
+    with state.lock:
+        positions = state.positions
+        if not positions:
             return
 
         # Fetch REST tickers only for symbols not yet in the live-price cache
-        missing = [p["symbol"] for p in acc["positions"] if p["symbol"] not in _live_prices]
+        missing = [p["symbol"] for p in positions if p["symbol"] not in state.live_prices]
         if missing:
             # Releasing stop lock during ticker fetch to avoid blocking stop evaluations
             pass
@@ -1545,21 +1591,14 @@ def update_pnl_and_stops() -> None:
     # To store events for I/O outside the lock
     exits_to_process = []
 
-    with _stop_lock:
-        # Reload account in case it changed during the REST fetch
-        acc = load_paper_account()
-
+    with state.lock:
         # Re-derive current positions state to avoid phantom PnL on just-closed symbols
-        # (Though update_pnl_and_stops iterates over acc["positions"],
-        # using ticker_map from a previous stale missing list is the risk)
-
         new_positions: List[dict] = []
         closed_any = False
 
-        for pos in acc["positions"]:
+        for pos in state.positions:
             symbol = pos["symbol"]
-            with _prices_lock:
-                current_price = _live_prices.get(symbol)
+            current_price = state.live_prices.get(symbol)
 
             if current_price is None:
                 ticker = ticker_map.get(symbol)
@@ -1651,7 +1690,8 @@ def update_pnl_and_stops() -> None:
                     "signals": pos.get("signals", []),
                     "slippage": pos.get("slippage", 0.0),
                 })
-                acc["balance"] += (pos.get("margin", 0.0) + pnl)
+                state.balance += (pos.get("margin", 0.0) + pnl)
+                state.last_exit_times[symbol] = time.time()
                 closed_any = True
                 continue
 
@@ -1660,16 +1700,14 @@ def update_pnl_and_stops() -> None:
             new_positions.append(pos)
 
         if closed_any:
-            acc["positions"] = new_positions
-            save_paper_account(acc)
+            state.positions = new_positions
+            state.save_account()
 
     # Process I/O (exits) outside the lock to avoid blocking
     for ex in exits_to_process:
         symbol = ex["symbol"]
-        with _cooldown_lock:
-            LAST_EXIT_TIME[symbol] = time.time()
         save_sim_cooldowns()
-        _slot_available_event.set()
+        state.slot_available_event.set()
 
         tui_log(f"{ex['exit_reason'].upper()} HIT: {symbol} closed at {ex['exit_price']}")
         pnl_emoji = "✅" if ex['pnl'] > 0 else "❌"
@@ -1818,13 +1856,13 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
 
     # ── Upgrade #7: Daily drawdown kill switch ────────────────────────────────
     if _DD_OK:
-        allowed, dd_reason = _dd.can_open_trade(current_balance=load_paper_account().get("balance", 0.0))
+        allowed, dd_reason = drawdown_guard.can_open_trade(current_balance=state.balance)
         if not allowed:
             tui_log(f"KILL SWITCH: {symbol} blocked — {dd_reason}", event_type="SKIP")
             return False
 
     # ── Upgrade #13: Telegram manual halt ────────────────────────────────────
-    if _TG_OK and _tg.is_halted():
+    if _TG_OK and telegram.is_halted():
         tui_log(f"TG HALT: {symbol} blocked — /stop was issued via Telegram", event_type="SKIP")
         return False
 
@@ -1846,14 +1884,11 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
         tui_log(f"VOL FILTER: {symbol} SKIP — {vol_reason}", event_type="SKIP")
         return False
 
-    with _stop_lock:
-        acc = load_paper_account()
-
-        if any(p["symbol"] == symbol for p in acc["positions"]):
+    with state.lock:
+        if any(p["symbol"] == symbol for p in state.positions):
             return False
 
-        with _cooldown_lock:
-            last_exit = LAST_EXIT_TIME.get(symbol, 0)
+        last_exit = state.last_exit_times.get(symbol, 0)
 
         if time.time() - last_exit < COOLDOWN_SECONDS:
             remaining_h = (COOLDOWN_SECONDS - (time.time() - last_exit)) / 3600
@@ -1866,16 +1901,16 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
 
         # Tiered score gate
         effective_min = (
-            p_bot.MIN_SCORE_LOW_LIQ    if is_low_liq else
-            p_bot.MIN_SCORE_HTF_BYPASS if is_htf     else
-            p_bot.MIN_SCORE_DEFAULT
+            pc.SCORE_MIN_LOW_LIQ    if is_low_liq else
+            pc.SCORE_MIN_HTF_BYPASS if is_htf     else
+            pc.SCORE_MIN_DEFAULT
         )
         if score < effective_min:
             tui_log(f"SKIP: {symbol} score {score} < effective min {effective_min}")
             return False
 
         # ── Free margin gate (replaces hard position cap) ─────────────────────
-        free_margin = get_sim_free_margin(acc["balance"], acc["positions"])
+        free_margin = get_sim_free_margin(state.balance, state.positions)
         if free_margin < MIN_FREE_MARGIN:
             tui_log(
                 f"FREE MARGIN: {symbol} SKIP — only ${free_margin:.2f} free (min ${MIN_FREE_MARGIN:.2f})",
@@ -1892,18 +1927,18 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             stop_dist = atr_val * atr_stop_mult
 
             signal_conf = min(1.0, max(0.0, (score - 100) / 100.0))
-            risk_amount, _ = _rm.compute_dynamic_risk(
-                account_balance  = acc["balance"],
+            risk_amount, _ = risk_mgr.compute_dynamic_risk(
+                account_balance  = state.balance,
                 signal_strength  = signal_conf,
                 stop_distance    = stop_dist,
-                open_positions   = acc["positions"],
+                open_positions   = state.positions,
             )
 
             # Portfolio rejection gate
-            rejected, rej_reason = _rm.should_reject_trade(
+            rejected, rej_reason = risk_mgr.should_reject_trade(
                 risk_amount      = risk_amount,
-                account_balance  = acc["balance"],
-                open_positions   = acc["positions"],
+                account_balance  = state.balance,
+                open_positions   = state.positions,
             )
             if rejected:
                 tui_log(f"RISK MGR: {symbol} SKIP — {rej_reason}", event_type="SKIP")
@@ -1911,7 +1946,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
 
             margin_to_use = round(risk_amount, 2)
             tui_log(
-                f"RISK MGR [{_rm.RISK_MODEL}]: {symbol} margin={margin_to_use:.4f} ",
+                f"RISK MGR [{risk_mgr.RISK_MODEL}]: {symbol} margin={margin_to_use:.4f} ",
                 event_type="RISK"
             )
 
@@ -1924,22 +1959,27 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
                     f"{active_trail_pct*100:.1f}% trail, ${margin_to_use} margin")
         else:
             # Legacy Kelly fallback
-            total_trades  = _rolling_stats["wins"] + _rolling_stats["losses"]
-            max_per_trade = acc["balance"] * 0.20  # cap any single trade at 20% of balance
+            with state.lock:
+                total_trades  = state.rolling_stats["wins"] + state.rolling_stats["losses"]
+                max_per_trade = state.balance * 0.20  # cap any single trade at 20% of balance
+                current_balance = state.balance
+
             if total_trades < 10:
                 margin_to_use = round(max_per_trade, 2)
             else:
-                win_rate = _rolling_stats["wins"] / total_trades
-                avg_win  = _rolling_stats["win_pnl"] / _rolling_stats["wins"] if _rolling_stats["wins"] > 0 else 1.0
-                avg_loss = abs(_rolling_stats["loss_pnl"] / _rolling_stats["losses"]) if _rolling_stats["losses"] > 0 else 1.0
+                with state.lock:
+                    win_rate = state.rolling_stats["wins"] / total_trades
+                    avg_win  = state.rolling_stats["win_pnl"] / state.rolling_stats["wins"] if state.rolling_stats["wins"] > 0 else 1.0
+                    avg_loss = abs(state.rolling_stats["loss_pnl"] / state.rolling_stats["losses"]) if state.rolling_stats["losses"] > 0 else 1.0
+                
                 kelly_margin  = pc.calc_kelly_margin(
-                    bankroll=acc["balance"], win_rate=win_rate,
+                    bankroll=current_balance, win_rate=win_rate,
                     avg_win=avg_win, avg_loss=avg_loss, fraction=0.5
                 )
                 margin_to_use = round(min(kelly_margin, max_per_trade), 2)
 
-        if margin_to_use <= 0 or acc["balance"] < margin_to_use:
-            tui_log(f"MARGIN FAIL: ${margin_to_use} calculated, but balance ${acc['balance']:.2f} is insufficient.")
+        if margin_to_use <= 0 or state.balance < margin_to_use:
+            tui_log(f"MARGIN FAIL: ${margin_to_use} calculated, but balance ${state.balance:.2f} is insufficient.")
             return False
 
         # Determine leverage / trail parameters — leverage is now ATR-driven
@@ -1968,8 +2008,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
         entry_price = fill_price  # use slippage-adjusted fill
 
         # Deduct margin AND taker fee
-        fee = notional * pc.TAKER_FEE
-        acc["balance"] -= (margin_to_use + fee)
+        state.balance -= (margin_to_use + fee)
 
         side = "Buy" if direction == "LONG" else "Sell"
 
@@ -2029,8 +2068,8 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             "signals":       signals,
         }
 
-        acc["positions"].append(new_pos)
-        save_paper_account(acc)
+        state.positions.append(new_pos)
+        state.save_account()
 
     arrow = "▲ LONG" if direction == "LONG" else "▼ SHORT"
     tui_log(f"ENTERED {arrow} {symbol} @ {entry_price:.6g} (Score: {score}) slippage={slippage_amt:.6g}")
@@ -2064,10 +2103,9 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     _subscribe_symbol(symbol)
     _ensure_ws_started()
 
-    with _display_lock:
-        global _display_thread_running
-        if not _display_thread_running:
-            _display_thread_running = True
+    with state.lock:
+        if not state.display_thread_running:
+            state.display_thread_running = True
             threading.Thread(target=_live_pnl_display, daemon=True).start()
 
     return True
@@ -2092,13 +2130,12 @@ def is_fresh(r: dict, now_dt: datetime.datetime) -> bool:
 # ── Cluster & Entropy Tracking (Idea 2 & 3) ─────────────────────────
 _hawkes_long = pc.HawkesTracker(mu=0.1, alpha=0.8, beta=0.1)
 _hawkes_short = pc.HawkesTracker(mu=0.1, alpha=0.8, beta=0.1)
-_entropy_penalty = 0
 
 def _get_cluster_threshold_penalty(intensity: float) -> int:
     """Returns a score penalty based on Hawkes intensity (λ)."""
-    if intensity > 3.0: return 50  # Major cluster
-    if intensity > 2.0: return 30
-    if intensity > 1.2: return 15
+    if intensity > HAWKES_INTENSITY_CRITICAL: return 50  # Major cluster
+    if intensity > HAWKES_INTENSITY_HIGH:     return 30
+    if intensity > HAWKES_INTENSITY_MID:      return 15
     return 0
 
 def on_scan_result(r: dict, direction: str) -> None:
@@ -2121,43 +2158,46 @@ def on_scan_result(r: dict, direction: str) -> None:
     intensity = tracker.get_intensity() # Check intensity WITHOUT updating it yet
     hawkes_penalty = _get_cluster_threshold_penalty(intensity)
 
-    # Use global _entropy_penalty from last scan to block cascades
-    effective_fast_track = FAST_TRACK_SCORE + hawkes_penalty + _entropy_penalty
+    # Use global entropy_penalty from last scan to block cascades
+    with state.lock:
+        current_penalty = state.entropy_penalty
+    
+    effective_fast_track = FAST_TRACK_SCORE + hawkes_penalty + current_penalty
     if r["score"] < effective_fast_track:
-        if hawkes_penalty > 0 or _entropy_penalty > 0:
-            tui_log(f"FT THROTTLE: {r['inst_id']} score {r['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={_entropy_penalty})")
+        if hawkes_penalty > 0 or current_penalty > 0:
+            tui_log(f"FT THROTTLE: {r['inst_id']} score {r['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={current_penalty})")
         return
 
     # Signal passed! Now update the tracker to throttle the NEXT one in this cluster.
     intensity = tracker.update(event_occurred=True)
 
-    # Move position count and balance check inside _fast_track_lock for atomicity
-    with _fast_track_lock:
-        current_positions = get_sim_positions()
-
-        # Balance check: approximate margin needed
-        acc = load_paper_account()
-        acc_balance = acc.get("balance", 0.0)
+    # Move position count and balance check inside state.lock for atomicity
+    with state.lock:
+        current_positions = state.positions
+        acc_balance = state.balance
         dynamic_max = p_bot.get_dynamic_max_positions(acc_balance)
 
         # Gate on free margin instead of position count
-        pending_margin = len(_fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)  # buffer for in-flight verifications
-        effective_free = acc_balance - sum(p.get("margin", 0.0) for p in current_positions) - pending_margin
+        pending_margin = len(state.fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)  # buffer for in-flight verifications
+        used_margin = sum(p.get("margin", 0.0) for p in current_positions)
+        effective_free = acc_balance - used_margin - pending_margin
+        
         if effective_free < MIN_FREE_MARGIN:
             return
 
         current_syms = {p["symbol"] for p in current_positions}
-        if r["inst_id"] in current_syms or r["inst_id"] in _fast_track_opened:
+        if r["inst_id"] in current_syms or r["inst_id"] in state.fast_track_opened:
             return
 
         if r["score"] < FAST_TRACK_SCORE: # redundant but safe
             return
 
-        if time.time() - FAST_TRACK_COOLDOWN.get(r["inst_id"], 0) < FAST_TRACK_COOLDOWN_SECONDS:
+        last_ft = state.fast_track_cooldowns.get(r["inst_id"], 0)
+        if time.time() - last_ft < FAST_TRACK_COOLDOWN_SECONDS:
             return
 
-        _fast_track_opened.add(r["inst_id"])
-        FAST_TRACK_COOLDOWN[r["inst_id"]] = time.time()
+        state.fast_track_opened.add(r["inst_id"])
+        state.fast_track_cooldowns[r["inst_id"]] = time.time()
 
     tui_log(f"⚡ FAST-TRACK: {r['inst_id']} score {r['score']}! (λ={intensity:.2f})")
 
@@ -2167,14 +2207,14 @@ def on_scan_result(r: dict, direction: str) -> None:
     if verified_result:
         execute_sim_setup(verified_result, direction)
 
-    with _fast_track_lock:
-        if r["inst_id"] in _fast_track_opened:
-            _fast_track_opened.remove(r["inst_id"])
+    with state.lock:
+        if symbol in state.fast_track_opened:
+            state.fast_track_opened.remove(symbol)
 
 
 def sim_bot_loop(args) -> None:
     """The main scan-and-execute loop for the simulation bot."""
-    global _entropy_penalty, COOLDOWN_SECONDS
+    global COOLDOWN_SECONDS
 
     # Calculate dynamic cooldown based on timeframe and cooldown argument (T3-16)
     tf_sec = p_bot.get_tf_seconds(args.timeframe)
@@ -2191,19 +2231,19 @@ def sim_bot_loop(args) -> None:
     }
 
     _ensure_ws_started()
+    state.load_account()
     load_sim_cooldowns()
 
     # --- Cinematic Boot ---
     play_animation(animations.boot)
 
-    acc = load_paper_account()
-    for p in acc.get("positions", []):
-        _subscribe_symbol(p["symbol"])
+    with state.lock:
+        for p in state.positions:
+            _subscribe_symbol(p["symbol"])
 
-    with _display_lock:
-        global _display_thread_running
-        if not _display_thread_running:
-            _display_thread_running = True
+    with state.lock:
+        if not state.display_thread_running:
+            state.display_thread_running = True
             threading.Thread(target=_live_pnl_display, daemon=True).start()
 
     while True:
@@ -2216,11 +2256,11 @@ def sim_bot_loop(args) -> None:
 
         # No slot cap — scan every cycle, gate on margin at execution time
         tui_log(f"Scanning LIVE market ({args.timeframe})...")
-        _display_paused.set()
+        state.display_paused_event.set()
         t0 = time.time()
         long_r, short_r = p_bot.run_scanner_both(cfg, args, on_result=on_scan_result)
         elapsed = time.time() - t0
-        _display_paused.clear()
+        state.display_paused_event.clear()
         tui_log(f"Scan complete in {elapsed:.1f}s — L: {len(long_r)}  S: {len(short_r)}")
 
         # ── Cross-Asset Entropy Deflator (Idea 2) ─────────────────────
@@ -2228,32 +2268,34 @@ def sim_bot_loop(args) -> None:
         total_universe = len([t for t in all_tickers if float(t.get("turnoverRv", 0)) >= args.min_vol])
 
         n_hits = len(long_r) + len(short_r)
+        new_entropy_penalty = 0
         if total_universe > 0 and n_hits > 0:
             # Saturation: percentage of universe firing
             sat_ratio = n_hits / total_universe
-            # [FIX] Capped and less aggressive entropy penalties
-            sat_penalty = min(30, int(sat_ratio * 40)) 
+            # Capped and less aggressive entropy penalties
+            sat_penalty = min(ENTROPY_SAT_CAP, int(sat_ratio * ENTROPY_SAT_WEIGHT)) 
 
             # One-sidedness: how imbalanced are the signals?
             imbalance = abs(len(long_r) - len(short_r)) / n_hits
-            side_penalty = int(20 * imbalance)
+            side_penalty = int(ENTROPY_IMB_WEIGHT * imbalance)
 
-            _entropy_penalty = min(40, sat_penalty + side_penalty)
-        else:
-            _entropy_penalty = 0
+            new_entropy_penalty = min(ENTROPY_MAX_PENALTY, sat_penalty + side_penalty)
 
-        if _entropy_penalty > 15:
-            tui_log(f"ENTROPY DEFLATOR: Raising min_score by +{_entropy_penalty} (Saturation: {n_hits}/{total_universe}, Imbalance: {imbalance:.2f})")
+        with state.lock:
+            state.entropy_penalty = new_entropy_penalty
+
+        if new_entropy_penalty > ENTROPY_ALERT_LEVEL:
+            tui_log(f"ENTROPY DEFLATOR: Raising min_score by +{new_entropy_penalty} (Saturation: {n_hits}/{total_universe}, Imbalance: {imbalance:.2f})")
 
         # Calculate dynamic threshold for this scan cycle
-        eff_min_score = args.min_score + _entropy_penalty
+        eff_min_score = args.min_score + new_entropy_penalty
         if not args.no_dynamic:
             all_scores = [r["score"] for r in (long_r + short_r)]
             dynamic_min = pc.calc_dynamic_threshold(all_scores, args.min_score)
             eff_min_score = max(eff_min_score, dynamic_min)
 
         if eff_min_score > args.min_score:
-            tui_log(f"ADAPTIVE FILTER: Effective min_score = {eff_min_score} (Penalty: +{_entropy_penalty})")
+            tui_log(f"ADAPTIVE FILTER: Effective min_score = {eff_min_score} (Penalty: +{new_entropy_penalty})")
 
         now_dt = datetime.datetime.now()
 
@@ -2275,10 +2317,9 @@ def sim_bot_loop(args) -> None:
             tui_log(f"Picked {len(candidates)} candidate(s).")
             for res, direction in candidates:
                 # Account for positions already open PLUS those currently being verified by fast-track
-                with _fast_track_lock:
-                    acc_check = load_paper_account()
-                    eff_free = get_sim_free_margin(acc_check["balance"], acc_check["positions"])
-                    eff_free -= len(_fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)
+                with state.lock:
+                    eff_free = get_sim_free_margin(state.balance, state.positions)
+                    eff_free -= len(state.fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)
                     if eff_free < MIN_FREE_MARGIN:
                         break
 
@@ -2290,8 +2331,8 @@ def sim_bot_loop(args) -> None:
             tui_log("No qualifying setups found.")
 
         sleep_interval = args.interval
-        _slot_available_event.wait(timeout=sleep_interval)
-        _slot_available_event.clear()
+        state.slot_available_event.wait(timeout=sleep_interval)
+        state.slot_available_event.clear()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2324,18 +2365,19 @@ def main() -> None:
 
     # ── Upgrade #7: Initialise daily drawdown guard ───────────────────────────
     if _DD_OK:
-        _dd.set_start_balance(INITIAL_BALANCE)
-        logger.info(f"drawdown_guard: active — max daily drawdown {_dd.MAX_DAILY_DRAWDOWN:.1%}")
+        drawdown_guard.set_start_balance(INITIAL_BALANCE)
+        logger.info(f"drawdown_guard: active — max daily drawdown {drawdown_guard.MAX_DAILY_DRAWDOWN:.1%}")
 
     # ── Upgrade #13: Start Telegram control interface ─────────────────────────
     if _TG_OK:
         def _session_pnl_fn():
-            return {
-                "wins":      _rolling_stats["wins"],
-                "losses":    _rolling_stats["losses"],
-                "total_pnl": _rolling_stats["win_pnl"] + _rolling_stats["loss_pnl"],
-            }
-        _tg.start(
+            with state.lock:
+                return {
+                    "wins":      state.rolling_stats["wins"],
+                    "losses":    state.rolling_stats["losses"],
+                    "total_pnl": state.rolling_stats["win_pnl"] + state.rolling_stats["loss_pnl"],
+                }
+        telegram.start(
             get_balance_fn     = get_sim_balance,
             get_positions_fn   = get_sim_positions,
             get_session_pnl_fn = _session_pnl_fn,
@@ -2347,15 +2389,15 @@ def main() -> None:
     except KeyboardInterrupt:
         print(Fore.YELLOW + "\n  Bot stopped by user. Shutting down...")
         # Signal the display thread to stop and wait for it
-        if _display_thread_running:
-            _display_paused.set() # Signal to stop drawing
-            # _live_pnl_display is a daemon thread, so it will be killed automatically on exit.
-            # However, explicitly signalling might be good practice if it had complex cleanup.
+        with state.lock:
+            if state.display_thread_running:
+                state.display_paused_event.set() # Signal to stop drawing
+                state.display_thread_running = False
 
         # Ensure WebSocket client is closed if it was started
-        if _ws_app:
+        if state.ws_app:
             try:
-                _ws_app.close()
+                state.ws_app.close()
             except Exception as e:
                 logger.debug(f"Error closing WebSocket: {e}")
 

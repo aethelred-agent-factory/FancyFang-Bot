@@ -73,31 +73,31 @@ import phemex_common as pc
 
 # ── New-module imports (graceful degradation) ────────────────────────
 try:
-    import drawdown_guard as _dd
+    import drawdown_guard as drawdown_guard
     _DD_OK = True
 except ImportError:
-    _dd = None  # type: ignore
+    drawdown_guard = None  # type: ignore
     _DD_OK = False
 
 try:
-    import risk_manager as _rm
+    import risk_manager as risk_mgr
     _RM_OK = True
 except ImportError:
-    _rm = None  # type: ignore
+    risk_mgr = None  # type: ignore
     _RM_OK = False
 
 try:
-    import signal_analytics as _sa
+    import signal_analytics as analytics
     _SA_OK = True
 except ImportError:
-    _sa = None  # type: ignore
+    analytics = None  # type: ignore
     _SA_OK = False
 
 try:
-    import telegram_controller as _tg
+    import telegram_controller as telegram
     _TG_OK = True
 except ImportError:
-    _tg = None  # type: ignore
+    telegram = None  # type: ignore
     _TG_OK = False
 
 # Telegram Configuration — load exclusively from environment; never hardcode credentials
@@ -119,6 +119,13 @@ except ImportError as e:
 
 load_dotenv()
 init(autoreset=True)
+
+# ── Entropy Deflator Parameters (v2) ───────────────────────────
+ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "40"))
+ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "40"))
+ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "30"))
+ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "20"))
+ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "15"))
 
 # ────────────────────────────────────────────────────────────────────
 # Configuration
@@ -767,7 +774,7 @@ def _cache_refresher():
                             # ── Drawdown guard — record closed trade PnL ──────
                             if _DD_OK:
                                 try:
-                                    _dd.record_pnl(float(realized_pnl), nb if nb is not None else _cached_balance)
+                                    drawdown_guard.record_pnl(float(realized_pnl), nb if nb is not None else _cached_balance)
                                 except Exception as e:
                                     logger.warning(f"[DD] record_pnl failed: {e}")
 
@@ -776,7 +783,7 @@ def _cache_refresher():
                                 try:
                                     exit_price = old_p.get("mark_price", entry_price) if old_p else entry_price
                                     trade_signals = local_state.get("signals", [])
-                                    _sa.record_trade(trade_signals, entry_price, exit_price,
+                                    analytics.record_trade(trade_signals, entry_price, exit_price,
                                                      float(realized_pnl), direction, sym)
                                 except Exception as e:
                                     logger.warning(f"[SA] record_trade failed: {e}")
@@ -784,7 +791,7 @@ def _cache_refresher():
                             # ── Risk manager — feed Kelly rolling stats ───────
                             if _RM_OK:
                                 try:
-                                    _rm.record_trade_result(float(realized_pnl))
+                                    risk_mgr.record_trade_result(float(realized_pnl))
                                 except Exception as e:
                                     logger.warning(f"[RM] record_trade_result failed: {e}")
 
@@ -1511,14 +1518,14 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
     if _RM_OK:
         try:
             stop_distance = active_trail_pct  # use trail pct as proxy for stop distance
-            risk_usd, _ = _rm.compute_dynamic_risk(
+            risk_usd, _ = risk_mgr.compute_dynamic_risk(
                 account_balance=_cached_balance,
                 signal_strength=min(score / 200.0, 1.0),
                 stop_distance=stop_distance,
                 open_positions=_cached_positions,
             )
             # reject_trade check
-            reject, reject_reason = _rm.should_reject_trade(risk_usd, _cached_balance, _cached_positions)
+            reject, reject_reason = risk_mgr.should_reject_trade(risk_usd, _cached_balance, _cached_positions)
             if reject:
                 tui_log(f"RISK MGR REJECT: {symbol} — {reject_reason}", event_type="SKIP")
                 return False
@@ -2006,7 +2013,7 @@ def bot_loop(args):
 
     # ── Drawdown guard initialisation ────────────────────────────────
     if _DD_OK:
-        _dd.set_start_balance(_cached_balance)
+        drawdown_guard.set_start_balance(_cached_balance)
         logger.info(f"[DD] Drawdown guard armed — start balance: {_cached_balance:.2f} USDT")
 
     # ── Telegram controller startup ───────────────────────────────────
@@ -2017,7 +2024,7 @@ def bot_loop(args):
             return _cached_positions
         def _get_session_pnl():
             return sum(p.get("pnl", 0.0) for p in _cached_positions)
-        _tg.start(_get_live_balance, _get_live_positions, _get_session_pnl)
+        telegram.start(_get_live_balance, _get_live_positions, _get_session_pnl)
         logger.info("[TG] Telegram controller started")
 
     scan_number = 0
@@ -2028,14 +2035,14 @@ def bot_loop(args):
 
         # ── Drawdown kill-switch check ────────────────────────────────
         if _DD_OK:
-            _dd_ok_flag, _dd_reason = _dd.can_open_trade(_cached_balance)
+            _dd_ok_flag, _dd_reason = drawdown_guard.can_open_trade(_cached_balance)
             if not _dd_ok_flag:
                 tui_log(f"[DD] Trading halted by drawdown guard: {_dd_reason}", event_type="HALT")
                 time.sleep(60)
                 continue
 
         # ── Telegram halt check ───────────────────────────────────────
-        if _TG_OK and _tg.is_halted():
+        if _TG_OK and telegram.is_halted():
             tui_log("[TG] Trading halted via Telegram /stop command", event_type="HALT")
             time.sleep(30)
             continue
@@ -2056,10 +2063,10 @@ def bot_loop(args):
             if _account_trading_halted:
                 return
             if _DD_OK:
-                _ok, _reason = _dd.can_open_trade(_cached_balance)
+                _ok, _reason = drawdown_guard.can_open_trade(_cached_balance)
                 if not _ok:
                     return
-            if _TG_OK and _tg.is_halted():
+            if _TG_OK and telegram.is_halted():
                 return
 
             # ── Hawkes Cluster Throttling (Idea 3) ────────────────────
@@ -2156,18 +2163,18 @@ def bot_loop(args):
         if total_universe > 0 and n_hits > 0:
             # Saturation: percentage of universe firing
             sat_ratio = n_hits / total_universe
-            # [FIX] Capped and less aggressive entropy penalties
-            sat_penalty = min(30, int(sat_ratio * 40)) 
+            # Capped and less aggressive entropy penalties
+            sat_penalty = min(ENTROPY_SAT_CAP, int(sat_ratio * ENTROPY_SAT_WEIGHT)) 
 
             # One-sidedness: how imbalanced are the signals?
             imbalance = abs(len(long_r) - len(short_r)) / n_hits
-            side_penalty = int(20 * imbalance)
+            side_penalty = int(ENTROPY_IMB_WEIGHT * imbalance)
 
-            _entropy_penalty = min(40, sat_penalty + side_penalty)
+            _entropy_penalty = min(ENTROPY_MAX_PENALTY, sat_penalty + side_penalty)
         else:
             _entropy_penalty = 0
 
-        if _entropy_penalty > 15:
+        if _entropy_penalty > ENTROPY_ALERT_LEVEL:
             tui_log(f"ENTROPY DEFLATOR: Raising min_score by +{_entropy_penalty} (Saturation: {n_hits}/{total_universe}, Imbalance: {imbalance:.2f})", event_type="DEFLATOR")
 
         # ── Dynamic threshold calculation ─────────────────────────────

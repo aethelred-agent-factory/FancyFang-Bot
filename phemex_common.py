@@ -26,6 +26,7 @@ import json
 import logging
 import math
 import os
+import queue
 import threading
 import time
 from collections import deque
@@ -44,6 +45,14 @@ import requests
 from colorama import Fore, Style
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# ----------------------------
+# EXCEPTIONS
+# ----------------------------
+
+class InitializationError(Exception):
+    """Raised when a critical dependency or configuration is missing at startup."""
+    pass
 
 # ----------------------------
 # CONFIG & CONSTANTS
@@ -66,27 +75,46 @@ DEFAULTS = {
 }
 
 # ----------------------------
-# System Audit Logger
+# System Audit Logger (Async)
 # ----------------------------
 SYSTEM_AUDIT_LOG = Path(os.path.dirname(os.path.abspath(__file__))) / "system_audit.log"
+
+_audit_queue: queue.Queue = queue.Queue()
+
+def _audit_worker():
+    """Background worker to process audit log entries."""
+    while True:
+        try:
+            msg = _audit_queue.get()
+            if msg is None:  # Sentinel
+                break
+            
+            # Ensure the directory exists
+            try:
+                with open(SYSTEM_AUDIT_LOG, "a", encoding="utf-8") as f:
+                    f.write(msg + "\n")
+            except Exception as e:
+                logging.getLogger("phemex_common").error(f"Audit worker failed to write: {e}")
+        finally:
+            _audit_queue.task_done()
+
+# Start the background worker as a daemon thread
+_audit_thread = threading.Thread(target=_audit_worker, daemon=True)
+_audit_thread.start()
 
 def log_system_event(event_type: str, message: str, level: int = logging.INFO):
     """
     Logs a high-level system event to the audit log file and the main logger.
     This ensures a permanent record of all significant system actions.
+    Uses a background worker to avoid blocking the hot path on disk I/O.
     """
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_msg = f"[{timestamp}] [{event_type.upper()}] {message}"
 
-    # 1. Log to the audit file manually to ensure it's always documented
-    try:
-        with open(SYSTEM_AUDIT_LOG, "a", encoding="utf-8") as f:
-            f.write(formatted_msg + "\n")
-    except Exception as e:
-        logging.getLogger("phemex_common").error(f"Failed to write to audit log: {e}")
+    # 1. Queue the audit file message
+    _audit_queue.put(formatted_msg)
 
     # 2. Also log via the standard logging system so it appears in TUI
-    # We use a special logger name to avoid infinite loops if setup_colored_logging uses this
     audit_logger = logging.getLogger("system_audit")
     if level == logging.ERROR:
         audit_logger.error(message)
