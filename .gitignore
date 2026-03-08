@@ -1,0 +1,29 @@
+# Env & Keys
+.env
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+
+# Logs & State (fresh reset)
+*.log
+*.json
+*.jsonl
+!paper_account.json
+!paper_account.json.example
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Archives
+*.zip
+*.tar.gz
