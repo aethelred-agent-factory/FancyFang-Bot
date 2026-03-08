@@ -2031,6 +2031,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
         entry_price = fill_price  # use slippage-adjusted fill
 
         # Deduct margin AND taker fee
+        fee = notional * pc.TAKER_FEE
         state.balance -= (margin_to_use + fee)
 
         side = "Buy" if direction == "LONG" else "Sell"
@@ -2233,6 +2234,10 @@ def on_scan_result(scan_res: dict, direction: str) -> None:
         verified_result = verify_sim_candidate(scan_res["inst_id"], direction, scan_res["score"])
         if verified_result:
             execute_sim_setup(verified_result, direction)
+    except Exception as e:
+        import traceback
+        tui_log(f"CRITICAL ERROR in on_scan_result for {scan_res['inst_id']}: {e}", event_type="ERROR")
+        logger.error(traceback.format_exc())
     finally:
         with state.lock:
             symbol = scan_res["inst_id"]
@@ -2353,9 +2358,14 @@ def sim_bot_loop(args) -> None:
                         continue
 
                 # ── Wait & Verify ────────────────────────────────────
-                verified_result = verify_sim_candidate(res["inst_id"], direction, res["score"])
-                if verified_result:
-                    execute_sim_setup(verified_result, direction)
+                try:
+                    verified_result = verify_sim_candidate(res["inst_id"], direction, res["score"])
+                    if verified_result:
+                        execute_sim_setup(verified_result, direction)
+                except Exception as e:
+                    import traceback
+                    tui_log(f"CRITICAL ERROR in candidate loop for {res['inst_id']}: {e}", event_type="ERROR")
+                    logger.error(traceback.format_exc())
         else:
             tui_log("No qualifying setups found.")
 
