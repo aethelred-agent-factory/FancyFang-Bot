@@ -239,14 +239,40 @@ def load_blacklist() -> None:
         except Exception as e:
             logger.error(f"Failed to load blacklist: {e}")
 
-def blacklist_symbol(symbol: str, reason: str = "stop_out") -> None:
-    """Add symbol to the cooldown blacklist for BLACKLIST_DURATION_SECONDS."""
-    expiry = time.time() + BLACKLIST_DURATION_SECONDS
+# ── Dynamic Cooldown Parameters (Project Phoenix) ───────────────────────────
+# After a trade is closed, the cooldown before re-entry is dynamically calculated.
+BASE_COOLDOWN_WIN_S           = int(os.getenv("BASE_COOLDOWN_WIN_S", "300"))      # 5 mins on win
+BASE_COOLDOWN_LOSS_S          = int(os.getenv("BASE_COOLDOWN_LOSS_S", "1800"))     # 30 mins base on loss
+PNL_COOLDOWN_MULTIPLIER       = int(os.getenv("PNL_COOLDOWN_MULTIPLIER", "72"))   # 72s per dollar lost (e.g., -$25 loss adds 30 mins)
+ENTROPY_COOLDOWN_REDUCTION_F  = int(os.getenv("ENTROPY_COOLDOWN_REDUCTION_F", "120")) # 120s reduction per entropy point
+MAX_COOLDOWN_S                = int(os.getenv("MAX_COOLDOWN_S", "14400"))    # 4 hour max cooldown
+
+def _calculate_dynamic_blacklist_duration(pnl: float, entropy_penalty: int) -> int:
+    """Calculates a dynamic cooldown period in seconds based on performance and market conditions."""
+    if pnl >= 0:
+        # Short fixed cooldown for wins, no reduction
+        return BASE_COOLDOWN_WIN_S
+    
+    # Longer cooldown for losses, scaled by PnL
+    loss_penalty = int(abs(pnl) * PNL_COOLDOWN_MULTIPLIER)
+    cooldown = BASE_COOLDOWN_LOSS_S + loss_penalty
+
+    # Reduce cooldown if market is hot (high entropy)
+    reduction = entropy_penalty * ENTROPY_COOLDOWN_REDUCTION_F
+    
+    final_cooldown = max(0, cooldown - reduction)
+    return min(final_cooldown, MAX_COOLDOWN_S)
+
+def blacklist_symbol(symbol: str, reason: str = "stop_out", pnl: float = 0.0) -> None:
+    """Add symbol to the cooldown blacklist for a dynamic duration."""
+    duration = _calculate_dynamic_blacklist_duration(pnl, _entropy_penalty)
+    expiry = time.time() + duration
     with _blacklist_lock:
         SYMBOL_BLACKLIST[symbol] = expiry
-    msg = f"🚫 *BLACKLISTED* — {symbol} banned for {BLACKLIST_DURATION_SECONDS//60}m after {reason}"
-    logger.info(msg)
-    send_telegram_message(msg)
+    msg = f"🚫 *BLACKLISTED* — {symbol} banned for {duration//60}m after {reason}"
+    if duration > 0:
+        logger.info(msg)
+        send_telegram_message(msg)
     save_blacklist() # Save after updating blacklist
 
     # Entity API Hook
@@ -256,7 +282,7 @@ def blacklist_symbol(symbol: str, reason: str = "stop_out") -> None:
         "symbol": symbol,
         "triggered_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "expires_at": datetime.datetime.fromtimestamp(expiry, datetime.timezone.utc).isoformat(),
-        "duration_seconds": BLACKLIST_DURATION_SECONDS,
+        "duration_seconds": duration,
         "trigger_trade_id": symbol, # best guess
         "reason": reason
     })
@@ -816,7 +842,7 @@ def _cache_refresher():
                                     logger.warning(f"[RM] record_trade_result failed: {e}")
 
                             # ── Auto-Blacklist on Closure ──────────
-                            blacklist_symbol(sym, reason=f"trade closure (PnL: ${realized_pnl:.2f})")
+                            blacklist_symbol(sym, reason=f"trade closure (PnL: ${realized_pnl:.2f})", pnl=realized_pnl)
 
                         _slot_available_event.set()
 

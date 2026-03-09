@@ -745,6 +745,15 @@ class Trade:
 # ─────────────────────────────────────────────────────────────────────
 # Core walk-forward backtester for one symbol
 # ─────────────────────────────────────────────────────────────────────
+def _calculate_dynamic_cooldown_candles(pnl_usdt: float, base_win: int = 1, base_loss: int = 2, max_c: int = 8) -> int:
+    """Calculates a dynamic cooldown in candles based on trade performance."""
+    if pnl_usdt >= 0:
+        return base_win
+    
+    # Scale loss penalty: e.g., for every $25 lost, add 1 candle of cooldown
+    loss_penalty = int(abs(pnl_usdt) / 25.0)
+    return min(base_loss + loss_penalty, max_c)
+
 def backtest_symbol(
     symbol:            str,
     candles:           List[list],
@@ -799,6 +808,7 @@ def backtest_symbol(
     low_water_mark = float("inf")
     stop_price = 0.0
     last_exit_index = -(cooldown + 1)   # allows entry on very first bar
+    current_cooldown = cooldown
 
     for candle_index in range(window, len(ohlcv_data) - 1):
         current_open, current_high, current_low, current_close, current_volume = ohlcv_data[candle_index]
@@ -880,6 +890,7 @@ def backtest_symbol(
                         trades.append(active_position)
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
+                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 # Hard stop check (fires before trailing stop)
@@ -897,6 +908,7 @@ def backtest_symbol(
                         trades.append(active_position)
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
+                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 # Ratchet high-water on candle high
@@ -916,6 +928,7 @@ def backtest_symbol(
                     trades.append(active_position)
                     is_in_position = False; active_position = None
                     last_exit_index = candle_index
+                    current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
                     continue
 
             else:  # SHORT
@@ -934,6 +947,7 @@ def backtest_symbol(
                         trades.append(active_position)
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
+                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 # Hard stop check
@@ -951,6 +965,7 @@ def backtest_symbol(
                         trades.append(active_position)
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
+                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 if current_close < low_water_mark:
@@ -968,6 +983,7 @@ def backtest_symbol(
                     trades.append(active_position)
                     is_in_position = False; active_position = None
                     last_exit_index = candle_index
+                    current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
                     continue
 
             # Max hold exit at candle close
@@ -986,10 +1002,11 @@ def backtest_symbol(
                 trades.append(active_position)
                 is_in_position = False; active_position = None
                 last_exit_index = candle_index
+                current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
             continue
 
         # ── Cooldown guard ────────────────────────────────────────────
-        if cooldown > 0 and (candle_index - last_exit_index) < cooldown:
+        if current_cooldown > 0 and (candle_index - last_exit_index) < current_cooldown:
             continue
 
         # ── Look for entry signal on this window ──────────────────────

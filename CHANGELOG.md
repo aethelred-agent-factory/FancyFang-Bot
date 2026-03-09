@@ -1,5 +1,14 @@
 # Changelog - FancyBot Revised
 
+## [2026-03-09.1] - Project Phoenix (Dynamic Cooldown Protocol)
+
+### Added
+- **Dynamic Cooldown Protocol:** Implemented "Project Phoenix" in `sim_bot.py`, `p_bot.py`, and `backtest.py`.
+- **Performance-Sensitive Blacklist:** Cooldowns are now calculated based on the PnL of the last closed trade. Winning trades result in a minimal 5-minute cooldown, while losses trigger a longer, PnL-scaled "risk-off" period.
+- **Market-Aware Agility:** Cooldowns are dynamically reduced based on the "Cross-Asset Entropy" score. In target-rich environments (high entropy), the bot re-engages faster to capitalize on opportunities.
+- **Lower Cooldown Ceiling:** Reduced the maximum possible cooldown from 16 hours to **4 hours** (`MAX_COOLDOWN_S=14400`) to increase trading frequency without sacrificing risk management.
+- **Improved Persistence:** Migrated `last_exit_times` to `last_exit_info` to store both the exit timestamp and PnL, enabling persistent dynamic cooldowns across bot restarts.
+
 ## [2026-03-08.6] - Filter Relaxation & Activity Pass
 
 ### Changed

@@ -145,6 +145,15 @@ FAST_TRACK_COOLDOWN_SECONDS = 300   # seconds before same symbol can fast-track 
 RESULT_STALENESS_SECONDS    = 120   # discard scan results older than this
 
 # Per-symbol re-entry cooldown (4 candles × 4H = 16 hours)
+# ── Dynamic Cooldown Parameters (Project Phoenix) ───────────────────────────
+# After a trade is closed, the cooldown before re-entry is dynamically calculated.
+BASE_COOLDOWN_WIN_S           = int(os.getenv("BASE_COOLDOWN_WIN_S", "300"))      # 5 mins on win
+BASE_COOLDOWN_LOSS_S          = int(os.getenv("BASE_COOLDOWN_LOSS_S", "1800"))     # 30 mins base on loss
+PNL_COOLDOWN_MULTIPLIER       = int(os.getenv("PNL_COOLDOWN_MULTIPLIER", "72"))   # 72s per dollar lost (e.g., -$25 loss adds 30 mins)
+ENTROPY_COOLDOWN_REDUCTION_F  = int(os.getenv("ENTROPY_COOLDOWN_REDUCTION_F", "120")) # 120s reduction per entropy point
+MAX_COOLDOWN_S                = int(os.getenv("MAX_COOLDOWN_S", "14400"))    # 4 hour max cooldown
+
+# Backwards-compatible static cooldown
 COOLDOWN_SECONDS = 4 * 4 * 3600
 
 # Exit signal configuration
@@ -187,7 +196,7 @@ class SimBotState:
     live_prices: Dict[str, float] = field(default_factory=dict)
     
     # Cooldowns & Throttling
-    last_exit_times: Dict[str, float] = field(default_factory=dict)
+    last_exit_info: Dict[str, Tuple[float, float]] = field(default_factory=dict) # symbol -> (timestamp, pnl)
     fast_track_cooldowns: Dict[str, float] = field(default_factory=dict)
     fast_track_opened: set[str] = field(default_factory=set)
     
@@ -507,7 +516,7 @@ def _close_all_positions() -> None:
         new_balance += (pos.get("margin", 0.0) + pnl)
 
         with state.lock:
-            state.last_exit_times[symbol] = time.time()
+            state.last_exit_info[symbol] = (time.time(), pnl)
 
         # Standardize on timezone-aware UTC for JSON storage while keeping logs human-readable
         now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -539,11 +548,12 @@ def _close_all_positions() -> None:
 def save_sim_cooldowns() -> None:
     """Persists active re-entry and fast-track cooldowns to disk, pruning expired entries."""
     with state.lock:
-        active_exit = {s: ts for s, ts in state.last_exit_times.items() if time.time() - ts < COOLDOWN_SECONDS}
+        # Prune expired entries based on the MAX possible cooldown
+        active_exit = {s: info for s, info in state.last_exit_info.items() if time.time() - info[0] < MAX_COOLDOWN_S}
         active_ft   = {s: ts for s, ts in state.fast_track_cooldowns.items() if time.time() - ts < FAST_TRACK_COOLDOWN_SECONDS}
 
     data = {
-        "last_exit": active_exit,
+        "last_exit_info": active_exit,
         "fast_track": active_ft
     }
     try:
@@ -558,25 +568,31 @@ def load_sim_cooldowns() -> None:
         return
     try:
         data = json.loads(SIM_COOLDOWN_FILE.read_text())
-        if isinstance(data, dict) and "last_exit" in data and "fast_track" in data:
-            exit_data = data["last_exit"]
-            ft_data   = data["fast_track"]
-        else:
-            exit_data = data
-            ft_data   = {}
+        
+        # New format check
+        if isinstance(data, dict) and "last_exit_info" in data:
+            exit_data = data["last_exit_info"]
+        # Legacy format check
+        elif isinstance(data, dict) and "last_exit" in data:
+            # Convert legacy format {symbol: timestamp} to new format {symbol: [timestamp, 0.0]}
+            exit_data = {s: [ts, 0.0] for s, ts in data["last_exit"].items()}
+        else: # very old legacy format
+            exit_data = {s: [ts, 0.0] for s, ts in data.items()}
+
+        ft_data   = data.get("fast_track", {})
 
         with state.lock:
-            state.last_exit_times = {
-                s: float(ts) for s, ts in exit_data.items()
-                if time.time() - float(ts) < COOLDOWN_SECONDS
+            state.last_exit_info = {
+                s: (float(info[0]), float(info[1])) for s, info in exit_data.items()
+                if time.time() - float(info[0]) < MAX_COOLDOWN_S
             }
             state.fast_track_cooldowns = {
                 s: float(ts) for s, ts in ft_data.items()
                 if time.time() - float(ts) < FAST_TRACK_COOLDOWN_SECONDS
             }
-        logger.info(f"Loaded {len(state.last_exit_times)} exit and {len(state.fast_track_cooldowns)} fast-track cooldowns.")
-    except (json.JSONDecodeError, ValueError, AttributeError):
-        logger.error("Failed to load simulation cooldowns — JSON is invalid.")
+        logger.info(f"Loaded {len(state.last_exit_info)} exit and {len(state.fast_track_cooldowns)} fast-track cooldowns.")
+    except (json.JSONDecodeError, ValueError, AttributeError, IndexError):
+        logger.error("Failed to load or parse simulation cooldowns — JSON may be invalid or malformed.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -762,7 +778,7 @@ def _check_stops_live(symbol: str) -> None:
             # Update in-memory state
             state.balance += (pos.get("margin", 0.0) + pnl)
             state.positions.pop(pos_idx)
-            state.last_exit_times[symbol] = time.time()
+            state.last_exit_info[symbol] = (time.time(), pnl)
         
     # Process I/O outside the lock
     state.save_account()
@@ -1748,7 +1764,7 @@ def update_pnl_and_stops() -> None:
                     "slippage": pos.get("slippage", 0.0),
                 })
                 state.balance += (pos.get("margin", 0.0) + pnl)
-                state.last_exit_times[symbol] = time.time()
+                state.last_exit_info[symbol] = (time.time(), pnl)
                 closed_any = True
                 state_changed = True
                 continue
@@ -1906,6 +1922,22 @@ def verify_sim_candidate(symbol: str, direction: str, original_score: int, wait_
     tui_log(f"VERIFIED: {symbol} score {last_result['score']} — ready for SIM entry.")
     return last_result
 
+def _calculate_dynamic_cooldown(pnl: float, entropy_penalty: int) -> int:
+    """Calculates a dynamic cooldown period in seconds based on performance and market conditions."""
+    if pnl >= 0:
+        # Short fixed cooldown for wins, no reduction
+        return BASE_COOLDOWN_WIN_S
+    
+    # Longer cooldown for losses, scaled by PnL
+    loss_penalty = abs(pnl) * PNL_COOLDOWN_MULTIPLIER
+    cooldown = BASE_COOLDOWN_LOSS_S + loss_penalty
+
+    # Reduce cooldown if market is hot (high entropy)
+    reduction = entropy_penalty * ENTROPY_COOLDOWN_REDUCTION_F
+    
+    final_cooldown = max(0, cooldown - reduction)
+    return min(final_cooldown, MAX_COOLDOWN_S)
+
 def execute_sim_setup(result: dict, direction: str) -> bool:
     """
     Opens a new simulated position or scales into an existing one.
@@ -1958,11 +1990,17 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
                 return False
             # If scaling in, we skip the cooldown check since we already have skin in the game
         else:
-            last_exit = state.last_exit_times.get(symbol, 0)
-            if time.time() - last_exit < COOLDOWN_SECONDS:
-                remaining_h = (COOLDOWN_SECONDS - (time.time() - last_exit)) / 3600
-                tui_log(f"COOLDOWN: {symbol} — {remaining_h:.1f}h remaining before re-entry", event_type="SKIP")
-                return False
+            last_exit_info = state.last_exit_info.get(symbol)
+            if last_exit_info:
+                last_exit_timestamp, last_pnl = last_exit_info
+                
+                # Dynamic cooldown calculation
+                dynamic_cooldown = _calculate_dynamic_cooldown(last_pnl, state.entropy_penalty)
+                
+                if time.time() - last_exit_timestamp < dynamic_cooldown:
+                    remaining_s = dynamic_cooldown - (time.time() - last_exit_timestamp)
+                    tui_log(f"COOLDOWN: {symbol} — {remaining_s/60:.1f}m remaining (PnL: {last_pnl:.2f}, Penalty: {state.entropy_penalty})", event_type="SKIP")
+                    return False
 
         signals       = result.get("signals", [])
         is_low_liq    = any("Low Liquidity" in s for s in signals)
