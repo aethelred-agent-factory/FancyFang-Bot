@@ -56,6 +56,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
+from banner import BANNER
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
@@ -218,57 +219,65 @@ def get_htf_rsi(symbol: str, tf: str = "1H") -> Optional[float]:
 # ─────────────────────────────────────────────────────────────────────
 def calc_rsi(closes: List[float], period: int = 14
              ) -> Tuple[Optional[float], Optional[float], List[Optional[float]]]:
-    n = len(closes)
-    if n <= period:
-        return None, None, [None] * n
-    arr = np.asarray(closes, dtype=float)
-    diffs = np.diff(arr)
+    """Calculate RSI using Wilders smoothing."""
+    num_closes = len(closes)
+    if num_closes <= period:
+        return None, None, [None] * num_closes
+    closes_arr = np.asarray(closes, dtype=float)
+    diffs = np.diff(closes_arr)
     gains = np.where(diffs > 0, diffs, 0.0)
     losses = np.where(diffs < 0, -diffs, 0.0)
-    ag = float(gains[:period].sum() / period)
-    al = float(losses[:period].sum() / period)
+    avg_gain = float(gains[:period].sum() / period)
+    avg_loss = float(losses[:period].sum() / period)
     history: List[Optional[float]] = [None] * period
 
-    def _rsi(g, l):
-        return 100.0 if l == 0 else 100.0 - 100.0 / (1.0 + g / l)
+    def _rsi(gain: float, loss: float) -> float:
+        return 100.0 if loss == 0 else 100.0 - 100.0 / (1.0 + gain / loss)
 
-    history.append(_rsi(ag, al))
+    history.append(_rsi(avg_gain, avg_loss))
     for i in range(period, len(gains)):
-        ag = (ag * (period - 1) + float(gains[i])) / period
-        al = (al * (period - 1) + float(losses[i])) / period
-        history.append(_rsi(ag, al))
+        avg_gain = (avg_gain * (period - 1) + float(gains[i])) / period
+        avg_loss = (avg_loss * (period - 1) + float(losses[i])) / period
+        history.append(_rsi(avg_gain, avg_loss))
 
     return history[-1], history[-2] if len(history) >= 2 else None, history
 
 
 def calc_bb(closes: List[float], period: int = 21, mult: float = 2.0) -> Optional[Dict]:
+    """Calculate Bollinger Bands."""
     if len(closes) < period:
         return None
-    w = np.asarray(closes[-period:], dtype=float)
-    mid = float(w.mean())
-    std = float(np.sqrt(((w - mid) ** 2).sum() / period))
-    return {"upper": mid + mult * std, "mid": mid, "lower": mid - mult * std}
+    window_data = np.asarray(closes[-period:], dtype=float)
+    middle_band = float(window_data.mean())
+    std_dev = float(np.sqrt(((window_data - middle_band) ** 2).sum() / period))
+    return {
+        "upper": middle_band + mult * std_dev,
+        "mid": middle_band,
+        "lower": middle_band - mult * std_dev
+    }
 
 
 def calc_ema(closes: List[float], period: int = 21) -> Optional[float]:
+    """Calculate latest EMA value."""
     if len(closes) < period:
         return None
-    k = 2.0 / (period + 1)
+    smoothing_factor = 2.0 / (period + 1)
     ema = float(np.mean(closes[:period]))
-    for c in closes[period:]:
-        ema = c * k + ema * (1 - k)
+    for close_px in closes[period:]:
+        ema = close_px * smoothing_factor + ema * (1 - smoothing_factor)
     return ema
 
 
 def calc_ema_series(closes: List[float], period: int = 21) -> List[Optional[float]]:
+    """Calculate full EMA series."""
     if len(closes) < period:
         return [None] * len(closes)
-    k = 2.0 / (period + 1)
+    smoothing_factor = 2.0 / (period + 1)
     ema = float(np.mean(closes[:period]))
     result: List[Optional[float]] = [None] * (period - 1)
     result.append(ema)
-    for c in closes[period:]:
-        ema = c * k + ema * (1 - k)
+    for close_px in closes[period:]:
+        ema = close_px * smoothing_factor + ema * (1 - smoothing_factor)
         result.append(ema)
     return result
 
@@ -314,21 +323,26 @@ def _calc_atr_simple(
     closes: List[float],
     period: int = 14,
 ) -> Optional[float]:
-    """Minimal ATR(14) for use inside backtest_symbol without importing numpy."""
-    n = len(closes)
-    if n <= period:
+    """Minimal ATR(14) calculation."""
+    num_candles = len(closes)
+    if num_candles <= period:
         return None
-    tr_list = []
-    for i in range(1, n):
-        h_l   = highs[i]  - lows[i]
-        h_pc  = abs(highs[i]  - closes[i - 1])
-        l_pc  = abs(lows[i]   - closes[i - 1])
-        tr_list.append(max(h_l, h_pc, l_pc))
-    if len(tr_list) < period:
+
+    highs_arr = np.asarray(highs, dtype=float)
+    lows_arr = np.asarray(lows, dtype=float)
+    closes_arr = np.asarray(closes, dtype=float)
+
+    high_low = highs_arr[1:] - lows_arr[1:]
+    high_prev_close = np.abs(highs_arr[1:] - closes_arr[:-1])
+    low_prev_close = np.abs(lows_arr[1:] - closes_arr[:-1])
+    true_ranges = np.maximum(high_low, np.maximum(high_prev_close, low_prev_close))
+
+    if len(true_ranges) < period:
         return None
-    atr = sum(tr_list[:period]) / period
-    for i in range(period, len(tr_list)):
-        atr = (atr * (period - 1) + tr_list[i]) / period
+
+    atr = float(np.mean(true_ranges[:period]))
+    for i in range(period, len(true_ranges)):
+        atr = (atr * (period - 1) + float(true_ranges[i])) / period
     return atr
 
 
@@ -767,7 +781,8 @@ def backtest_symbol(
                         pos.exit_reason  = "take_profit"
                         pos.hold_candles = i - pos.entry_idx
                         trades.append(pos)
-                        in_pos = False; pos = None
+                        in_pos = False
+                        pos = None
                         last_exit_idx = i
                         continue
 
@@ -784,7 +799,8 @@ def backtest_symbol(
                         pos.exit_reason  = "hard_stop"
                         pos.hold_candles = i - pos.entry_idx
                         trades.append(pos)
-                        in_pos = False; pos = None
+                        in_pos = False
+                        pos = None
                         last_exit_idx = i
                         continue
 
@@ -803,7 +819,8 @@ def backtest_symbol(
                     pos.exit_reason  = "trail_stop"
                     pos.hold_candles = i - pos.entry_idx
                     trades.append(pos)
-                    in_pos = False; pos = None
+                    in_pos = False
+                    pos = None
                     last_exit_idx = i
                     continue
 
@@ -821,7 +838,8 @@ def backtest_symbol(
                         pos.exit_reason  = "take_profit"
                         pos.hold_candles = i - pos.entry_idx
                         trades.append(pos)
-                        in_pos = False; pos = None
+                        in_pos = False
+                        pos = None
                         last_exit_idx = i
                         continue
 
@@ -838,7 +856,8 @@ def backtest_symbol(
                         pos.exit_reason  = "hard_stop"
                         pos.hold_candles = i - pos.entry_idx
                         trades.append(pos)
-                        in_pos = False; pos = None
+                        in_pos = False
+                        pos = None
                         last_exit_idx = i
                         continue
 
@@ -855,7 +874,8 @@ def backtest_symbol(
                     pos.exit_reason  = "trail_stop"
                     pos.hold_candles = i - pos.entry_idx
                     trades.append(pos)
-                    in_pos = False; pos = None
+                    in_pos = False
+                    pos = None
                     last_exit_idx = i
                     continue
 
@@ -873,7 +893,8 @@ def backtest_symbol(
                 pos.exit_reason  = "max_hold"
                 pos.hold_candles = i - pos.entry_idx
                 trades.append(pos)
-                in_pos = False; pos = None
+                in_pos = False
+                pos = None
                 last_exit_idx = i
             continue
 
@@ -929,12 +950,9 @@ def backtest_symbol(
         # ── Upgrade #2: ATR-based stop-loss (with fallback to trail_pct) ──────
         if atr_w and atr_w > 0:
             atr_stop_mult  = 1.5
-            atr_trail_mult = 1.0
             atr_stop_dist  = atr_w * atr_stop_mult
-            trail_dist_atr = atr_w * atr_trail_mult
         else:
             atr_stop_dist  = n_open * trail_pct
-            trail_dist_atr = n_open * trail_pct
 
         if direction_trade == "LONG":
             entry_px   = n_open * (1.0 + slip_one_side + fee_one_side)
@@ -1037,15 +1055,20 @@ def fmt_stat(val: float, fmt: str = ".2f") -> str:
 
 def max_streaks(trades: List[Trade]) -> Tuple[int, int]:
     """Return (max_win_streak, max_loss_streak) from sequential trade list."""
-    max_w = max_l = cur_w = cur_l = 0
+    max_win_streak = 0
+    max_loss_streak = 0
+    current_win_streak = 0
+    current_loss_streak = 0
     for t in trades:
         if (t.pnl_usdt or 0.0) > 0:
-            cur_w += 1; cur_l = 0
+            current_win_streak += 1
+            current_loss_streak = 0
         else:
-            cur_l += 1; cur_w = 0
-        max_w = max(max_w, cur_w)
-        max_l = max(max_l, cur_l)
-    return max_w, max_l
+            current_loss_streak += 1
+            current_win_streak = 0
+        max_win_streak = max(max_win_streak, current_win_streak)
+        max_loss_streak = max(max_loss_streak, current_loss_streak)
+    return max_win_streak, max_loss_streak
 
 # ─────────────────────────────────────────────────────────────────────
 # Parameter sweep
@@ -1083,7 +1106,14 @@ def sweep(
     direction:      str   = "BOTH",
     min_score_gap:  int   = 0,
 ) -> List[SweepResult]:
-    combos = [(t, sl, tp, m, l) for t in trail_pcts for sl in sl_pcts for tp in tp_pcts for m in min_scores for l in leverages]
+    combos = [
+        (t, sl, tp, m, lev)
+        for t in trail_pcts
+        for sl in sl_pcts
+        for tp in tp_pcts
+        for m in min_scores
+        for lev in leverages
+    ]
     results = []
     for idx, (tp_trail, sl, tp, ms, lv) in enumerate(combos):
         all_t = []
@@ -1134,7 +1164,8 @@ def bar(pct: float, width: int = 20) -> str:
 def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     closed = [t for t in trades if t.pnl_usdt is not None and t.exit_reason != "open"]
     if not closed:
-        print(Fore.YELLOW + "  No closed trades to analyse."); return
+        print(Fore.YELLOW + "  No closed trades to analyse.")
+        return
 
     wins   = [t for t in closed if t.pnl_usdt > 0]
     losses = [t for t in closed if t.pnl_usdt <= 0]
@@ -1188,8 +1219,9 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
 
     # Direction breakdown
     for dir_label, group in [("LONG", [t for t in closed if t.direction == "LONG"]),
-                              ("SHORT",[t for t in closed if t.direction == "SHORT"])]:
-        if not group: continue
+                              ("SHORT", [t for t in closed if t.direction == "SHORT"])]:
+        if not group:
+            continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
         g_exp = g_pnl / len(group)
@@ -1201,7 +1233,8 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     # Exit reason breakdown
     for reason in ["trail_stop", "hard_stop", "take_profit", "max_hold", "end_of_data"]:
         group = [t for t in closed if t.exit_reason == reason]
-        if not group: continue
+        if not group:
+            continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
         rc    = Fore.GREEN if g_pnl >= 0 else Fore.RED
@@ -1214,7 +1247,8 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
              (100, 119, "100-119"), (80, 99, "80-99"), (0, 79, "<80")]
     for lo, hi, tlabel in tiers:
         group = [t for t in closed if lo <= t.score <= hi]
-        if len(group) < 2: continue
+        if len(group) < 2:
+            continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_exp = sum(t.pnl_usdt for t in group) / len(group)
         wc    = Fore.GREEN if g_wr >= 50 else Fore.RED
@@ -1252,7 +1286,8 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
                 for s in t.signals
             )
         group = [t for t in closed if has_signal(t)]
-        if len(group) < 3: continue
+        if len(group) < 3:
+            continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_exp = sum(t.pnl_usdt for t in group) / len(group)
         wc = Fore.GREEN if g_wr >= 50 else Fore.RED
@@ -1264,7 +1299,8 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     print(Fore.CYAN + f"\n  {'─'*64}")
     for ll_label, ll_val in [("Normal liquidity", False), ("Low liquidity", True)]:
         group = [t for t in closed if t.is_low_liq == ll_val]
-        if not group: continue
+        if not group:
+            continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
         lc    = Fore.GREEN if g_pnl >= 0 else Fore.RED
@@ -1411,7 +1447,7 @@ def main():
                         help="Skip 1H RSI fetch (faster)")
     args = parser.parse_args()
 
-    print(Fore.CYAN + pc.BANNER)
+    print(Fore.CYAN + BANNER)
 
     # Print active settings summary
     flags = []

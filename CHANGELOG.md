@@ -69,3 +69,19 @@
 
 ### Security
 - Retained `.env` configurations (API keys and Telegram credentials) throughout the reset and update process.
+
+## [2026-03-08.5] - Systemic Grooming & SQLite Evolution
+
+### Added
+- **Storage Layer:** Implemented `StorageManager` in `storage_manager.py` using SQLite for robust, atomic, and efficient data persistence.
+- **Regression Tests:** Added `tests/test_backtest_scoring.py` and `tests/test_storage_manager.py` to ensure core logic stability.
+
+### Fixed
+- **NameErrors:** Resolved critical `pc.BANNER` NameError in `backtest.py` and undefined `account` in `sim_bot.py`.
+- **Redundant Imports:** Removed duplicate `hardware_bridge` import in `sim_bot.py`.
+
+### Changed
+- **Systemic Grooming:** Performed a codebase-wide refactor of `backtest.py` and `animations.py` to resolve all Ruff violations and rename terse variables (e.g., `l` -> `low_period`, `g` -> `gain_period`).
+- **Numpy Optimization:** Refactored math-heavy indicator loops in `backtest.py` to use `numpy` vectorization for significant performance gains.
+- **Storage Migration:** Refactored `sim_bot.py` to use the new SQLite `StorageManager` for account state and trade history, improving I/O performance and data integrity.
+- **Banner Standardization:** Standardized all banner displays to use `BANNER` from `banner.py` as the single source of truth.
