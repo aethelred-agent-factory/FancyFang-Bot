@@ -208,7 +208,7 @@ class SimBotState:
     display_paused_event: threading.Event = field(default_factory=threading.Event)
     
     # Locks
-    lock: threading.Lock = field(default_factory=threading.Lock)
+    lock: threading.RLock = field(default_factory=threading.RLock)
     file_io_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def load_account(self):
@@ -459,6 +459,8 @@ def save_paper_account(data: dict) -> None:
     with state.lock:
         state.balance = data.get("balance", state.balance)
         state.positions = data.get("positions", state.positions)
+    
+    # Save outside the lock to maintain order (file_io_lock -> lock)
     state.save_account()
 
 
@@ -712,34 +714,35 @@ def _check_stops_live(symbol: str) -> None:
                 exit_price = pos["take_profit"]
 
         if not (stop_hit or tp_hit):
-            state.save_account()
-            return
+            # Move outside the lock to maintain order (file_io_lock -> lock)
+            pass
+        else:
+            exit_reason = "Stop Hit" if stop_hit else "Take Profit Hit"
+            pnl = (exit_price - entry) * size if side == "Buy" else (entry - exit_price) * size
+            
+            # Prepare for I/O outside the lock
+            exit_to_process = {
+                "symbol": symbol,
+                "side": side,
+                "exit_reason": exit_reason,
+                "exit_price": exit_price,
+                "pnl": pnl,
+                "entry": entry,
+                "size": size,
+                "entry_score": pos.get("entry_score", 0),
+                "entry_time": pos.get("entry_time"),
+                "stop_hit": stop_hit
+            }
 
-        exit_reason = "Stop Hit" if stop_hit else "Take Profit Hit"
-        pnl = (exit_price - entry) * size if side == "Buy" else (entry - exit_price) * size
-        
-        # Prepare for I/O outside the lock
-        exit_to_process = {
-            "symbol": symbol,
-            "side": side,
-            "exit_reason": exit_reason,
-            "exit_price": exit_price,
-            "pnl": pnl,
-            "entry": entry,
-            "size": size,
-            "entry_score": pos.get("entry_score", 0),
-            "entry_time": pos.get("entry_time"),
-            "stop_hit": stop_hit
-        }
-
-        # Update in-memory state
-        state.balance += (pos.get("margin", 0.0) + pnl)
-        state.positions.pop(pos_idx)
-        state.last_exit_times[symbol] = time.time()
+            # Update in-memory state
+            state.balance += (pos.get("margin", 0.0) + pnl)
+            state.positions.pop(pos_idx)
+            state.last_exit_times[symbol] = time.time()
         
     # Process I/O outside the lock
+    state.save_account()
+
     if exit_to_process:
-        state.save_account()
         save_sim_cooldowns()
         state.slot_available_event.set()
 
@@ -1720,7 +1723,9 @@ def update_pnl_and_stops() -> None:
 
         if closed_any:
             state.positions = new_positions
-            state.save_account()
+    
+    # Save outside the lock to maintain order (file_io_lock -> lock)
+    state.save_account()
 
     # Process I/O (exits) outside the lock to avoid blocking
     for ex in exits_to_process:
@@ -1907,6 +1912,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
         tui_log(f"VOL FILTER: {symbol} SKIP — {vol_reason}", event_type="SKIP")
         return False
 
+    # Narrow lock scope: only for initial checks
     with state.lock:
         if any(p["symbol"] == symbol for p in state.positions):
             return False
@@ -1941,159 +1947,166 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             )
             return False
 
-        # ── Upgrade #12: Dynamic risk manager sizing ──────────────────────────
-        if _RISK_MGR_OK:
-            # Compute ATR-based stop distance for proper unit sizing
-            atr_val = raw_atr or (price * 0.02)  # fallback 2% of price
-            atr_stop_mult  = float(os.getenv("ATR_STOP_MULT",  "1.5"))
-            atr_trail_mult = float(os.getenv("ATR_TRAIL_MULT", "1.0"))
-            stop_dist = atr_val * atr_stop_mult
+        # Copy state needed for calculations outside the lock
+        current_balance = state.balance
+        current_stats = state.rolling_stats.copy()
 
-            signal_conf = min(1.0, max(0.0, (score - 100) / 100.0))
-            risk_amount, _ = risk_mgr.compute_dynamic_risk(
-                account_balance  = state.balance,
-                signal_strength  = signal_conf,
-                stop_distance    = stop_dist,
-                open_positions   = state.positions,
-            )
+    # ── Upgrade #12: Dynamic risk manager sizing ──────────────────────────
+    if _RISK_MGR_OK:
+        # Compute ATR-based stop distance for proper unit sizing
+        atr_val = raw_atr or (price * 0.02)  # fallback 2% of price
+        atr_stop_mult  = float(os.getenv("ATR_STOP_MULT",  "1.5"))
+        atr_trail_mult = float(os.getenv("ATR_TRAIL_MULT", "1.0"))
+        stop_dist = atr_val * atr_stop_mult
 
-            # Portfolio rejection gate
-            rejected, rej_reason = risk_mgr.should_reject_trade(
-                risk_amount      = risk_amount,
-                account_balance  = state.balance,
-                open_positions   = state.positions,
-            )
-            if rejected:
-                tui_log(f"RISK MGR: {symbol} SKIP — {rej_reason}", event_type="SKIP")
-                return False
+        signal_conf = min(1.0, max(0.0, (score - 100) / 100.0))
+        risk_amount, _ = risk_mgr.compute_dynamic_risk(
+            account_balance  = current_balance,
+            signal_strength  = signal_conf,
+            stop_distance    = stop_dist,
+            open_positions   = state.positions, # List is stable enough for risk check
+        )
 
-            margin_to_use = round(risk_amount, 2)
-            tui_log(
-                f"RISK MGR [{risk_mgr.RISK_MODEL}]: {symbol} margin={margin_to_use:.4f} ",
-                event_type="RISK"
-            )
-
-        elif is_low_liq:
-            # Low-liquidity fallback (unchanged from original)
-            active_leverage  = p_bot.LOW_LIQ_LEVERAGE
-            active_trail_pct = p_bot.LOW_LIQ_TRAIL_PCT
-            margin_to_use    = p_bot.LOW_LIQ_MARGIN
-            tui_log(f"{symbol}: LOW-LIQ MODE — {active_leverage}x lev, "
-                    f"{active_trail_pct*100:.1f}% trail, ${margin_to_use} margin")
-        else:
-            # Legacy Kelly fallback
-            with state.lock:
-                total_trades  = state.rolling_stats["wins"] + state.rolling_stats["losses"]
-                max_per_trade = state.balance * 0.20  # cap any single trade at 20% of balance
-                current_balance = state.balance
-
-            if total_trades < 10:
-                margin_to_use = round(max_per_trade, 2)
-            else:
-                with state.lock:
-                    win_rate = state.rolling_stats["wins"] / total_trades
-                    avg_win  = state.rolling_stats["win_pnl"] / state.rolling_stats["wins"] if state.rolling_stats["wins"] > 0 else 1.0
-                    avg_loss = abs(state.rolling_stats["loss_pnl"] / state.rolling_stats["losses"]) if state.rolling_stats["losses"] > 0 else 1.0
-                
-                kelly_margin  = pc.calc_kelly_margin(
-                    bankroll=current_balance, win_rate=win_rate,
-                    avg_win=avg_win, avg_loss=avg_loss, fraction=0.5
-                )
-                margin_to_use = round(min(kelly_margin, max_per_trade), 2)
-
-        if margin_to_use <= 0 or state.balance < margin_to_use:
-            tui_log(f"MARGIN FAIL: ${margin_to_use} calculated, but balance ${state.balance:.2f} is insufficient.")
+        # Portfolio rejection gate
+        rejected, rej_reason = risk_mgr.should_reject_trade(
+            risk_amount      = risk_amount,
+            account_balance  = current_balance,
+            open_positions   = state.positions,
+        )
+        if rejected:
+            tui_log(f"RISK MGR: {symbol} SKIP — {rej_reason}", event_type="SKIP")
             return False
 
-        # Determine leverage / trail parameters — leverage is now ATR-driven
-        vol_spike = result.get("vol_spike", 1.0)
-        active_leverage  = pick_sim_leverage(atr_stop_pct, vol_spike, is_low_liq)
-        active_trail_pct = p_bot.LOW_LIQ_TRAIL_PCT if is_low_liq else p_bot.TRAIL_PCT
-        tui_log(f"LEV SELECT: {symbol} → {active_leverage}x (ATR%={atr_stop_pct}, spike={vol_spike:.1f}x, low_liq={is_low_liq})", event_type="INFO")
+        margin_to_use = round(risk_amount, 2)
+        tui_log(
+            f"RISK MGR [{risk_mgr.RISK_MODEL}]: {symbol} margin={margin_to_use:.4f} ",
+            event_type="RISK"
+        )
 
-        notional = margin_to_use * active_leverage
-        size     = notional / price
+    elif is_low_liq:
+        # Low-liquidity fallback (unchanged from original)
+        active_leverage  = p_bot.LOW_LIQ_LEVERAGE
+        active_trail_pct = p_bot.LOW_LIQ_TRAIL_PCT
+        margin_to_use    = p_bot.LOW_LIQ_MARGIN
+        tui_log(f"{symbol}: LOW-LIQ MODE — {active_leverage}x lev, "
+                f"{active_trail_pct*100:.1f}% trail, ${margin_to_use} margin")
+    else:
+        # Legacy Kelly fallback
+        total_trades  = current_stats["wins"] + current_stats["losses"]
+        max_per_trade = current_balance * 0.20  # cap any single trade at 20% of balance
 
-        # ── Upgrade #1: Realistic slippage simulation ─────────────────────────
-        best_bid = result.get("best_bid")
-        best_ask = result.get("best_ask")
-        fill_price, slippage_amt = pc.calc_slippage(
-            price=price,
-            direction=direction,
-            best_bid=best_bid,
-            best_ask=best_ask,
-            atr=raw_atr,
+        if total_trades < 10:
+            margin_to_use = round(max_per_trade, 2)
+        else:
+            win_rate = current_stats["wins"] / total_trades
+            avg_win  = current_stats["win_pnl"] / current_stats["wins"] if current_stats["wins"] > 0 else 1.0
+            avg_loss = abs(current_stats["loss_pnl"] / current_stats["losses"]) if current_stats["losses"] > 0 else 1.0
+            
+            kelly_margin  = pc.calc_kelly_margin(
+                bankroll=current_balance, win_rate=win_rate,
+                avg_win=avg_win, avg_loss=avg_loss, fraction=0.5
+            )
+            margin_to_use = round(min(kelly_margin, max_per_trade), 2)
+
+    if margin_to_use <= 0 or current_balance < margin_to_use:
+        tui_log(f"MARGIN FAIL: ${margin_to_use} calculated, but balance ${current_balance:.2f} is insufficient.")
+        return False
+
+    # Determine leverage / trail parameters — leverage is now ATR-driven
+    vol_spike = result.get("vol_spike", 1.0)
+    active_leverage  = pick_sim_leverage(atr_stop_pct, vol_spike, is_low_liq)
+    active_trail_pct = p_bot.LOW_LIQ_TRAIL_PCT if is_low_liq else p_bot.TRAIL_PCT
+    tui_log(f"LEV SELECT: {symbol} → {active_leverage}x (ATR%={atr_stop_pct}, spike={vol_spike:.1f}x, low_liq={is_low_liq})", event_type="INFO")
+
+    notional = margin_to_use * active_leverage
+    size     = notional / price
+
+    # ── Upgrade #1: Realistic slippage simulation ─────────────────────────
+    best_bid = result.get("best_bid")
+    best_ask = result.get("best_ask")
+    fill_price, slippage_amt = pc.calc_slippage(
+        price=price,
+        direction=direction,
+        best_bid=best_bid,
+        best_ask=best_ask,
+        atr=raw_atr,
+    )
+    tui_log(
+        f"SLIPPAGE: {symbol} mid={price:.6g} fill={fill_price:.6g} ",
+        event_type="FILL"
+    )
+    entry_price = fill_price  # use slippage-adjusted fill
+
+    # Deduct margin AND taker fee
+    fee = notional * pc.TAKER_FEE
+    
+    # ── Upgrade #2: ATR-based stop-loss and trailing stop ─────────────────
+    if raw_atr and raw_atr > 0:
+        atr_stop_mult  = float(os.getenv("ATR_STOP_MULT",  "1.5"))
+        atr_trail_mult = float(os.getenv("ATR_TRAIL_MULT", "1.0"))
+        stop_px, trail_dist = pc.calc_atr_stops(
+            entry_price = entry_price,
+            atr         = raw_atr,
+            direction   = direction,
+            stop_mult   = atr_stop_mult,
+            trail_mult  = atr_trail_mult,
         )
         tui_log(
-            f"SLIPPAGE: {symbol} mid={price:.6g} fill={fill_price:.6g} ",
-            event_type="FILL"
+            f"ATR STOP: {symbol} atr={raw_atr:.6g} stop={stop_px:.6g} ",
+            event_type="STOP"
         )
-        entry_price = fill_price  # use slippage-adjusted fill
-
-        # Deduct margin AND taker fee
-        fee = notional * pc.TAKER_FEE
-        state.balance -= (margin_to_use + fee)
-
-        side = "Buy" if direction == "LONG" else "Sell"
-
-        # ── Upgrade #2: ATR-based stop-loss and trailing stop ─────────────────
-        if raw_atr and raw_atr > 0:
-            atr_stop_mult  = float(os.getenv("ATR_STOP_MULT",  "1.5"))
-            atr_trail_mult = float(os.getenv("ATR_TRAIL_MULT", "1.0"))
-            stop_px, trail_dist = pc.calc_atr_stops(
-                entry_price = entry_price,
-                atr         = raw_atr,
-                direction   = direction,
-                stop_mult   = atr_stop_mult,
-                trail_mult  = atr_trail_mult,
-            )
-            tui_log(
-                f"ATR STOP: {symbol} atr={raw_atr:.6g} stop={stop_px:.6g} ",
-                event_type="STOP"
-            )
-        else:
-            # Fallback to percentage-based stops
-            if direction == "LONG":
-                stop_px = entry_price * (1.0 - active_trail_pct)
-            else:
-                stop_px = entry_price * (1.0 + active_trail_pct)
-            trail_dist = entry_price * active_trail_pct
-
-        # Take-profit unchanged
+    else:
+        # Fallback to percentage-based stops
         if direction == "LONG":
-            tp_px      = entry_price * (1.0 + p_bot.TAKE_PROFIT_PCT)
-            high_water = entry_price
-            low_water  = None
+            stop_px = entry_price * (1.0 - active_trail_pct)
         else:
-            tp_px      = entry_price * (1.0 - p_bot.TAKE_PROFIT_PCT)
-            high_water = None
-            low_water  = entry_price
+            stop_px = entry_price * (1.0 + active_trail_pct)
+        trail_dist = entry_price * active_trail_pct
 
-        new_pos = {
-            "symbol":        symbol,
-            "side":          side,
-            "size":          size,
-            "margin":        margin_to_use,
-            "leverage":      active_leverage,
-            "fee":           fee,
-            "entry":         entry_price,
-            "mid_price":     price,           # original mid before slippage
-            "slippage":      slippage_amt,
-            "pnl":           0.0,
-            "stop_price":    stop_px,
-            "original_stop": stop_px,
-            "take_profit":   tp_px,
-            "trail_dist":    trail_dist,      # ATR-based trail distance stored for updates
-            "high_water":    high_water,
-            "low_water":     low_water,
-            "timestamp":     datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "entry_time":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "entry_score":   score,
-            "signals":       signals,
-        }
+    # Take-profit unchanged
+    if direction == "LONG":
+        tp_px      = entry_price * (1.0 + p_bot.TAKE_PROFIT_PCT)
+        high_water = entry_price
+        low_water  = None
+    else:
+        tp_px      = entry_price * (1.0 - p_bot.TAKE_PROFIT_PCT)
+        high_water = None
+        low_water  = entry_price
 
+    new_pos = {
+        "symbol":        symbol,
+        "side":          side,
+        "size":          size,
+        "margin":        margin_to_use,
+        "leverage":      active_leverage,
+        "fee":           fee,
+        "entry":         entry_price,
+        "mid_price":     price,           # original mid before slippage
+        "slippage":      slippage_amt,
+        "pnl":           0.0,
+        "stop_price":    stop_px,
+        "original_stop": stop_px,
+        "take_profit":   tp_px,
+        "trail_dist":    trail_dist,      # ATR-based trail distance stored for updates
+        "high_water":    high_water,
+        "low_water":     low_water,
+        "timestamp":     datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "entry_time":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "entry_score":   score,
+        "signals":       signals,
+    }
+
+    # Final state update: atomic append and balance deduction
+    with state.lock:
+        # Re-check position existence inside final lock to avoid races
+        if any(p["symbol"] == symbol for p in state.positions):
+            return False
+        
+        state.balance -= (margin_to_use + fee)
         state.positions.append(new_pos)
-        state.save_account()
+    
+    # Save outside the state.lock to avoid nested lock deadlock
+    state.save_account()
 
     arrow = "▲ LONG" if direction == "LONG" else "▼ SHORT"
     tui_log(f"ENTERED {arrow} {symbol} @ {entry_price:.6g} (Score: {score}) slippage={slippage_amt:.6g}")
