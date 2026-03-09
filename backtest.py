@@ -56,6 +56,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
+from banner import BANNER
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
@@ -111,6 +112,31 @@ SHORT_WEIGHTS = {
 }
 
 TAKER_FEE = 0.0006  # 0.06% per side (Phemex USDT-M maker/taker)
+MAX_MARGIN_PER_SYMBOL = 75.0
+
+def pick_sim_leverage(atr_stop_pct: float | None, vol_spike: float = 1.0, is_low_liq: bool = False) -> int:
+    """Select leverage based on asset volatility measured at scan time. (Ported from sim_bot)"""
+    if atr_stop_pct is None:
+        return 30
+
+    # vol spike modifier
+    spike_adj = 5 if vol_spike >= 3.0 else (2 if vol_spike >= 2.0 else 0)
+    effective_atr = atr_stop_pct + spike_adj
+
+    if effective_atr >= 4.0:
+        lev = 5
+    elif effective_atr >= 2.5:
+        lev = 10
+    elif effective_atr >= 1.5:
+        lev = 15
+    elif effective_atr >= 0.8:
+        lev = 20
+    else:
+        lev = 30
+
+    if is_low_liq:
+        return min(lev, 10)
+    return lev
 
 # ─────────────────────────────────────────────────────────────────────
 # HTTP session
@@ -326,21 +352,27 @@ def _calc_atr_simple(
     closes: List[float],
     period: int = 14,
 ) -> Optional[float]:
-    """Minimal ATR(14) for use inside backtest_symbol without importing numpy."""
+    """Calculates Average True Range (ATR) using vectorized numpy operations."""
     num_closes = len(closes)
     if num_closes <= period:
         return None
-    true_range_list = []
-    for i in range(1, num_closes):
-        high_minus_low = highs[i] - lows[i]
-        high_minus_prev_close = abs(highs[i] - closes[i - 1])
-        low_minus_prev_close = abs(lows[i] - closes[i - 1])
-        true_range_list.append(max(high_minus_low, high_minus_prev_close, low_minus_prev_close))
-    if len(true_range_list) < period:
-        return None
-    atr = sum(true_range_list[:period]) / period
-    for i in range(period, len(true_range_list)):
-        atr = (atr * (period - 1) + true_range_list[i]) / period
+
+    highs_arr = np.asarray(highs, dtype=float)
+    lows_arr = np.asarray(lows, dtype=float)
+    closes_arr = np.asarray(closes, dtype=float)
+
+    h_l = highs_arr[1:] - lows_arr[1:]
+    h_pc = np.abs(highs_arr[1:] - closes_arr[:-1])
+    l_pc = np.abs(lows_arr[1:] - closes_arr[:-1])
+    true_ranges = np.maximum(h_l, np.maximum(h_pc, l_pc))
+
+    # Initial average (simple mean of first period TRs)
+    atr = float(np.mean(true_ranges[:period]))
+    
+    # Wilders smoothing for subsequent values
+    for i in range(period, len(true_ranges)):
+        atr = (atr * (period - 1) + float(true_ranges[i])) / period
+        
     return atr
 
 
@@ -693,6 +725,7 @@ class Trade:
     direction:     str           # "LONG" | "SHORT"
     entry_idx:     int           # index into ohlcv list
     entry_price:   float
+    size:          float = 0.0
     exit_idx:      Optional[int] = None
     exit_price:    Optional[float] = None
     pnl_usdt:      Optional[float] = None
@@ -767,9 +800,68 @@ def backtest_symbol(
     for candle_index in range(window, len(ohlcv_data) - 1):
         current_open, current_high, current_low, current_close, current_volume = ohlcv_data[candle_index]
 
-        # ── Manage open position ──────────────────────────────────────
-        if is_in_position and active_position is not None and candle_index > active_position.entry_idx:
-            if active_position.direction == "LONG":
+        # ── Look for entry signal on this window ──────────────────────
+        window_data = ohlcv_data[candle_index - window: candle_index]
+        closes_window = [x[3] for x in window_data]
+        highs_window  = [x[1] for x in window_data]
+        lows_window   = [x[2] for x in window_data]
+        vols_window   = [x[4] for x in window_data]
+
+        long_score, long_signals = (0, []) if direction_upper == "SHORT" else \
+            score_long_window(closes_window, highs_window, lows_window, vols_window,
+                              rsi_1h, funding, None, spread)
+        short_score, short_signals = (0, []) if direction_upper == "LONG" else \
+            score_short_window(closes_window, highs_window, lows_window, vols_window,
+                               rsi_1h, funding, None, spread)
+
+        best_score = max(long_score, short_score)
+        
+        # ── Handle existing position (Scale-in check) ──────────────────
+        if is_in_position and active_position:
+            # Check if we should scale in
+            if best_score >= eff_min_score:
+                # Same direction?
+                new_direction = "LONG" if long_score >= short_score else "SHORT"
+                if new_direction == active_position.direction:
+                    if active_position.margin < MAX_MARGIN_PER_SYMBOL:
+                        # Scale in at current open
+                        next_open = ohlcv_data[candle_index + 1][0]
+                        if next_open > 0:
+                            # 1 unit entry
+                            unit_margin = margin
+                            # Compute dynamic leverage for this unit
+                            atr_w = _calc_atr_simple(highs_window, lows_window, closes_window, 14)
+                            vol_s = vol_spike_ratio(vols_window)
+                            unit_lev = pick_sim_leverage(atr_w / next_open * 100.0 if atr_w else None, vol_s, is_low_liq)
+                            
+                            unit_notional = unit_margin * unit_lev
+                            if new_direction == "LONG":
+                                unit_price = next_open * (1.0 + slip_one_side + fee_one_side)
+                            else:
+                                unit_price = next_open * (1.0 - slip_one_side - fee_one_side)
+                            
+                            unit_size = unit_notional / unit_price
+                            
+                            # Weighted average entry
+                            old_notional = active_position.size * active_position.entry_price
+                            new_total_size = active_position.size + unit_size
+                            avg_entry = (old_notional + unit_notional) / new_total_size
+                            
+                            active_position.entry_price = avg_entry
+                            active_position.size = new_total_size
+                            active_position.margin += unit_margin
+                            
+                            # Reset watermarks and stops
+                            atr_stop_dist = (atr_w * 1.5) if atr_w else (next_open * active_position.trail_pct)
+                            if new_direction == "LONG":
+                                stop_price = avg_entry - atr_stop_dist
+                                high_water_mark = avg_entry
+                            else:
+                                stop_price = avg_entry + atr_stop_dist
+                                low_water_mark = avg_entry
+            
+            # ── Manage open position ──────────────────────────────────────
+            # (TP/SL logic follows...)
                 # Take profit check
                 if take_profit_pct > 0:
                     tp_level = active_position.entry_price * (1.0 + take_profit_pct)
@@ -779,7 +871,7 @@ def backtest_symbol(
                         active_position.exit_idx     = candle_index
                         active_position.exit_price   = exit_price
                         active_position.pnl_pct      = raw_return * 100
-                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
                         active_position.exit_reason  = "take_profit"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
@@ -796,7 +888,7 @@ def backtest_symbol(
                         active_position.exit_idx     = candle_index
                         active_position.exit_price   = exit_price
                         active_position.pnl_pct      = raw_return * 100
-                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
                         active_position.exit_reason  = "hard_stop"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
@@ -815,7 +907,7 @@ def backtest_symbol(
                     active_position.exit_idx     = candle_index
                     active_position.exit_price   = exit_price
                     active_position.pnl_pct      = raw_return * 100
-                    active_position.pnl_usdt     = raw_return * leverage * margin
+                    active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
                     active_position.exit_reason  = "trail_stop"
                     active_position.hold_candles = candle_index - active_position.entry_idx
                     trades.append(active_position)
@@ -833,7 +925,7 @@ def backtest_symbol(
                         active_position.exit_idx     = candle_index
                         active_position.exit_price   = exit_price
                         active_position.pnl_pct      = raw_return * 100
-                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
                         active_position.exit_reason  = "take_profit"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
@@ -850,7 +942,7 @@ def backtest_symbol(
                         active_position.exit_idx     = candle_index
                         active_position.exit_price   = exit_price
                         active_position.pnl_pct      = raw_return * 100
-                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
                         active_position.exit_reason  = "hard_stop"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
@@ -867,7 +959,7 @@ def backtest_symbol(
                     active_position.exit_idx     = candle_index
                     active_position.exit_price   = exit_price
                     active_position.pnl_pct      = raw_return * 100
-                    active_position.pnl_usdt     = raw_return * leverage * margin
+                    active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
                     active_position.exit_reason  = "trail_stop"
                     active_position.hold_candles = candle_index - active_position.entry_idx
                     trades.append(active_position)
@@ -885,7 +977,7 @@ def backtest_symbol(
                 active_position.exit_idx     = candle_index
                 active_position.exit_price   = exit_price
                 active_position.pnl_pct      = raw_return * 100
-                active_position.pnl_usdt     = raw_return * leverage * margin
+                active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
                 active_position.exit_reason  = "max_hold"
                 active_position.hold_candles = candle_index - active_position.entry_idx
                 trades.append(active_position)
@@ -925,7 +1017,7 @@ def backtest_symbol(
             direction_trade, entry_score, entry_signals = "SHORT", short_score, short_signals
 
         # ── Upgrade #3: Spread filter ─────────────────────────────────────────
-        if spread is not None and spread > 0.10:   # 0.10% max spread
+        if spread is not None and spread > 0.20:   # Synchronized with pc.SPREAD_FILTER_MAX_PCT
             continue  # skip — too illiquid
 
         # ── Upgrade #6: Volatility filter on ATR / price ─────────────────────
@@ -941,6 +1033,10 @@ def backtest_symbol(
         next_open = ohlcv_data[candle_index + 1][0]
         if next_open <= 0:
             continue
+
+        # ── Dynamic Leverage (Ported from sim_bot) ───────────────────────────
+        vol_s = vol_spike_ratio(vols_window)
+        active_leverage = pick_sim_leverage(atr_window / next_open * 100.0 if atr_window else None, vol_s, is_low_liq)
 
         # ── Upgrade #2: ATR-based stop-loss (with fallback to trail_pct) ──────
         if atr_window and atr_window > 0:
@@ -963,7 +1059,7 @@ def backtest_symbol(
             entry_idx=candle_index + 1, entry_price=entry_price,
             score=entry_score, signals=entry_signals,
             slippage_pct=(slip_one_side + fee_one_side) * 100,
-            leverage=leverage, margin=margin, trail_pct=trail_pct,
+            leverage=active_leverage, margin=margin, trail_pct=trail_pct,
             is_low_liq=is_low_liq,
         )
         is_in_position = True
@@ -978,7 +1074,7 @@ def backtest_symbol(
         active_position.exit_idx     = len(ohlcv_data) - 1
         active_position.exit_price   = exit_price
         active_position.pnl_pct      = raw_return * 100
-        active_position.pnl_usdt     = raw_return * leverage * margin
+        active_position.pnl_usdt     = raw_return * active_position.leverage * active_position.margin
         active_position.exit_reason  = "end_of_data"
         active_position.hold_candles = len(ohlcv_data) - 1 - active_position.entry_idx
         trades.append(active_position)
@@ -1212,8 +1308,8 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
 
 
     # Direction breakdown
-    for dir_label, group in [("LONG", [t for t in closed if t.direction == "LONG"]),
-                              ("SHORT",[t for t in closed if t.direction == "SHORT"])]:
+    for dir_label, group in [("LONG", [t for t in closed_trades if t.direction == "LONG"]),
+                              ("SHORT",[t for t in closed_trades if t.direction == "SHORT"])]:
         if not group: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
@@ -1225,7 +1321,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     print()
     # Exit reason breakdown
     for reason in ["trail_stop", "hard_stop", "take_profit", "max_hold", "end_of_data"]:
-        group = [t for t in closed if t.exit_reason == reason]
+        group = [t for t in closed_trades if t.exit_reason == reason]
         if not group: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
@@ -1238,13 +1334,13 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     tiers = [(145, 999, "145+"), (120, 144, "120-144"),
              (100, 119, "100-119"), (80, 99, "80-99"), (0, 79, "<80")]
     for lo, hi, tlabel in tiers:
-        group = [t for t in closed if lo <= t.score <= hi]
+        group = [t for t in closed_trades if lo <= t.score <= hi]
         if len(group) < 2: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_exp = sum(t.pnl_usdt for t in group) / len(group)
         wc    = Fore.GREEN if g_wr >= 50 else Fore.RED
         ec    = Fore.GREEN if g_exp >= 0 else Fore.RED
-        print(f"  {tlabel:>8}: [{wc}{bar(g_wr)}{Style.RESET_ALL}] "
+        print(f"  {tlabel:>8}: [{wc}{draw_bar(g_wr)}{Style.RESET_ALL}] "
               f"{g_wr:4.0f}% WR | {len(group):3} trades | "
               f"exp {ec}{g_exp:+.4f}{Style.RESET_ALL}")
 
@@ -1276,7 +1372,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
                 any(re.search(p, s, re.IGNORECASE) for p in pats)
                 for s in t.signals
             )
-        group = [t for t in closed if has_signal(t)]
+        group = [t for t in closed_trades if has_signal(t)]
         if len(group) < 3: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_exp = sum(t.pnl_usdt for t in group) / len(group)
@@ -1288,7 +1384,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     # Low-liq vs normal
     print(Fore.CYAN + f"\n  {'─'*64}")
     for ll_label, ll_val in [("Normal liquidity", False), ("Low liquidity", True)]:
-        group = [t for t in closed if t.is_low_liq == ll_val]
+        group = [t for t in closed_trades if t.is_low_liq == ll_val]
         if not group: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
@@ -1395,13 +1491,13 @@ def main():
     # ── Core settings ─────────────────────────────────────────────────
     parser.add_argument("--symbols",    nargs="+", default=[],
                         help="Specific symbols to test")
-    parser.add_argument("--timeframe",  default="15m")
+    parser.add_argument("--timeframe",  default="4H")
     parser.add_argument("--candles",    type=int,   default=500,
                         help="Historical candles per symbol")
-    parser.add_argument("--min-score",  type=int,   default=100)
-    parser.add_argument("--trail-pct",  type=float, default=0.005)
+    parser.add_argument("--min-score",  type=int,   default=120)
+    parser.add_argument("--trail-pct",  type=float, default=0.02)
     parser.add_argument("--leverage",   type=int,   default=30)
-    parser.add_argument("--margin",     type=float, default=10.0,
+    parser.add_argument("--margin",     type=float, default=25.0,
                         help="USDT margin per trade")
     parser.add_argument("--max-hold",   type=int,   default=96,
                         help="Max candles to hold a trade")
@@ -1436,7 +1532,7 @@ def main():
                         help="Skip 1H RSI fetch (faster)")
     args = parser.parse_args()
 
-    print(Fore.CYAN + pc.BANNER)
+    print(Fore.CYAN + BANNER)
 
     # Print active settings summary
     flags = []
