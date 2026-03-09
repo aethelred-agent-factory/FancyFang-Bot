@@ -38,7 +38,6 @@ RISK_MODEL           = os.getenv("RISK_MODEL",           "dynamic_kelly")
 FIXED_RISK_PER_TRADE = float(os.getenv("FIXED_RISK_PER_TRADE", "1.0"))
 RISK_PCT_PER_TRADE   = float(os.getenv("RISK_PCT_PER_TRADE",   "0.01"))   # 1 %
 MAX_PORTFOLIO_RISK   = float(os.getenv("MAX_PORTFOLIO_RISK",   "0.30"))   # 30 %
-MAX_POSITIONS         = int(os.getenv("MAX_POSITIONS",          "3"))
 MIN_ACCOUNT_RISK_PCT = float(os.getenv("MIN_ACCOUNT_RISK_PCT", "0.005"))  # 0.5 %
 MAX_ACCOUNT_RISK_PCT = float(os.getenv("MAX_ACCOUNT_RISK_PCT", "0.05"))   # 5 %
 
@@ -169,9 +168,6 @@ class RiskManager:
         open_positions: List[Dict[str, Any]],
     ) -> Tuple[bool, str]:
         """Final gate: reject the trade if portfolio risk would be exceeded."""
-        if len(open_positions) >= MAX_POSITIONS:
-            return True, f"MAX_POSITIONS={MAX_POSITIONS} reached"
-
         current_risk  = self.get_open_position_risk(open_positions)
         portfolio_cap = account_balance * MAX_PORTFOLIO_RISK
         if current_risk + risk_amount > portfolio_cap:

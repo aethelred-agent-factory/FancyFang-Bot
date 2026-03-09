@@ -165,7 +165,7 @@ TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.02")) # 2% take prof
 SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "300"))    # seconds between scans
 MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "130"))        # minimum score to trade (consolidated)
 MIN_SCORE_GAP  = int(os.getenv("BOT_MIN_SCORE_GAP", "30"))     # minimum gap between long/short scores
-MAX_POSITIONS  = int(os.getenv("MAX_POSITIONS", "3"))           # maximum concurrent open positions
+MAX_POSITIONS  = 999                                           # effectively unlimited, gated by margin/risk
 DIRECTION      = os.getenv("BOT_DIRECTION", "SHORT")           # default to SHORT to match sim_bot.py
 TIMEFRAME      = os.getenv("BOT_TIMEFRAME", "4H")              # match sim_bot.py default
 MIN_VOLUME     = int(os.getenv("BOT_MIN_VOLUME", "1000000"))
@@ -299,13 +299,13 @@ SCALING_TIERS: List[Tuple[float, int]] = [
 ]
 
 def get_dynamic_max_positions(balance: float) -> int:
-    """Return the maximum concurrent positions allowed for the given equity level, capped by MAX_POSITIONS."""
+    """Return the maximum concurrent positions allowed for the given equity level."""
     actual_max = 1
     for threshold, max_pos in SCALING_TIERS:
         if balance >= threshold:
             actual_max = max_pos
             break
-    return min(actual_max, MAX_POSITIONS)
+    return actual_max
 
 # Account-level trailing stop
 _account_high_water: float = 0.0  # peak equity seen
