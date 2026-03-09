@@ -2324,6 +2324,7 @@ def sim_bot_loop(args) -> None:
 
     # --- Cinematic Boot ---
     play_animation(animations.boot)
+    hw.bridge.signal('START')
 
     with state.lock:
         for p in state.positions:

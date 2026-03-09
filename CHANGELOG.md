@@ -16,6 +16,20 @@
 - **Descriptive Naming:** Performed a codebase-wide refactor of terse variables to descriptive ones (e.g., `nb` -> `new_balance`, `r` -> `scan_res`, `v` -> `volume`).
 - **Ruff Compliance:** Resolved over 100 linting violations including spacing, redundant semicolons, and unused imports to achieve "Senior Developer" code quality standards.
 
+## [2026-03-08.4] - Hardware Integration (RP2040)
+
+### Added
+- **Physical Signaling:** Integrated RP2040 (Raspberry Pi Pico) support via `hardware_bridge.py`. The bot now provides real-time visual feedback using the onboard LED:
+    - **Rapid Blinking:** Bot Startup / Initialization.
+    - **Solid Light:** Active Position open.
+    - **Fast Pulse:** Take Profit (Win).
+    - **Slow "Sad" Pulse:** Stop Loss (Loss).
+    - **Triple Blip:** Manual "Close All" command issued.
+
+### Fixed
+- **Deadlock Prevention:** Switched `state.lock` to `threading.RLock` and narrowed the lock scope in trade execution paths to prevent I/O deadlocks with `file_io_lock`.
+- **NameError:** Resolved missing `fee` variable in simulation setup.
+
 ## [2026-03-08.3] - Performance Tuning & Logic Fixes
 
 ### Fixed

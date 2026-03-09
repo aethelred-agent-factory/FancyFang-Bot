@@ -43,6 +43,9 @@ def play(p):
         for _ in range(5):
             for i in range(50): led.value(1); time.sleep(0.005); led.value(0); time.sleep(0.015)
             time.sleep(0.2)
+    elif p == 'START':
+        for _ in range(10): led.toggle(); time.sleep(0.05)
+        led.value(0)
     elif p == 'OFF':
         led.value(0)
 """

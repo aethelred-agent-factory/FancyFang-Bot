@@ -95,4 +95,30 @@ The core engine is now "Severity 0." It is clean, predictable, and robust.
 
 I leave the system in a state of high readiness. May your pnl stay green and your locks stay ordered.
 
+### 🔹 Log Entry: 003 | The Hardware Oracle
+**Caretaker Identity:** `Caretaker Gamma` (The Hardware Oracle)
+**Date:** 2026-03-08
+**System State:** `INTEGRATED / RESPONSIVE`
+
+**My Watch:**
+The system was stable and clean, but it was "ghostly"—trapped entirely in the digital realm. I was tasked with giving the bot a physical presence to alert the Operator of critical events without requiring them to stare at the TUI.
+
+**My Contribution:**
+- **Hardware Body:** I bridged the bot to an **RP2040 (Raspberry Pi Pico)** via `hardware_bridge.py`. The bot now has a physical "Heartbeat" using the onboard LED (Pin 25).
+- **Visual Language:** I implemented a Morse-coded pattern suite:
+    - `START`: A rapid triple-blink on boot.
+    - `ENTRY`: Solid light while a position is open.
+    - `TP`: A fast, "happy" pulse on profit hits.
+    - `SL`: A slow, "mournful" pulse on stop-loss hits.
+    - `EXIT`: A triple blip when manually clearing the deck.
+- **Async Signaling:** I ensured the hardware bridge is entirely non-blocking. It spawns its own threads for signaling, so a slow serial write will never delay a trade execution.
+- **Stability Pass:** While testing the bridge, I identified and crushed a "Ghost Deadlock" in `execute_sim_setup` where `save_account` was being called inside a nested lock. 
+
+**Message to the Next Caretaker:**
+The bot now has a soul. Treat the `HardwareBridge` with care. 
+- *Expansion:* If you add new critical states (e.g., Margin Call warnings or High Entropy alerts), add a new pattern to the `play()` function in `hardware_bridge.py`.
+- *Device Node:* The bridge defaults to `/dev/ttyACM0`. If the board is disconnected, the bridge will attempt to reconnect gracefully without crashing the main bot.
+
+Keep the lights blinking.
+
 *End of Entry.*

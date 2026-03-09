@@ -39,7 +39,13 @@ A classic **Lock Order Inversion**.
 
 ## 📜 Mandatory Protocols for Future AI Developers
 
-### 1. Verification is Non-Negotiable
+### 1. The Test-First Mandate (NEW)
+**Verification is no longer sufficient; automation is required.**
+- For every testable implementation (new indicators, risk models, state transitions), you **must** create a corresponding test file (e.g., `test_risk_manager.py`).
+- You must run these tests and achieve 100% success before submitting changes.
+- Severity 0 is only achieved when the code is both logically sound and programmatically verified.
+
+### 2. Verification is Non-Negotiable
 Never assume a refactor works because it "looks" clean. 
 - Run `python3 -m py_compile <file>` after every change.
 - Run a standalone math-only script (like `diag_scan.py`) to ensure indicators are still calculating.
