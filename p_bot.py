@@ -59,6 +59,7 @@ import os
 import sys
 import time
 import threading
+from collections import deque
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -327,7 +328,6 @@ def send_telegram_message(message: str) -> None:
         logger.error(f"Failed to send Telegram message: {e}")
 
 # ── Logging Setup ─────────────────────────────────────────────────────
-from collections import deque
 _bot_logs = deque(maxlen=100)
 
 logger = pc.setup_colored_logging(
@@ -539,7 +539,6 @@ def _check_stops_live(symbol):
             return
         # Take a shallow copy so we can release the lock before the REST fallback
         state = _local_stop_states[symbol].copy()
-        state_ref = _local_stop_states[symbol]   # we still need to mutate in-place below
 
     current = None
     with _prices_lock:
@@ -584,29 +583,33 @@ def _check_account_trail():
     with _cache_lock:
         balance = _cached_balance
         positions = _cached_positions
-    if balance == 0 and not positions: return
+    if balance == 0 and not positions:
+        return
 
     total_upnl = 0.0
+
+    # 1. Identify symbols with missing prices first
+    with _prices_lock:
+        missing_symbols = [pos["symbol"] for pos in positions if _live_prices.get(pos["symbol"]) is None]
+
+    # 2. Fetch missing prices outside any lock if WS is down
+    if missing_symbols and not _ws_connected:
+        for symbol in missing_symbols:
+            logger.warning(f"WS disconnected. Attempting REST API fallback for {symbol} in _check_account_trail.")
+            price = _get_current_price_rest(symbol)
+            if price:
+                with _prices_lock:
+                    _live_prices[symbol] = price
+                logger.info(f"Successfully obtained REST API price for {symbol} in _check_account_trail.")
+
+    # 3. Calculate uPnL
     with _prices_lock:
         for pos in positions:
             sym = pos["symbol"]
             now = _live_prices.get(sym)
 
-            if now is None: # If price not available from WS
-                if not _ws_connected: # And WS is explicitly disconnected
-                    logger.warning(f"WS disconnected. Attempting REST API fallback for {sym} in _check_account_trail.")
-                    now = _get_current_price_rest(sym)
-                    if now:
-                        _live_prices[sym] = now # Update _live_prices
-                        logger.info(f"Successfully obtained REST API price for {sym} in _check_account_trail.")
-                    else:
-                        logger.warning(f"Failed to get price for {sym} from REST API. Skipping position check.")
-                        continue # Skip this position if price is unavailable
-                else: # WS is connected but price is missing from _live_prices
-                    logger.debug(f"WS connected but no live price for {sym}. Waiting for WS update.")
-                    continue # Skip this position for now, hoping WS delivers it soon
-
-            if now is None: continue # If price still None after all attempts
+            if now is None:
+                continue
 
             side = pos["side"]
             entry = pos["entry"]
@@ -708,18 +711,27 @@ def _ws_run_loop():
 
 
 def _ensure_ws_started():
+    import traceback
     global _ws_thread
     if _ws_thread is None or not _ws_thread.is_alive():
-        _ws_thread = threading.Thread(target=_ws_run_loop, daemon=True)
+        # REF: [Tier 1] Critical Thread Error Handling
+        def _target_wrapper():
+            try:
+                _ws_run_loop()
+            except Exception as error:
+                logger.error(f"WS run loop crashed: {error}\n{traceback.format_exc()}")
+
+        _ws_thread = threading.Thread(target=_target_wrapper, daemon=True)
         _ws_thread.start()
 
 
 def _cache_refresher():
     """Periodically refresh balance and positions for the dashboard/trail-stop."""
+    import traceback
     global _cached_balance, _cached_positions
     while True:
         try:
-            # REF: Tier 3: Non-Descriptive Variable Naming (nb, np -> new_balance, new_positions)
+            # REF: [Tier 3] Descriptive Naming
             new_balance, new_positions = get_account_status()
             if new_balance is not None:
                 with _cache_lock:
@@ -850,8 +862,9 @@ def _cache_refresher():
                 with _cache_lock:
                     _cached_balance = new_balance
                     _cached_positions = new_positions
-        except Exception as e:
-            logger.error(f"Cache refresh error: {e}")
+        except Exception as error:
+            # REF: [Tier 1] Critical Thread Error Handling
+            logger.error(f"Cache refresh error: {error}\n{traceback.format_exc()}")
         time.sleep(30)
 
 
@@ -885,8 +898,8 @@ def _live_pnl_display():
         # Clear screen
         sys.stdout.write("\033[2J\033[H")
         print(Fore.CYAN + pc.BANNER)
-        # REF: Tier 3: Human-Readable Logs
-        print(Fore.CYAN + Style.BRIGHT + f" 📊 LIVE PRODUCTION DASHBOARD | {datetime.datetime.now().strftime('%H:%M:%S')}")
+        # REF: [Tier 2] UTC Standardisation
+        print(Fore.CYAN + Style.BRIGHT + f" 📊 LIVE PRODUCTION DASHBOARD | {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}")
         print(Fore.CYAN + "─" * 70)
 
         total_upnl = 0.0
@@ -928,9 +941,12 @@ def _live_pnl_display():
                                 et = et.replace(tzinfo=datetime.timezone.utc)
                             diff = datetime.datetime.now(datetime.timezone.utc) - et
                             tot_sec = int(diff.total_seconds())
-                            if tot_sec < 60: dur_str = f"({tot_sec}s)"
-                            elif tot_sec < 3600: dur_str = f"({tot_sec//60}m)"
-                            else: dur_str = f"({tot_sec//3600}h {(tot_sec%3600)//60}m)"
+                            if tot_sec < 60:
+                                dur_str = f"({tot_sec}s)"
+                            elif tot_sec < 3600:
+                                dur_str = f"({tot_sec // 60}m)"
+                            else:
+                                dur_str = f"({tot_sec // 3600}h {(tot_sec % 3600) // 60}m)"
                     dur_badge = Fore.WHITE + f"{dur_str}" + Style.RESET_ALL
 
                     dir_sym = "▲" if side == "Buy" else "▼"
@@ -956,14 +972,15 @@ def _live_pnl_display():
 
         # Stats Line
         if history:
-            wins = [t for t in history if t.get("pnl", 0) > 0]
-            losses = [t for t in history if t.get("pnl", 0) <= 0]
-            win_rate = (len(wins) / len(history) * 100) if history else 0
-            total_closed_pnl = sum(t.get("pnl", 0) for t in history)
+            # REF: [Tier 3] Descriptive Naming
+            wins_list = [trade for trade in history if trade.get("pnl", 0) > 0]
+            losses_list = [trade for trade in history if trade.get("pnl", 0) <= 0]
+            win_rate = (len(wins_list) / len(history) * 100) if history else 0
+            total_closed_pnl = sum(trade.get("pnl", 0) for trade in history)
             print(Fore.CYAN + "─" * 70)
-            print(f" TRADES: {len(history)} | {Fore.GREEN}WINS: {len(wins)}{Style.RESET_ALL} | {Fore.RED}LOSS: {len(losses)}{Style.RESET_ALL} | Win Rate: {win_rate:.1f}%")
-            pnl_color = Fore.GREEN if total_closed_pnl >= 0 else Fore.RED
-            print(f" {pnl_color}{Style.BRIGHT}TOTAL REALIZED PNL: {total_closed_pnl:+.4f} USDT{Style.RESET_ALL}")
+            print(f" TRADES: {len(history)} | {Fore.GREEN}WINS: {len(wins_list)}{Style.RESET_ALL} | {Fore.RED}LOSS: {len(losses_list)}{Style.RESET_ALL} | Win Rate: {win_rate:.1f}%")
+            pnl_color_badge = Fore.GREEN if total_closed_pnl >= 0 else Fore.RED
+            print(f" {pnl_color_badge}{Style.BRIGHT}TOTAL REALIZED PNL: {total_closed_pnl:+.4f} USDT{Style.RESET_ALL}")
 
         # Recent Logs (New section)
         if _bot_logs:
@@ -996,7 +1013,8 @@ _instrument_loaded = False
 
 def _load_instruments():
     global _instrument_loaded
-    if _instrument_loaded: return
+    if _instrument_loaded:
+        return
     data = _get("/public/products")
     if not data or data.get("code") != 0:
         logger.warning("Could not load instrument data — will use fallback qty rounding")
@@ -1004,15 +1022,18 @@ def _load_instruments():
         return
     for prod in (data.get("data", {}).get("perpProductsV2") or []):
         sym = prod.get("symbol")
-        if not sym: continue
+        if not sym:
+            continue
         # qtyStepSize for lot sizing
         step_str = (
             prod.get("qtyStepSize") or
             prod.get("qtyStepSizeRq") or
             "0.001"
         )
-        try: step = float(step_str)
-        except Exception: step = 0.001
+        try:
+            step = float(step_str)
+        except Exception:
+            step = 0.001
         _instrument_cache[sym] = {"step": step}
     _instrument_loaded = True
     logger.info("Loaded %d instrument specs", len(_instrument_cache))
@@ -1027,7 +1048,8 @@ def _round_qty(symbol: str, qty: float) -> str:
     info = _instrument_cache.get(symbol)
     if info:
         step = info["step"]
-        if step <= 0: step = 0.001
+        if step <= 0:
+            step = 0.001
         rounded = math.floor(qty / step) * step
         # Determine decimal places from step
         if step >= 1:
@@ -1237,7 +1259,6 @@ def _switch_pos_mode(symbol: str, target_mode: str) -> bool:
 # ────────────────────────────────────────────────────────────────────
 
 def _clord_id(prefix: str = "bot") -> str:
-    import random
     ts = int(time.time() * 1000) % 1_000_000_000
     suffix = random.randint(1000, 9999)
     return f"{prefix}-{ts}-{suffix}"
@@ -1615,7 +1636,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
     # ── Set leverage ─────────────────────────────────────────────────
     lev_ok = set_leverage(symbol, active_leverage, pos_side)
     if not lev_ok:
-        print(Fore.YELLOW + f" [WARN] Leverage set returned non-zero — proceeding anyway (check logs for details)")
+        print(Fore.YELLOW + " [WARN] Leverage set returned non-zero — proceeding anyway (check logs for details)")
 
     # Generate client order ID for market entry
     entry_clord_id = _clord_id("entry")
@@ -1668,7 +1689,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
            f"*Direction:* {direction}\n"
            f"*Price:* {price:.4g}\n"
            f"*Score:* {score}\n"
-           f"*Time:* {datetime.datetime.now().strftime('%H:%M:%S')}")
+           f"*Time:* {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}")
     send_telegram_message(msg)
 
     # ── Brief pause to let fill propagate ───────────────────────────
@@ -1821,47 +1842,54 @@ def run_scanner_both(cfg: dict, args, on_result=None) -> Tuple[List[dict], List[
 _print_lock = threading.Lock()
 
 def _scan_one(module, direction: str, cfg: dict, args, on_result=None) -> List[dict]:
-    rps = cfg.get("RATE_LIMIT_RPS", 8.0)
+    # REF: [Tier 3] Descriptive Naming
+    requests_per_second = cfg.get("RATE_LIMIT_RPS", 8.0)
 
     # Batch pre-fetch funding rates to save hundreds of API calls
     if hasattr(module, "prefetch_all_funding_rates"):
-        module.prefetch_all_funding_rates(rps=rps)
+        module.prefetch_all_funding_rates(rps=requests_per_second)
 
-    tickers = module.get_tickers(rps=rps)
+    tickers = module.get_tickers(rps=requests_per_second)
 
     # Filter by symbols if provided
     symbols_to_scan = cfg.get("SYMBOLS")
     if symbols_to_scan:
-        filtered = [t for t in tickers if t.get("symbol") in symbols_to_scan]
-        logger.info(f"Filtered to {len(filtered)} symbols from request")
+        filtered_tickers = [ticker for ticker in tickers if ticker.get("symbol") in symbols_to_scan]
+        logger.info(f"Filtered to {len(filtered_tickers)} symbols from request")
     else:
-        filtered = [
-            t for t in tickers
-            if (lambda v: v >= cfg["MIN_VOLUME"])(float(t.get("turnoverRv") or 0.0))
+        filtered_tickers = [
+            ticker for ticker in tickers
+            if float(ticker.get("turnoverRv") or 0.0) >= cfg["MIN_VOLUME"]
         ]
 
     results = []
-    total = len(filtered)
-    done = 0
-    if total == 0: return []
+    if not filtered_tickers:
+        return []
 
     import concurrent.futures
-    workers = min(cfg["MAX_WORKERS"], max(1, len(filtered)))
+    import traceback
+    num_workers = min(cfg["MAX_WORKERS"], max(1, len(filtered_tickers)))
 
     # Concurrent execution
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as exe:
-        futures = [exe.submit(module.analyse, t, cfg, not args.no_ai, not args.no_entity, None) for t in filtered]
-        for fut in concurrent.futures.as_completed(futures):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(module.analyse, t, cfg, not args.no_ai, not args.no_entity, None) for t in filtered_tickers]
+        for future in concurrent.futures.as_completed(futures):
             try:
-                # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
-                scan_res = fut.result()
+                # REF: [Tier 3] Descriptive Naming
+                scan_res = future.result()
                 if scan_res:
                     scan_res["scan_timestamp"] = datetime.datetime.now(datetime.timezone.utc)
                     results.append(scan_res)
                     if on_result:
-                        threading.Thread(target=on_result, args=(scan_res, direction), daemon=True).start()
-            except Exception: pass
-            done += 1
+                        # REF: [Tier 1] Critical Thread Error Handling
+                        def _result_wrapper(res, dr):
+                            try:
+                                on_result(res, dr)
+                            except Exception as error:
+                                logger.error(f"On-result callback crashed: {error}\n{traceback.format_exc()}")
+                        threading.Thread(target=_result_wrapper, args=(scan_res, direction), daemon=True).start()
+            except Exception as error:
+                logger.error(f"Analysis task failed: {error}\n{traceback.format_exc()}")
 
     return results
 
@@ -1875,12 +1903,19 @@ def _effective_score(result: dict) -> float:
 
 
 def pick_candidates(
-    long_results, short_results,
-    min_score, min_score_gap,
-    direction_filter, in_position,
-    available_slots,
-) -> list:
-    # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
+    long_results: List[dict],
+    short_results: List[dict],
+    min_score: int,
+    min_score_gap: int,
+    direction_filter: str,
+    symbols_in_position: set,
+    available_slots: int,
+) -> List[Tuple[dict, str]]:
+    """
+    Selects the best trading candidates based on scores and available slots.
+    REF: [Tier 2] Logic Improvements
+    """
+    # REF: [Tier 3] Descriptive Naming
     symbol_scores = {}
     for scan_res in long_results:
         symbol_scores.setdefault(scan_res["inst_id"], {"LONG": 0, "SHORT": 0})["LONG"] = scan_res["score"]
@@ -1891,22 +1926,28 @@ def pick_candidates(
 
     if direction_filter.upper() in ["LONG", "BOTH"]:
         for scan_res in long_results:
-            if scan_res["score"] < min_score: continue
-            if scan_res["inst_id"] in in_position: continue
+            if scan_res["score"] < min_score:
+                continue
+            if scan_res["inst_id"] in symbols_in_position:
+                continue
             scores = symbol_scores.get(scan_res["inst_id"], {"LONG": 0, "SHORT": 0})
-            if scores["LONG"] - scores["SHORT"] < min_score_gap: continue
+            if scores["LONG"] - scores["SHORT"] < min_score_gap:
+                continue
             candidates.append((scan_res, "LONG"))
 
     if direction_filter.upper() in ["SHORT", "BOTH"]:
         for scan_res in short_results:
-            if scan_res["score"] < min_score: continue
-            if scan_res["inst_id"] in in_position: continue
+            if scan_res["score"] < min_score:
+                continue
+            if scan_res["inst_id"] in symbols_in_position:
+                continue
             scores = symbol_scores.get(scan_res["inst_id"], {"LONG": 0, "SHORT": 0})
-            if scores["SHORT"] - scores["LONG"] < min_score_gap: continue
+            if scores["SHORT"] - scores["LONG"] < min_score_gap:
+                continue
             candidates.append((scan_res, "SHORT"))
 
     # Sort by quality-adjusted score, not raw
-    candidates.sort(key=lambda x: _effective_score(x[0]), reverse=True)
+    candidates.sort(key=lambda item: _effective_score(item[0]), reverse=True)
     return candidates[:available_slots]
 
 
@@ -1933,9 +1974,12 @@ def print_positions(positions: List[dict]):
                     et = et.replace(tzinfo=datetime.timezone.utc)
                 diff = datetime.datetime.now(datetime.timezone.utc) - et
                 tot_sec = int(diff.total_seconds())
-                if tot_sec < 60: dur_str = f"({tot_sec}s)"
-                elif tot_sec < 3600: dur_str = f"({tot_sec//60}m)"
-                else: dur_str = f"({tot_sec//3600}h {(tot_sec%3600)//60}m)"
+                if tot_sec < 60:
+                    dur_str = f"({tot_sec}s)"
+                elif tot_sec < 3600:
+                    dur_str = f"({tot_sec // 60}m)"
+                else:
+                    dur_str = f"({tot_sec // 3600}h {(tot_sec % 3600) // 60}m)"
 
         print(
             f"  {side_color}{'▲' if p['side']=='Buy' else '▼'} {p['symbol']:<16}{Style.RESET_ALL}"
@@ -1973,9 +2017,12 @@ _entropy_penalty = 0
 
 def _get_cluster_threshold_penalty(intensity: float) -> int:
     """Returns a score penalty based on Hawkes intensity (λ)."""
-    if intensity > 3.0: return 50  # Major cluster - raise bar significantly
-    if intensity > 2.0: return 30
-    if intensity > 1.2: return 15
+    if intensity > 3.0:
+        return 50  # Major cluster - raise bar significantly
+    if intensity > 2.0:
+        return 30
+    if intensity > 1.2:
+        return 15
     return 0
 
 def bot_loop(args):
@@ -2034,8 +2081,23 @@ def bot_loop(args):
     global _display_thread_running
     if not _display_thread_running:
         _display_thread_running = True
-        threading.Thread(target=_live_pnl_display, daemon=True).start()
-        threading.Thread(target=_cache_refresher, daemon=True).start()
+        # REF: [Tier 1] Critical Thread Error Handling
+        def _display_wrapper():
+            import traceback
+            try:
+                _live_pnl_display()
+            except Exception as error:
+                logger.error(f"Display thread crashed: {error}\n{traceback.format_exc()}")
+
+        def _cache_wrapper():
+            import traceback
+            try:
+                _cache_refresher()
+            except Exception as error:
+                logger.error(f"Cache refresher thread crashed: {error}\n{traceback.format_exc()}")
+
+        threading.Thread(target=_display_wrapper, daemon=True).start()
+        threading.Thread(target=_cache_wrapper, daemon=True).start()
 
     # ── Drawdown guard initialisation ────────────────────────────────
     if _DD_OK:
@@ -2074,16 +2136,12 @@ def bot_loop(args):
             continue
 
         scan_number += 1
-        # REF: Tier 3: Human-Readable Logs
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # ── Account status ───────────────────────────────────────────
         with _cache_lock:
-            in_pos = {p["symbol"] for p in _cached_positions}
             # Dynamic scaling: more positions as equity grows
             dynamic_max = get_dynamic_max_positions(_cached_balance)
             available_slots = dynamic_max - len(_cached_positions)
-            balance = _cached_balance
 
         # ── Fast-track callback ──────────────────────────────────────
         # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
@@ -2128,7 +2186,8 @@ def bot_loop(args):
                     if scan_res["inst_id"] in {p["symbol"] for p in _cached_positions}:
                         return
 
-                if scan_res["inst_id"] in _fast_track_opened: return
+                if scan_res["inst_id"] in _fast_track_opened:
+                    return
 
                 # Cooldown check
                 last_ft = FAST_TRACK_COOLDOWN.get(scan_res["inst_id"], 0)
@@ -2224,8 +2283,10 @@ def bot_loop(args):
         now_utc = datetime.datetime.now(datetime.timezone.utc)
         def is_result_fresh(res, now):
             ts = res.get("scan_timestamp")
-            if not ts: return True
-            if ts.tzinfo is None: ts = ts.replace(tzinfo=datetime.timezone.utc)
+            if not ts:
+                return True
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=datetime.timezone.utc)
             return (now - ts).total_seconds() < RESULT_STALENESS_SECONDS
 
         fresh_long  = [res for res in long_results  if is_result_fresh(res, now_utc)]
@@ -2241,7 +2302,7 @@ def bot_loop(args):
             min_score=eff_min_score,
             min_score_gap=args.min_score_gap,
             direction_filter=args.direction,
-            in_position=in_pos_updated,
+            symbols_in_position=in_pos_updated,
             available_slots=available_updated,
         )
 
@@ -2350,7 +2411,7 @@ def one_shot(args):
         min_score=eff_min_score,
         min_score_gap=args.min_score_gap,
         direction_filter=args.direction,
-        in_position=in_pos,
+        symbols_in_position=in_pos,
         available_slots=available_slots
     )
 
@@ -2417,7 +2478,8 @@ def show_status():
                 print(f"  {t['timestamp'][:19]} {t.get('direction','?'):5} "
                       f"{t['symbol']:<16} Score:{t['score']} "
                       f"@{t['price']:.4g} [{dr}]")
-    except Exception: pass
+    except Exception:
+        pass
     print()
 
 
@@ -2471,7 +2533,7 @@ def deploy_once(args):
         min_score=eff_min_score,
         min_score_gap=args.min_score_gap,
         direction_filter=args.direction,
-        in_position=in_pos,
+        symbols_in_position=in_pos,
         available_slots=available_slots,
     )
 
@@ -2489,7 +2551,8 @@ def deploy_once(args):
 
     print()
     for result, direction in candidates:
-        if opened_count >= available_slots: break
+        if opened_count >= available_slots:
+            break
 
         # ── Wait & Verify ────────────────────────────────────
         verified_result = verify_candidate(result["inst_id"], direction, result["score"])
@@ -2532,7 +2595,6 @@ def verify_trailing_stops():
     """
     # Read credentials locally — never mutate module-level API_KEY / API_SECRET
     local_key    = os.getenv("PHEMEX_API_KEY", API_KEY)
-    local_secret = os.getenv("PHEMEX_API_SECRET", API_SECRET)
     local_url    = os.getenv("PHEMEX_BASE_URL", BASE_URL)
 
     print("--- Verifying Trailing Stop Orders ---")
@@ -2677,7 +2739,7 @@ def main():
     elif args.command == "deploy":
         testnet = "testnet" in BASE_URL
         env_label = Fore.YELLOW + "⚠ TESTNET" if testnet else Fore.RED + "🚨 MAINNET — REAL MONEY"
-        print(Fore.CYAN + Style.BRIGHT + f"\n 🚀 Phemex ONE-SHOT DEPLOY Starting")
+        print(Fore.CYAN + Style.BRIGHT + "\n 🚀 Phemex ONE-SHOT DEPLOY Starting")
         print(f" Exchange  : {env_label}{Style.RESET_ALL} ({BASE_URL})")
         print(f" Margin    : ${MARGIN_USDT} @ {LEVERAGE}x = ${MARGIN_USDT*LEVERAGE:.0f} notional")
         print(f" Trail     : {TRAIL_PCT*100:.1f}% | Max Positions: {MAX_POSITIONS}")
@@ -2704,7 +2766,7 @@ def main():
         testnet = "testnet" in BASE_URL
         env_label = Fore.YELLOW + "⚠ TESTNET" if testnet else Fore.RED + "🚨 MAINNET — REAL MONEY"
 
-        print(Fore.CYAN + Style.BRIGHT + f"\n 🤖 Phemex Trading Bot Starting")
+        print(Fore.CYAN + Style.BRIGHT + "\n 🤖 Phemex Trading Bot Starting")
         print(f" Exchange  : {env_label}{Style.RESET_ALL} ({BASE_URL})")
         print(f" Margin    : ${MARGIN_USDT} @ {LEVERAGE}x = ${MARGIN_USDT*LEVERAGE:.0f} notional")
         print(f" Trail     : {TRAIL_PCT*100:.1f}% | Max Positions: {MAX_POSITIONS}")

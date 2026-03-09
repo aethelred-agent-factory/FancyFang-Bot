@@ -5,7 +5,12 @@ animations.py — FANCYBOT v3 ULTRA TERMINAL FX
 ╚══════════════════════════════════════════════════════════════╝
 """
 
-import sys, time, threading, math, random, shutil, os
+import sys
+import time
+import threading
+import math
+import random
+import shutil
 from banner import BANNER
 
 # ══════════════════════════════════════════════════════════════

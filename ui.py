@@ -51,25 +51,32 @@ def hr_heavy():
 # ── Score gauge ───────────────────────────────────────────────────────────────
 def score_gauge(score: int, width: int = 24) -> str:
     """Visual bar gauge scaled 0–200."""
-    clamped = max(0, min(score, 200))
-    filled  = int(clamped / 200 * width)
-    empty   = width - filled
-    if score >= 145:   color = Fore.LIGHTGREEN_EX
-    elif score >= 120: color = Fore.GREEN
-    elif score >= 100: color = Fore.YELLOW
-    elif score >= 80:  color = Fore.LIGHTYELLOW_EX
-    else:              color = Fore.RED
-    return f"{color}{'█' * filled}{'░' * empty}{Style.RESET_ALL}"
+    clamped_score = max(0, min(score, 200))
+    filled_width = int(clamped_score / 200 * width)
+    empty_width = width - filled_width
+    if score >= 145:
+        gauge_color = Fore.LIGHTGREEN_EX
+    elif score >= 120:
+        gauge_color = Fore.GREEN
+    elif score >= 100:
+        gauge_color = Fore.YELLOW
+    elif score >= 80:
+        gauge_color = Fore.LIGHTYELLOW_EX
+    else:
+        gauge_color = Fore.RED
+    return f"{gauge_color}{'█' * filled_width}{'░' * empty_width}{Style.RESET_ALL}"
 
 # ── Mini sparkline (equity curve etc.) ───────────────────────────────────────
-_SPARK = "▁▂▃▄▅▆▇█"
-def sparkline(values, width: int = 16) -> str:
+_SPARK_CHARS = "▁▂▃▄▅▆▇█"
+
+def sparkline(values: list, width: int = 16) -> str:
     """Return a unicode sparkline string from a list of values."""
-    if not values: return "─" * width
-    lo, hi = min(values), max(values)
-    span   = hi - lo or 1
-    idxs   = [min(7, int((v - lo) / span * 8)) for v in values[-width:]]
-    return "".join(_SPARK[i] for i in idxs)
+    if not values:
+        return "─" * width
+    low_value, high_value = min(values), max(values)
+    value_span = high_value - low_value or 1
+    spark_indices = [min(7, int((v - low_value) / value_span * 8)) for v in values[-width:]]
+    return "".join(_SPARK_CHARS[i] for i in spark_indices)
 
 # ── Grade badge ───────────────────────────────────────────────────────────────
 _GRADE_COLORS = {
