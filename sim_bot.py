@@ -50,7 +50,7 @@ import phemex_long as scanner_long
 import phemex_short as scanner_short
 import animations
 import hardware_bridge as hw
-import hardware_bridge as hw
+from storage_manager import StorageManager
 
 # Safely import p_bot
 try:
@@ -212,38 +212,26 @@ class SimBotState:
     # Locks
     lock: threading.RLock = field(default_factory=threading.RLock)
     file_io_lock: threading.Lock = field(default_factory=threading.Lock)
+    storage: StorageManager = field(default_factory=lambda: StorageManager(SCRIPT_DIR / "fancybot.db"))
 
     def load_account(self):
-        """Loads paper account from disk into memory."""
+        """Loads paper account from storage into memory."""
         # REF: [Tier 1] Lock Hierarchy (file_io_lock -> lock)
         with self.file_io_lock:
-            if not PAPER_ACCOUNT_FILE.exists():
-                self.save_account()
-                return
-
-            for attempt in range(5):
-                try:
-                    content = PAPER_ACCOUNT_FILE.read_text()
-                    if not content:
-                        continue
-                    account_data = json.loads(content)
-                    with self.lock:
-                        self.balance = float(account_data.get("balance", INITIAL_BALANCE))
-                        self.positions = account_data.get("positions", [])
-                    return
-                except (json.JSONDecodeError, ValueError, OSError):
-                    time.sleep(0.05 * (attempt + 1))
+            account_data = self.storage.load_account(initial_balance=INITIAL_BALANCE)
+            with self.lock:
+                self.balance = account_data["balance"]
+                self.positions = account_data["positions"]
 
     def save_account(self):
-        """Flushes in-memory account state to disk."""
+        """Flushes in-memory account state to storage."""
         # REF: [Tier 1] Lock Hierarchy (file_io_lock -> lock)
         with self.file_io_lock:
             with self.lock:
-                account_snapshot = {"balance": self.balance, "positions": self.positions}
+                balance = self.balance
+                positions = self.positions[:]
             try:
-                temp_file = PAPER_ACCOUNT_FILE.with_suffix(".tmp")
-                temp_file.write_text(json.dumps(account_snapshot, indent=2))
-                temp_file.replace(PAPER_ACCOUNT_FILE)
+                self.storage.save_account_state(balance, positions)
             except Exception as error:
                 logging.getLogger("sim_bot").error(f"Failed to save paper account: {error}")
 
@@ -484,18 +472,22 @@ def save_paper_account(data: dict) -> None:
 def _close_all_positions() -> None:
     """Manually closes every active paper position at the current market price."""
     # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
-    account = load_paper_account()
-    if not account["positions"]:
+    with state.lock:
+        positions = state.positions[:]
+        balance = state.balance
+
+    if not positions:
         print(Fore.YELLOW + "  No positions to close.")
         return
 
-    print(Fore.CYAN + f"  Closing {len(account['positions'])} positions...")
+    print(Fore.CYAN + f"  Closing {len(positions)} positions...")
 
     # --- Kill Cinematic ---
     play_animation(animations.kill)
     hw.bridge.signal('EXIT')
 
-    for pos in account["positions"]:
+    new_balance = balance
+    for pos in positions:
         symbol = pos["symbol"]
         side   = pos["side"]
         entry  = pos["entry"]
@@ -511,7 +503,7 @@ def _close_all_positions() -> None:
                 now = entry
 
         pnl = (now - entry) * size if side == "Buy" else (entry - now) * size
-        account["balance"] += (pos.get("margin", 0.0) + pnl)
+        new_balance += (pos.get("margin", 0.0) + pnl)
 
         with state.lock:
             state.last_exit_times[symbol] = time.time()
@@ -534,7 +526,9 @@ def _close_all_positions() -> None:
         )
         print(Fore.GREEN + f"  Closed {symbol} at {now}")
 
-    state.positions = []
+    with state.lock:
+        state.balance = new_balance
+        state.positions = []
     state.save_account()
     save_sim_cooldowns()
     state.slot_available_event.set()
@@ -833,8 +827,7 @@ def _log_closed_trade(
     signals: Optional[List[str]] = None,
     slippage: float = 0.0,
 ) -> None:
-    """Appends a closed-trade record to sim_trade_results.jsonl using an efficient append-only strategy."""
-    results_file_jsonl = SCRIPT_DIR / "sim_trade_results.jsonl"
+    """Appends a closed-trade record to storage."""
     pnl = (exit_price - entry) * size if direction == "Buy" else (entry - exit_price) * size
 
     hold_time_seconds = 0
@@ -863,13 +856,12 @@ def _log_closed_trade(
         "slippage":    round(slippage, 8),
     }
 
-    # REF: [Tier 1] Lock Hierarchy (file_io_lock only for disk append)
+    # REF: [Tier 1] Lock Hierarchy (file_io_lock only for storage)
     with state.file_io_lock:
         try:
-            with open(results_file_jsonl, "a") as f:
-                f.write(json.dumps(record) + "\n")
+            state.storage.append_trade(record)
         except Exception as e:
-            logger.error(f"Failed to append to trade history log: {e}")
+            logger.error(f"Failed to append trade to history: {e}")
 
     # ── Upgrade #8: Signal analytics recording ────────────────────────────────
     if _ANALYTICS_OK:
@@ -1198,7 +1190,7 @@ def _draw_history_section(
         col_w = (w - 6) // 2  # visible width for one trade cell
 
         def _fmt(t: dict) -> str:
-            pnl   = t["pnl"]
+            pnl   = float(t["pnl"])
             c     = term.bold_green if pnl > 0 else term.bold_red
             badge = "✅" if pnl > 0 else "❌"
             ts    = t["timestamp"][11:16]
@@ -1463,7 +1455,6 @@ def _draw_footer(term: blessed.Terminal, row: int, max_width: int = 80) -> None:
 def _live_pnl_display() -> None:
     """Full-screen TUI dashboard — runs in a dedicated daemon thread."""
     term         = blessed.Terminal()
-    results_file = SCRIPT_DIR / "sim_trade_results.json"
 
     with term.fullscreen(), term.cbreak(), term.hidden_cursor():
         try:
@@ -1478,20 +1469,15 @@ def _live_pnl_display() -> None:
                     positions = state.positions[:] # Copy
                     live_prices = state.live_prices.copy()
 
-                history: List[dict] = []
-                # Still need to read history from file for the totals, 
-                # but we could cache this too if needed.
-                if results_file.exists():
-                    try:
-                        history = json.loads(results_file.read_text())
-                    except Exception:
-                        pass
+                # Get history from storage
+                with state.file_io_lock:
+                    history = state.storage.get_trade_history(limit=50)
 
-                wins             = [t for t in history if t["pnl"] > 0]
-                losses           = [t for t in history if t["pnl"] <= 0]
+                wins             = [t for t in history if float(t["pnl"]) > 0]
+                losses           = [t for t in history if float(t["pnl"]) <= 0]
                 total_trades     = len(history)
                 win_rate         = (len(wins) / total_trades * 100) if total_trades > 0 else 0.0
-                total_closed_pnl = sum(t["pnl"] for t in history)
+                total_closed_pnl = sum(float(t["pnl"]) for t in history)
                 # REF: [Tier 2] UTC Standardisation
                 current_time     = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
 
