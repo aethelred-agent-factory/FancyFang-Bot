@@ -755,6 +755,7 @@ def backtest_symbol(
     trail_pct:         float,
     leverage:          int,
     margin:            float,
+    max_margin:        float,
     window:            int   = 100,
     max_hold:          int   = 96,
     min_score_low_liq: int   = 145,
@@ -825,7 +826,7 @@ def backtest_symbol(
                 # Same direction?
                 new_direction = "LONG" if long_score >= short_score else "SHORT"
                 if new_direction == active_position.direction:
-                    if active_position.margin < MAX_MARGIN_PER_SYMBOL:
+                    if active_position.margin < max_margin:
                         # Scale in at current open
                         next_open = ohlcv_data[candle_index + 1][0]
                         if next_open > 0:
@@ -1501,6 +1502,8 @@ def main():
     parser.add_argument("--leverage",   type=int,   default=30)
     parser.add_argument("--margin",     type=float, default=25.0,
                         help="USDT margin per trade")
+    parser.add_argument("--max-margin", type=float, default=150.0,
+                        help="Max total USDT margin for scaling in.")
     parser.add_argument("--max-hold",   type=int,   default=96,
                         help="Max candles to hold a trade")
     parser.add_argument("--min-vol",    type=int,   default=5_000_000)
@@ -1594,7 +1597,7 @@ def main():
 
     # Shared kwargs for backtest_symbol
     bt_kwargs = dict(
-        margin=args.margin, max_hold=args.max_hold,
+        margin=args.margin, max_margin=args.max_margin, max_hold=args.max_hold,
         hard_stop_pct=args.stop_loss_pct,
         take_profit_pct=args.take_profit_pct,
         cooldown=args.cooldown,
