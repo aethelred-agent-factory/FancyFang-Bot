@@ -25,71 +25,56 @@ SHOW_CURSOR  = "\033[?25h"
 BOLD         = "\033[1m"
 RESET        = "\033[0m"
 
-def goto(x, y):
-    return f"\033[{y};{x}H"
+def goto(x, y):      return f"\033[{y};{x}H"
+def clear():         sys.stdout.write(CLEAR + HOME); sys.stdout.flush()
+def hide_cursor():   sys.stdout.write(HIDE_CURSOR); sys.stdout.flush()
+def show_cursor():   sys.stdout.write(SHOW_CURSOR); sys.stdout.flush()
 
-
-def clear():
-    sys.stdout.write(CLEAR + HOME)
-    sys.stdout.flush()
-
-
-def hide_cursor():
-    sys.stdout.write(HIDE_CURSOR)
-    sys.stdout.flush()
-
-
-def show_cursor():
-    sys.stdout.write(SHOW_CURSOR)
-    sys.stdout.flush()
-
-
-def W():
-    return shutil.get_terminal_size().columns
-def H():  return shutil.get_terminal_size().lines
+def get_terminal_width():  return shutil.get_terminal_size().columns
+def get_terminal_height():  return shutil.get_terminal_size().lines
 
 # ══════════════════════════════════════════════════════════════
 #  COLOR ENGINE  —  TRUECOLOR + BG + PALETTES
 # ══════════════════════════════════════════════════════════════
 
-def rgb(r, g, b):           return f"\033[38;2;{r};{g};{b}m"
-def bg_rgb(r, g, b):        return f"\033[48;2;{r};{g};{b}m"
-def clamp(v):               return max(0, min(255, int(v)))
+def get_ansi_rgb(r, g, b):           return f"\033[38;2;{r};{g};{b}m"
+def get_ansi_bg_rgb(r, g, b):        return f"\033[48;2;{r};{g};{b}m"
+def clamp_rgb(v):               return max(0, min(255, int(v)))
 
-# Preset palettes  (r,g,b lambdas of t and char-index i)
+# Preset palettes  (r,g,b lambdas of time_offset t and char-index i)
 PALETTES = {
-    "plasma":   lambda t,i: (clamp(math.sin(t+i*0.10)*127+128),
-                              clamp(math.sin(t+i*0.13+2)*127+128),
-                              clamp(math.sin(t+i*0.08+4)*127+128)),
-    "fire":     lambda t,i: (clamp(200+math.sin(t+i*0.15)*55),
-                              clamp(math.sin(t+i*0.2+1)*100+60),
-                              clamp(math.sin(t+i*0.3+3)*20+10)),
-    "ice":      lambda t,i: (clamp(math.sin(t+i*0.1+1)*40+30),
-                              clamp(math.sin(t+i*0.12+2)*80+140),
-                              clamp(math.sin(t+i*0.09+3)*80+200)),
-    "gold":     lambda t,i: (clamp(200+math.sin(t+i*0.2)*55),
-                              clamp(150+math.sin(t+i*0.15+1)*80),
-                              clamp(math.sin(t+i*0.25+2)*30+10)),
-    "acid":     lambda t,i: (clamp(math.sin(t+i*0.2+4)*80+40),
-                              clamp(200+math.sin(t+i*0.1)*55),
-                              clamp(math.sin(t+i*0.3)*60+20)),
-    "blood":    lambda t,i: (clamp(180+math.sin(t+i*0.15)*75),
-                              clamp(math.sin(t+i*0.2+3)*20+5),
-                              clamp(math.sin(t+i*0.1+1)*20+5)),
-    "void":     lambda t,i: (clamp(math.sin(t+i*0.08+2)*60+80),
-                              clamp(math.sin(t+i*0.11+4)*40+20),
-                              clamp(180+math.sin(t+i*0.09)*75)),
+    "plasma":   lambda t,i: (clamp_rgb(math.sin(t+i*0.10)*127+128),
+                              clamp_rgb(math.sin(t+i*0.13+2)*127+128),
+                              clamp_rgb(math.sin(t+i*0.08+4)*127+128)),
+    "fire":     lambda t,i: (clamp_rgb(200+math.sin(t+i*0.15)*55),
+                              clamp_rgb(math.sin(t+i*0.2+1)*100+60),
+                              clamp_rgb(math.sin(t+i*0.3+3)*20+10)),
+    "ice":      lambda t,i: (clamp_rgb(math.sin(t+i*0.1+1)*40+30),
+                              clamp_rgb(math.sin(t+i*0.12+2)*80+140),
+                              clamp_rgb(math.sin(t+i*0.09+3)*80+200)),
+    "gold":     lambda t,i: (clamp_rgb(200+math.sin(t+i*0.2)*55),
+                              clamp_rgb(150+math.sin(t+i*0.15+1)*80),
+                              clamp_rgb(math.sin(t+i*0.25+2)*30+10)),
+    "acid":     lambda t,i: (clamp_rgb(math.sin(t+i*0.2+4)*80+40),
+                              clamp_rgb(200+math.sin(t+i*0.1)*55),
+                              clamp_rgb(math.sin(t+i*0.3)*60+20)),
+    "blood":    lambda t,i: (clamp_rgb(180+math.sin(t+i*0.15)*75),
+                              clamp_rgb(math.sin(t+i*0.2+3)*20+5),
+                              clamp_rgb(math.sin(t+i*0.1+1)*20+5)),
+    "void":     lambda t,i: (clamp_rgb(math.sin(t+i*0.08+2)*60+80),
+                              clamp_rgb(math.sin(t+i*0.11+4)*40+20),
+                              clamp_rgb(180+math.sin(t+i*0.09)*75)),
 }
 
-def colorize(text, palette, t, skip_spaces=True):
+def colorize(text, palette, time_offset, skip_spaces=True):
     fn = PALETTES.get(palette, PALETTES["plasma"])
     out = ""
     for i, c in enumerate(text):
         if skip_spaces and c == " ":
             out += c
         else:
-            r, g, b = fn(t, i)
-            out += rgb(r, g, b) + c
+            r, g, b = fn(time_offset, i)
+            out += get_ansi_rgb(r, g, b) + c
     return out + RESET
 
 
@@ -98,28 +83,29 @@ def colorize(text, palette, t, skip_spaces=True):
 # ══════════════════════════════════════════════════════════════
 
 def center_block(text):
-    w = W()
+    """Centers a multi-line block of text horizontally."""
+    width = get_terminal_width()
     lines = text.split("\n")
     return "\n".join(
-        " " * max(0, (w - len(line)) // 2) + line
+        " " * max(0, (width - len(line)) // 2) + line
         for line in lines
     )
 
 def vcenter_offset(text):
     """Return row offset so text appears vertically centered."""
-    height = H()
+    height = get_terminal_height()
     lines = [line for line in text.split("\n") if line.strip()]
     return max(1, (height - len(lines)) // 2)
 
 def print_centered(text):
     """Print block both horizontally and vertically centered."""
-    row = vcenter_offset(text)
+    row_offset = vcenter_offset(text)
     lines = text.split("\n")
-    w = W()
-    out = "\n" * row
+    width = get_terminal_width()
+    out = "\n" * row_offset
     for line in lines:
-        pad = max(0, (w - len(line)) // 2)
-        out += " " * pad + line + "\n"
+        padding = max(0, (width - len(line)) // 2)
+        out += " " * padding + line + "\n"
     sys.stdout.write(out)
     sys.stdout.flush()
 
@@ -129,22 +115,26 @@ def print_centered(text):
 # ══════════════════════════════════════════════════════════════
 
 class ScreenBuffer:
+    """An off-screen buffer for terminal rendering to avoid flickering."""
     def __init__(self):
-        self.w, self.h = W(), H()
-        self._buf = [[(" ", None)] * self.w for _ in range(self.h)]
+        self.width, self.height = get_terminal_width(), get_terminal_height()
+        self._buffer = [[(" ", None)] * self.width for _ in range(self.height)]
 
     def put(self, x, y, char, color=None):
+        """Places a character with optional color at (x, y)."""
         x, y = int(x), int(y)
-        if 0 <= x < self.w and 0 <= y < self.h:
-            self._buf[y][x] = (char, color)
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self._buffer[y][x] = (char, color)
 
     def write_text(self, x, y, text, color=None):
-        for i, c in enumerate(text):
-            self.put(x + i, y, c, color)
+        """Writes a string starting at (x, y)."""
+        for i, char in enumerate(text):
+            self.put(x + i, y, char, color)
 
     def flush(self):
+        """Flushes the buffer to the terminal."""
         out = HOME
-        for row in self._buf:
+        for row in self._buffer:
             for char, color in row:
                 if color:
                     out += color + char + RESET
@@ -155,7 +145,8 @@ class ScreenBuffer:
         sys.stdout.flush()
 
     def clear(self):
-        self._buf = [[(" ", None)] * self.w for _ in range(self.h)]
+        """Clears the buffer."""
+        self._buffer = [[(" ", None)] * self.width for _ in range(self.height)]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -199,7 +190,7 @@ class Particle:
         fn = PALETTES.get(self.palette, PALETTES["plasma"])
         fade = self.alpha
         r, g, b = fn(t, self.age)
-        return rgb(clamp(r * fade), clamp(g * fade), clamp(b * fade))
+        return get_ansi_rgb(clamp_rgb(r * fade), clamp_rgb(g * fade), clamp_rgb(b * fade))
 
 
 class ParticleSystem:
@@ -223,8 +214,7 @@ class ParticleSystem:
                 palette=palette, gravity=0.04))
 
     def update(self):
-        for particle in self.particles:
-            particle.update()
+        for p in self.particles: p.update()
         self.particles = [p for p in self.particles if p.alive]
 
     def render(self, buf, t):
@@ -261,7 +251,7 @@ class Shockwave:
             x = self.cx + math.cos(angle) * self.radius
             y = self.cy + math.sin(angle) * self.radius * 0.45
             r, g, b = fn(t, i)
-            col = rgb(clamp(r * alpha), clamp(g * alpha), clamp(b * alpha))
+            col = get_ansi_rgb(clamp_rgb(r * alpha), clamp_rgb(g * alpha), clamp_rgb(b * alpha))
             buf.put(x, y, random.choice(glyphs), col)
 
 
@@ -284,6 +274,7 @@ def chromatic_shift(text, palette, t, shift=2):
     """Render text 3 times with slight horizontal shift for RGB split look."""
     fn = PALETTES.get(palette, PALETTES["plasma"])
     lines = text.split("\n")
+    w = W()
     result = []
     for li, line in enumerate(lines):
         # shadow pass (red channel, offset left)
@@ -291,7 +282,7 @@ def chromatic_shift(text, palette, t, shift=2):
         for i, c in enumerate(line):
             if c != " ":
                 r, _, _ = fn(t, i + li * 10)
-                shadow += rgb(clamp(r), 0, 0) + c
+                shadow += get_ansi_rgb(clamp_rgb(r), 0, 0) + c
             else:
                 shadow += c
         shadow += RESET
@@ -300,7 +291,7 @@ def chromatic_shift(text, palette, t, shift=2):
         for i, c in enumerate(line):
             if c != " ":
                 r, g, b = fn(t, i + li * 10)
-                main += rgb(r, g, b) + c
+                main += get_ansi_rgb(r, g, b) + c
             else:
                 main += c
         main += RESET
@@ -318,22 +309,23 @@ def noise_background(buf, density=0.05, palette="void"):
     """Scatter noise glyphs across the whole buffer."""
     fn = PALETTES.get(palette, PALETTES["plasma"])
     t  = time.time()
-    for y in range(buf.h):
-        for x in range(buf.w):
+    for y in range(buf.height):
+        for x in range(buf.width):
             if random.random() < density:
                 r, g, b = fn(t, x + y * 10)
                 fade = random.uniform(0.05, 0.25)
-                col  = rgb(clamp(r * fade), clamp(g * fade), clamp(b * fade))
+                col  = get_ansi_rgb(clamp_rgb(r * fade), clamp_rgb(g * fade), clamp_rgb(b * fade))
                 buf.put(x, y, random.choice(NOISE_CHARS), col)
 
 def scanlines(buf, t):
     """Darken every other row slightly for CRT scanline feel."""
     # We simulate this by inserting dim horizontal rule chars
-    row = int(t * 20) % buf.h
-    for x in range(buf.w):
-        existing_char, existing_col = buf._buf[row][x]
+    scanline_char = "─"
+    row = int(t * 20) % buf.height
+    for x in range(buf.width):
+        existing_char, existing_col = buf._buffer[row][x]
         if existing_char == " ":
-            buf.put(x, row, "·", rgb(20, 20, 20))
+            buf.put(x, row, "·", get_ansi_rgb(20, 20, 20))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -350,10 +342,7 @@ BORDER_STYLES = {
 def draw_border(buf, x1, y1, x2, y2, style="double", palette="plasma", t=0):
     tl, tr, bl, br, h, v, ml, mr, mt, mb = BORDER_STYLES[style]
     fn = PALETTES[palette]
-
-    def col(i):
-        r, g, b = fn(t, i)
-        return rgb(r, g, b)
+    def col(i): r,g,b = fn(t,i); return get_ansi_rgb(r,g,b)
 
     for x in range(x1+1, x2):
         buf.put(x, y1, h, col(x))
@@ -376,11 +365,9 @@ def render_text_to_buf(buf, text, palette, t, cx=None, cy=None, glitch=False):
     Render multi-line `text` centered at (cx,cy) onto `buf`.
     cx/cy default to center of buffer.
     """
-    lines = [line for line in text.split("\n")]
-    if cx is None:
-        cx = buf.w // 2
-    if cy is None:
-        cy = buf.h // 2
+    lines = [l for l in text.split("\n")]
+    if cx is None: cx = buf.width // 2
+    if cy is None: cy = buf.height // 2
 
     # vertical center
     total_h = len(lines)
@@ -394,7 +381,7 @@ def render_text_to_buf(buf, text, palette, t, cx=None, cy=None, glitch=False):
         for i, c in enumerate(disp):
             if c != " ":
                 r, g, b = fn(t, i + li * 13)
-                buf.put(start_x + i, y, c, rgb(r, g, b))
+                buf.put(start_x + i, y, c, get_ansi_rgb(r, g, b))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -430,7 +417,7 @@ class Animator:
             buf = ScreenBuffer()
             noise_background(buf, density=0.02, palette="void")
             render_text_to_buf(buf, text, palette, t * 3)
-            draw_border(buf, 1, 1, buf.w-2, buf.h-2,
+            draw_border(buf, 1, 1, buf.width-2, buf.height-2,
                         style="double", palette=palette, t=t*3)
             buf.flush()
         self._loop(frame, duration)
@@ -444,8 +431,8 @@ class Animator:
             buf  = ScreenBuffer()
             tt   = t * 3
             noise_background(buf, density=0.015, palette="void")
-            cx   = buf.w // 2
-            cy   = buf.h // 2
+            cx   = buf.width // 2
+            cy   = buf.height // 2
             total_h = len(lines)
             start_y = cy - total_h // 2
             fn = PALETTES[palette]
@@ -458,8 +445,8 @@ class Animator:
                     if c != " ":
                         wave_t  = tt + i * 0.1 + li * 0.5
                         r, g, b = fn(wave_t, i)
-                        buf.put(start_x + i, y, c, rgb(r, g, b))
-            draw_border(buf, 2, 1, buf.w-3, buf.h-2,
+                        buf.put(start_x + i, y, c, get_ansi_rgb(r, g, b))
+            draw_border(buf, 2, 1, buf.width-3, buf.height-2,
                         style="heavy", palette=palette, t=tt)
             buf.flush()
         self._loop(frame, duration)
@@ -476,22 +463,22 @@ class Animator:
             # Emit new particles every frame
             if emitter == "rain":
                 for _ in range(8):
-                    ps.emit(random.randint(0, buf.w-1), 0,
+                    ps.emit(random.randint(0, buf.width-1), 0,
                             count=1,
                             vy=random.uniform(0.4, 1.5),
                             vx=random.uniform(-0.1, 0.1),
-                            life=random.randint(buf.h//2, buf.h),
+                            life=random.randint(buf.height//2, buf.height),
                             glyph_set=glyph_set or SPARK_GLYPHS,
                             palette=palette, gravity=0.01)
             elif emitter == "sparks":
                 for _ in range(12):
-                    ps.emit(buf.w//2, buf.h//2, count=1,
+                    ps.emit(buf.width//2, buf.height//2, count=1,
                             glyph_set=glyph_set or PARTICLE_GLYPHS,
                             palette=palette, gravity=0.05)
             ps.update()
             ps.render(buf, tt)
             render_text_to_buf(buf, text, palette, tt)
-            draw_border(buf, 1, 1, buf.w-2, buf.h-2,
+            draw_border(buf, 1, 1, buf.width-2, buf.height-2,
                         style="ascii", palette=palette, t=tt)
             buf.flush()
         self._loop(frame, duration)
@@ -508,7 +495,7 @@ class Animator:
             nonlocal fired
             tt  = t * 3
             buf = ScreenBuffer()
-            cx, cy = buf.w // 2, buf.h // 2
+            cx, cy = buf.width // 2, buf.height // 2
 
             if not fired:
                 ps.explode(cx, cy, count=150, palette=palette)
@@ -517,16 +504,14 @@ class Animator:
                 fired = True
 
             ps.update()
-            for wave in waves:
-                wave.update()
+            for w in waves: w.update()
             waves[:] = [w for w in waves if w.alive]
 
             noise_background(buf, density=0.03, palette=palette)
             ps.render(buf, tt)
-            for wave in waves:
-                wave.render(buf, tt)
+            for w in waves: w.render(buf, tt)
             render_text_to_buf(buf, text, palette, tt, glitch=True)
-            draw_border(buf, 0, 0, buf.w-1, buf.h-1,
+            draw_border(buf, 0, 0, buf.width-1, buf.height-1,
                         style="double", palette=palette, t=tt)
             buf.flush()
 
@@ -536,8 +521,7 @@ class Animator:
     #  SCAN  —  wipe reveal line-by-line
     # ─────────────────────────────────────────────
     def scan(self, text, palette="ice", duration=2.5):
-        lines = [line for line in text.split("\n")]
-
+        lines = [l for l in text.split("\n")]
         def frame(t):
             elapsed = t - _start[0]
             buf     = ScreenBuffer()
@@ -545,14 +529,13 @@ class Animator:
             noise_background(buf, density=0.01, palette=palette)
             total   = len(lines)
             reveal  = int((elapsed / duration) * total * 1.5)
-            cy = buf.h // 2
+            cy = buf.height // 2
             sy = cy - total // 2
             fn = PALETTES[palette]
             for li, line in enumerate(lines):
-                if li > reveal:
-                    break
+                if li > reveal: break
                 y      = sy + li
-                sx     = buf.w // 2 - len(line) // 2
+                sx     = buf.width // 2 - len(line) // 2
                 # scanline highlight on the reveal frontier
                 is_frontier = (li == reveal)
                 for i, c in enumerate(line):
@@ -562,8 +545,8 @@ class Animator:
                             r = min(255, r + 80)
                             g = min(255, g + 80)
                             b = min(255, b + 80)
-                        buf.put(sx + i, y, c, rgb(r, g, b))
-            draw_border(buf, 1, 1, buf.w-2, buf.h-2,
+                        buf.put(sx + i, y, c, get_ansi_rgb(r, g, b))
+            draw_border(buf, 1, 1, buf.width-2, buf.height-2,
                         style="double", palette=palette, t=tt)
             buf.flush()
         _start = [time.time()]
@@ -584,28 +567,28 @@ class Animator:
             tt  = t * 2
             fn  = PALETTES[palette]
             # init / grow columns
-            for x in range(0, buf.w, 2):
+            for x in range(0, buf.width, 2):
                 if x not in columns or random.random() < 0.02:
-                    columns[x] = {"y": random.randint(-buf.h, 0),
+                    columns[x] = {"y": random.randint(-buf.height, 0),
                                    "speed": random.uniform(0.4, 1.2),
-                                   "len":   random.randint(4, buf.h // 2)}
+                                   "len":   random.randint(4, buf.height // 2)}
             for x, col in columns.items():
                 col["y"] += col["speed"]
                 for dy in range(col["len"]):
                     y = int(col["y"]) - dy
-                    if 0 <= y < buf.h:
+                    if 0 <= y < buf.height:
                         c = random.choice(MATRIX_CHARS)
                         fade = 1.0 - dy / col["len"]
                         if dy == 0:
-                            color = rgb(200, 255, 200)  # bright head
+                            color = get_ansi_rgb(200, 255, 200)  # bright head
                         else:
                             r, g, b = fn(tt, x + dy * 3)
-                            color = rgb(clamp(r*fade*0.4),
-                                        clamp(g*fade),
-                                        clamp(b*fade*0.4))
+                            color = get_ansi_rgb(clamp_rgb(r*fade*0.4),
+                                        clamp_rgb(g*fade),
+                                        clamp_rgb(b*fade*0.4))
                         buf.put(x, y, c, color)
             render_text_to_buf(buf, text, palette, tt)
-            draw_border(buf, 1, 1, buf.w-2, buf.h-2,
+            draw_border(buf, 1, 1, buf.width-2, buf.height-2,
                         style="double", palette=palette, t=tt)
             buf.flush()
         self._loop(frame, duration)
@@ -619,7 +602,7 @@ class Animator:
             tt  = t * 5
             noise_background(buf, density=0.035, palette=palette)
             render_text_to_buf(buf, text, palette, tt, glitch=True)
-            draw_border(buf, 1, 1, buf.w-2, buf.h-2,
+            draw_border(buf, 1, 1, buf.width-2, buf.height-2,
                         style="ascii", palette=palette, t=tt)
             buf.flush()
         self._loop(frame, duration)
@@ -631,6 +614,7 @@ class Animator:
         lines   = text.split("\n")
         chars   = []
         # collect all character positions
+        cx_base = 40  # placeholder; recalc in frame
         for li, line in enumerate(lines):
             for i, c in enumerate(line):
                 if c.strip():
@@ -640,12 +624,13 @@ class Animator:
                         "vx": random.uniform(-3, 3),
                         "vy": random.uniform(-2, 2),
                     })
+        exploded = [False]
 
         def frame(t):
             elapsed = t - _start[0]
             buf     = ScreenBuffer()
             tt      = t * 3
-            bw, bh  = buf.w, buf.h
+            bw, bh  = buf.width, buf.height
             cx      = bw // 2
             cy      = bh // 2
             total_h = len(lines)
@@ -672,9 +657,9 @@ class Animator:
                     ty = int(base_y + ch["vy"] * frac * bh * 0.4)
 
                 r, g, b = fn(tt, ch["ci"] + ch["li"] * 10)
-                buf.put(tx, ty, ch["c"], rgb(r, g, b))
+                buf.put(tx, ty, ch["c"], get_ansi_rgb(r, g, b))
 
-            draw_border(buf, 1, 1, buf.w-2, buf.h-2,
+            draw_border(buf, 1, 1, buf.width-2, buf.height-2,
                         style="double", palette=palette, t=tt)
             buf.flush()
 
@@ -685,9 +670,7 @@ class Animator:
     #  ASYNC RUNNER
     # ─────────────────────────────────────────────
     def run_async(self, func, *args, **kwargs):
-        if self.running:
-            return
-
+        if self.running: return
         def target():
             self.running = True
             func(*args, **kwargs)
@@ -696,8 +679,7 @@ class Animator:
         self.thread.start()
 
     def wait(self):
-        if self.thread:
-            self.thread.join()
+        if self.thread: self.thread.join()
 
 
 # ══════════════════════════════════════════════════════════════

@@ -160,16 +160,16 @@ LEV_ATR_MID    = float(os.getenv("LEV_ATR_MID", "1.5"))      # -> 15x
 LEV_ATR_LOW    = float(os.getenv("LEV_ATR_LOW", "0.8"))      # -> 20x
 
 # Hawkes Cluster Throttling (_get_cluster_threshold_penalty)
-HAWKES_INTENSITY_CRITICAL = float(os.getenv("HAWKES_CRITICAL", "3.0")) # -> +50 penalty
-HAWKES_INTENSITY_HIGH     = float(os.getenv("HAWKES_HIGH", "2.0"))     # -> +30 penalty
-HAWKES_INTENSITY_MID      = float(os.getenv("HAWKES_MID", "1.2"))      # -> +15 penalty
+HAWKES_INTENSITY_CRITICAL = float(os.getenv("HAWKES_CRITICAL", "4.0")) # -> +50 penalty
+HAWKES_INTENSITY_HIGH     = float(os.getenv("HAWKES_HIGH", "3.0"))     # -> +30 penalty
+HAWKES_INTENSITY_MID      = float(os.getenv("HAWKES_MID", "2.0"))      # -> +15 penalty
 
 # Entropy Deflator Parameters
-ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "35"))
-ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "30"))
-ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "25"))
-ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "15"))
-ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "15"))
+ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "30"))
+ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "20"))
+ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "20"))
+ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "10"))
+ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "20"))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Global State Management

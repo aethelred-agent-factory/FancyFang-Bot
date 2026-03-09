@@ -56,7 +56,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
-from banner import BANNER
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
@@ -119,18 +118,20 @@ TAKER_FEE = 0.0006  # 0.06% per side (Phemex USDT-M maker/taker)
 _thread_local = threading.local()
 
 def _get_session() -> requests.Session:
+    """Provides a thread-local requests Session with retry logic."""
     if not hasattr(_thread_local, "session"):
-        sess = requests.Session()
+        session = requests.Session()
         retry = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
-        sess.mount("https://", HTTPAdapter(max_retries=retry, pool_connections=50, pool_maxsize=50))
-        _thread_local.session = sess
+        session.mount("https://", HTTPAdapter(max_retries=retry, pool_connections=50, pool_maxsize=50))
+        _thread_local.session = session
     return _thread_local.session
 
 def _get(url: str, params: dict = None, timeout: int = 15) -> Optional[dict]:
+    """Internal GET helper with error handling and response parsing."""
     try:
-        r = _get_session().get(url, params=params, timeout=timeout)
-        r.raise_for_status()
-        return r.json()
+        response = _get_session().get(url, params=params, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
     except Exception:
         return None
 
@@ -138,6 +139,7 @@ def _get(url: str, params: dict = None, timeout: int = 15) -> Optional[dict]:
 # Market data fetchers
 # ─────────────────────────────────────────────────────────────────────
 def get_tickers(min_vol: float = 1_000_000) -> List[dict]:
+    """Fetches all 24h tickers from Phemex and filters by USDT and minimum turnover."""
     data = _get(f"{BASE_URL}/md/v3/ticker/24hr/all")
     if not data or data.get("error"):
         return []
@@ -146,9 +148,9 @@ def get_tickers(min_vol: float = 1_000_000) -> List[dict]:
     if not tickers:
         tickers = data if isinstance(data, list) else []
     return [
-        t for t in tickers
-        if str(t.get("symbol", "")).endswith("USDT")
-        and float(t.get("turnoverRv") or 0) >= min_vol
+        ticker for ticker in tickers
+        if str(ticker.get("symbol", "")).endswith("USDT")
+        and float(ticker.get("turnoverRv") or 0) >= min_vol
     ]
 
 def get_candles(symbol: str, timeframe: str = "15m", limit: int = 500) -> List[list]:
@@ -162,10 +164,10 @@ def get_candles(symbol: str, timeframe: str = "15m", limit: int = 500) -> List[l
     if not data or data.get("code") != 0:
         return []
     rows = data.get("data", {}).get("rows", [])
-    return sorted(rows, key=lambda r: r[0])
+    return sorted(rows, key=lambda row: row[0])
 
 def get_spread_pct(symbol: str) -> Optional[float]:
-    """Best bid-ask spread as % of mid price."""
+    """Calculates the best bid-ask spread as a percentage of the mid price."""
     data = _get(f"{BASE_URL}/md/v2/orderbook", params={"symbol": symbol})
     if not data or data.get("error"):
         return None
@@ -175,15 +177,16 @@ def get_spread_pct(symbol: str) -> Optional[float]:
         asks = book.get("asks", [])
         if not bids or not asks:
             return None
-        bid = float(bids[0][0])
-        ask = float(asks[0][0])
-        if bid <= 0:
+        best_bid = float(bids[0][0])
+        best_ask = float(asks[0][0])
+        if best_bid <= 0:
             return None
-        return (ask - bid) / bid * 100.0
+        return (best_ask - best_bid) / best_bid * 100.0
     except Exception:
         return None
 
 def get_funding(symbol: str) -> Optional[float]:
+    """Fetches the current real funding rate for a given symbol."""
     data = _get(
         f"{BASE_URL}/contract-biz/public/real-funding-rates",
         params={"symbol": symbol},
@@ -194,19 +197,20 @@ def get_funding(symbol: str) -> Optional[float]:
         items = data if isinstance(data, list) else data.get("data", [])
         if not items:
             return None
-        entry = next((i for i in items if i.get("symbol") == symbol), items[0])
+        entry = next((item for item in items if item.get("symbol") == symbol), items[0])
         return float(entry.get("fundingRate", 0.0))
     except Exception:
         return None
 
 def get_htf_rsi(symbol: str, tf: str = "1H") -> Optional[float]:
+    """Fetches High Time Frame (HTF) RSI for trend alignment."""
     rows = get_candles(symbol, timeframe=tf, limit=50)
     if not rows:
         return None
     closes = []
-    for r in rows:
+    for row in rows:
         try:
-            closes.append(float(r[6]))
+            closes.append(float(row[6]))
         except Exception:
             continue
     if len(closes) < 16:
@@ -219,102 +223,101 @@ def get_htf_rsi(symbol: str, tf: str = "1H") -> Optional[float]:
 # ─────────────────────────────────────────────────────────────────────
 def calc_rsi(closes: List[float], period: int = 14
              ) -> Tuple[Optional[float], Optional[float], List[Optional[float]]]:
-    """Calculate RSI using Wilders smoothing."""
+    """Calculates Relative Strength Index (RSI) and returns (current, previous, history)."""
     num_closes = len(closes)
     if num_closes <= period:
         return None, None, [None] * num_closes
-    closes_arr = np.asarray(closes, dtype=float)
-    diffs = np.diff(closes_arr)
+    prices_array = np.asarray(closes, dtype=float)
+    diffs = np.diff(prices_array)
     gains = np.where(diffs > 0, diffs, 0.0)
     losses = np.where(diffs < 0, -diffs, 0.0)
     avg_gain = float(gains[:period].sum() / period)
     avg_loss = float(losses[:period].sum() / period)
     history: List[Optional[float]] = [None] * period
 
-    def _rsi(gain: float, loss: float) -> float:
-        return 100.0 if loss == 0 else 100.0 - 100.0 / (1.0 + gain / loss)
+    def _rsi_formula(g, l):
+        return 100.0 if l == 0 else 100.0 - 100.0 / (1.0 + g / l)
 
-    history.append(_rsi(avg_gain, avg_loss))
+    history.append(_rsi_formula(avg_gain, avg_loss))
     for i in range(period, len(gains)):
         avg_gain = (avg_gain * (period - 1) + float(gains[i])) / period
         avg_loss = (avg_loss * (period - 1) + float(losses[i])) / period
-        history.append(_rsi(avg_gain, avg_loss))
+        history.append(_rsi_formula(avg_gain, avg_loss))
 
     return history[-1], history[-2] if len(history) >= 2 else None, history
 
 
 def calc_bb(closes: List[float], period: int = 21, mult: float = 2.0) -> Optional[Dict]:
-    """Calculate Bollinger Bands."""
+    """Calculates Bollinger Bands (upper, mid, lower)."""
     if len(closes) < period:
         return None
-    window_data = np.asarray(closes[-period:], dtype=float)
-    middle_band = float(window_data.mean())
-    std_dev = float(np.sqrt(((window_data - middle_band) ** 2).sum() / period))
-    return {
-        "upper": middle_band + mult * std_dev,
-        "mid": middle_band,
-        "lower": middle_band - mult * std_dev
-    }
+    window_array = np.asarray(closes[-period:], dtype=float)
+    mid = float(window_array.mean())
+    std = float(np.sqrt(((window_array - mid) ** 2).sum() / period))
+    return {"upper": mid + mult * std, "mid": mid, "lower": mid - mult * std}
 
 
 def calc_ema(closes: List[float], period: int = 21) -> Optional[float]:
-    """Calculate latest EMA value."""
+    """Calculates a single Exponential Moving Average (EMA) value."""
     if len(closes) < period:
         return None
-    smoothing_factor = 2.0 / (period + 1)
+    smoothing_constant = 2.0 / (period + 1)
     ema = float(np.mean(closes[:period]))
-    for close_px in closes[period:]:
-        ema = close_px * smoothing_factor + ema * (1 - smoothing_factor)
+    for close in closes[period:]:
+        ema = close * smoothing_constant + ema * (1 - smoothing_constant)
     return ema
 
 
 def calc_ema_series(closes: List[float], period: int = 21) -> List[Optional[float]]:
-    """Calculate full EMA series."""
+    """Calculates a series of Exponential Moving Average (EMA) values."""
     if len(closes) < period:
         return [None] * len(closes)
-    smoothing_factor = 2.0 / (period + 1)
+    smoothing_constant = 2.0 / (period + 1)
     ema = float(np.mean(closes[:period]))
     result: List[Optional[float]] = [None] * (period - 1)
     result.append(ema)
-    for close_px in closes[period:]:
-        ema = close_px * smoothing_factor + ema * (1 - smoothing_factor)
+    for close in closes[period:]:
+        ema = close * smoothing_constant + ema * (1 - smoothing_constant)
         result.append(ema)
     return result
 
 
-def vol_spike_ratio(vols: List[float], lookback: int = 20) -> float:
-    if len(vols) < lookback + 1:
+def vol_spike_ratio(volumes: List[float], lookback: int = 20) -> float:
+    """Returns the ratio of the current volume compared to the average over a lookback period."""
+    if len(volumes) < lookback + 1:
         return 1.0
-    avg = float(np.mean(vols[-lookback - 1:-1]))
-    return vols[-1] / avg if avg > 0 else 1.0
+    avg_volume = float(np.mean(volumes[-lookback - 1:-1]))
+    return volumes[-1] / avg_volume if avg_volume > 0 else 1.0
 
 
 def check_divergence(
     closes: List[float],
-    rsi_hist: List[Optional[float]],
+    rsi_history: List[Optional[float]],
     window: int = 20,
     bullish: bool = True,
 ) -> bool:
+    """Checks for bullish or bearish divergence between price and RSI."""
     if len(closes) < window:
         return False
     prices = closes[-window:]
-    rsies = [r for r in rsi_hist[-window:] if r is not None]
+    rsies = [r for r in rsi_history[-window:] if r is not None]
     if len(rsies) < window // 2:
         return False
     if bullish:
-        p_ll = prices[-1] < min(prices[:-5]) if len(prices) > 5 else False
-        r_hl = rsies[-1] > min(rsies[:-3]) if len(rsies) > 3 else False
-        return p_ll and r_hl and rsies[-1] < 45
+        price_lower_low = prices[-1] < min(prices[:-5]) if len(prices) > 5 else False
+        rsi_higher_low = rsies[-1] > min(rsies[:-3]) if len(rsies) > 3 else False
+        return price_lower_low and rsi_higher_low and rsies[-1] < 45
     else:
-        p_hh = prices[-1] > max(prices[:-5]) if len(prices) > 5 else False
-        r_lh = rsies[-1] < max(rsies[:-3]) if len(rsies) > 3 else False
-        return p_hh and r_lh and rsies[-1] > 55
+        price_higher_high = prices[-1] > max(prices[:-5]) if len(prices) > 5 else False
+        rsi_lower_high = rsies[-1] < max(rsies[:-3]) if len(rsies) > 3 else False
+        return price_higher_high and rsi_lower_high and rsies[-1] > 55
 
 # ─────────────────────────────────────────────────────────────────────
 # Scoring — exact match to scanner weights/thresholds
 # ─────────────────────────────────────────────────────────────────────
-def _pct(new: float, base: float) -> float:
-    return (new - base) / base * 100.0 if base else 0.0
+def calculate_percentage_change(new_value: float, base_value: float) -> float:
+    """Calculates the percentage change between two values."""
+    return (new_value - base_value) / base_value * 100.0 if base_value else 0.0
 
 
 def _calc_atr_simple(
@@ -323,26 +326,21 @@ def _calc_atr_simple(
     closes: List[float],
     period: int = 14,
 ) -> Optional[float]:
-    """Minimal ATR(14) calculation."""
-    num_candles = len(closes)
-    if num_candles <= period:
+    """Minimal ATR(14) for use inside backtest_symbol without importing numpy."""
+    num_closes = len(closes)
+    if num_closes <= period:
         return None
-
-    highs_arr = np.asarray(highs, dtype=float)
-    lows_arr = np.asarray(lows, dtype=float)
-    closes_arr = np.asarray(closes, dtype=float)
-
-    high_low = highs_arr[1:] - lows_arr[1:]
-    high_prev_close = np.abs(highs_arr[1:] - closes_arr[:-1])
-    low_prev_close = np.abs(lows_arr[1:] - closes_arr[:-1])
-    true_ranges = np.maximum(high_low, np.maximum(high_prev_close, low_prev_close))
-
-    if len(true_ranges) < period:
+    true_range_list = []
+    for i in range(1, num_closes):
+        high_minus_low = highs[i] - lows[i]
+        high_minus_prev_close = abs(highs[i] - closes[i - 1])
+        low_minus_prev_close = abs(lows[i] - closes[i - 1])
+        true_range_list.append(max(high_minus_low, high_minus_prev_close, low_minus_prev_close))
+    if len(true_range_list) < period:
         return None
-
-    atr = float(np.mean(true_ranges[:period]))
-    for i in range(period, len(true_ranges)):
-        atr = (atr * (period - 1) + float(true_ranges[i])) / period
+    atr = sum(true_range_list[:period]) / period
+    for i in range(period, len(true_range_list)):
+        atr = (atr * (period - 1) + true_range_list[i]) / period
     return atr
 
 
@@ -350,28 +348,29 @@ def score_long_window(
     closes: List[float],
     highs: List[float],
     lows: List[float],
-    vols: List[float],
+    volumes: List[float],
     rsi_1h: Optional[float] = None,
     funding: Optional[float] = None,
-    fr_prev: Optional[float] = None,
+    funding_prev: Optional[float] = None,
     spread: Optional[float] = None,
 ) -> Tuple[int, List[str]]:
-    W = LONG_WEIGHTS
+    """Scores a window of data for a potential LONG entry based on multiple indicators."""
+    weights = LONG_WEIGHTS
     score = 0
     signals: List[str] = []
 
-    rsi, prev_rsi, rsi_hist = calc_rsi(closes)
-    bb = calc_bb(closes)
+    rsi, prev_rsi, rsi_history = calc_rsi(closes)
+    bollinger = calc_bb(closes)
     ema_series = calc_ema_series(closes)
     ema21 = ema_series[-1] if ema_series else None
-    vs = vol_spike_ratio(vols)
-    has_div = check_divergence(closes, rsi_hist, bullish=True)
+    volume_spike = vol_spike_ratio(volumes)
+    has_divergence = check_divergence(closes, rsi_history, bullish=True)
 
-    price   = closes[-1]
-    open24  = closes[0]
-    low24   = min(lows)
-    change  = _pct(price, open24)
-    dist_low = _pct(price, low24) if low24 > 0 else None
+    current_price = closes[-1]
+    open_24h = closes[0]
+    low_24h = min(lows)
+    change_24h = calculate_percentage_change(current_price, open_24h)
+    dist_from_low = calculate_percentage_change(current_price, low_24h) if low_24h > 0 else None
 
     # EMA slope
     ema200 = calc_ema(closes, period=200)
@@ -389,13 +388,12 @@ def score_long_window(
 
     # Trend Filter (Hard)
     if ema200 is not None:
-        if price < ema200:
-            # In a downtrend, we penalize longs or can even block them if we add a hard filter later
+        if current_price < ema200:
             score -= 15
-            signals.append(f"Price below EMA200 ({price:.2f} < {ema200:.2f}) — Downtrend")
+            signals.append(f"Price below EMA200 ({current_price:.2f} < {ema200:.2f}) — Downtrend")
         else:
             score += 10
-            signals.append(f"Price above EMA200 ({price:.2f} > {ema200:.2f}) — Uptrend")
+            signals.append(f"Price above EMA200 ({current_price:.2f} > {ema200:.2f}) — Uptrend")
 
     # Spread / liquidity
     if spread is not None:
@@ -406,106 +404,106 @@ def score_long_window(
             signals.append(f"High Liquidity (Spread {spread:.2f}%)")
 
     # Funding momentum
-    if funding is not None and fr_prev is not None:
-        fr_change = funding - fr_prev
-        if fr_change < 0:
-            score += W["funding_momentum"]
-            signals.append(f"Funding Momentum (becoming more negative {fr_change*100:.4f}% — squeeze building)")
+    if funding is not None and funding_prev is not None:
+        funding_change = funding - funding_prev
+        if funding_change < 0:
+            score += weights["funding_momentum"]
+            signals.append(f"Funding Momentum (becoming more negative {funding_change*100:.4f}% — squeeze building)")
 
     # HTF alignment
     if rsi_1h is not None:
         if rsi_1h < 30:
-            score += W["htf_align_oversold"]
+            score += weights["htf_align_oversold"]
             signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — deeply oversold")
         elif rsi_1h < 45:
             score += 8
             signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — oversold territory")
 
     # Divergence
-    if has_div:
-        score += W["divergence"]
+    if has_divergence:
+        score += weights["divergence"]
         signals.append("Bullish Divergence (Price LL vs RSI HL) — sellers exhausted")
 
     # RSI
     if rsi is not None:
         rolling_up = prev_rsi is not None and rsi > prev_rsi
         if rsi < 25:
-            score += W["rsi_oversold"]
+            score += weights["rsi_oversold"]
             signals.append(f"RSI {rsi:.1f} (extremely oversold)")
         elif rsi < 35:
-            score += W["rsi_recovery"] if rolling_up else 18
+            score += weights["rsi_recovery"] if rolling_up else 18
             signals.append(f"RSI {rsi:.1f} (oversold{' ✓ recovering' if rolling_up else ''})")
         elif 35 <= rsi <= 50 and rolling_up and prev_rsi is not None and prev_rsi < 35:
-            score += W["rsi_recovery"]
+            score += weights["rsi_recovery"]
             signals.append(f"RSI Recovery {prev_rsi:.1f}→{rsi:.1f}")
         elif rsi > 70:
             signals.append(f"RSI {rsi:.1f} (overbought — risky long)")
 
     # BB
-    if bb is not None:
-        bb_range = bb["upper"] - bb["lower"]
+    if bollinger is not None:
+        bb_range = bollinger["upper"] - bollinger["lower"]
         if bb_range > 0:
-            bb_pct = (price - bb["lower"]) / bb_range
-            if bb_pct <= 0.10:
-                score += W["bb_lower_90"]
-                signals.append(f"Price at/below BB lower ({bb_pct*100:.0f}%) — extreme oversold")
-            elif bb_pct <= 0.25:
-                score += W["bb_lower_75"]
-                signals.append(f"Near BB lower ({bb_pct*100:.0f}%) — oversold")
-            elif bb_pct <= 0.50:
+            bb_percentage = (current_price - bollinger["lower"]) / bb_range
+            if bb_percentage <= 0.10:
+                score += weights["bb_lower_90"]
+                signals.append(f"Price at/below BB lower ({bb_percentage*100:.0f}%) — extreme oversold")
+            elif bb_percentage <= 0.25:
+                score += weights["bb_lower_75"]
+                signals.append(f"Near BB lower ({bb_percentage*100:.0f}%) — oversold")
+            elif bb_percentage <= 0.50:
                 score += 5
-                signals.append(f"Below BB mid ({bb_pct*100:.0f}%)")
-            elif bb_pct > 0.85:
-                signals.append(f"Above BB mid — fading long ({bb_pct*100:.0f}%)")
+                signals.append(f"Below BB mid ({bb_percentage*100:.0f}%)")
+            elif bb_percentage > 0.85:
+                signals.append(f"Above BB mid — fading long ({bb_percentage*100:.0f}%)")
 
     # EMA stretch
     if ema21 is not None:
-        pct_ema = _pct(price, ema21)
-        if pct_ema < -3.0:
-            score += W["ema_stretch_3"]
-            signals.append(f"Price {abs(pct_ema):.1f}% below EMA21 (mean-reversion opportunity)")
+        pct_from_ema = calculate_percentage_change(current_price, ema21)
+        if pct_from_ema < -3.0:
+            score += weights["ema_stretch_3"]
+            signals.append(f"Price {abs(pct_from_ema):.1f}% below EMA21 (mean-reversion opportunity)")
             if rsi is not None and rsi < 35:
                 score += 5
                 signals.append("Stretch bonus: Deeply oversold RSI + Below EMA21")
-        elif pct_ema < -1.0:
+        elif pct_from_ema < -1.0:
             score += 5
-            signals.append(f"Price {abs(pct_ema):.1f}% below EMA21")
+            signals.append(f"Price {abs(pct_from_ema):.1f}% below EMA21")
 
     # Volume spike
-    if vs >= 2.0:
-        score += W["vol_spike_2"]
-        signals.append(f"Volume spike {vs:.1f}x (capitulation/demand)")
-    elif vs >= 1.4:
+    if volume_spike >= 2.0:
+        score += weights["vol_spike_2"]
+        signals.append(f"Volume spike {volume_spike:.1f}x (capitulation/demand)")
+    elif volume_spike >= 1.4:
         score += 7
-        signals.append(f"Elevated volume {vs:.1f}x")
+        signals.append(f"Elevated volume {volume_spike:.1f}x")
 
     # 24h change
-    if change < -15:
+    if change_24h < -15:
         score += 20
-        signals.append(f"{change:.1f}% crash (capitulation)")
-    elif change < -7:
+        signals.append(f"{change_24h:.1f}% crash (capitulation)")
+    elif change_24h < -7:
         score += 12
-        signals.append(f"{change:.1f}% dip (oversold bounce)")
-    elif 5 < change < 15:
+        signals.append(f"{change_24h:.1f}% dip (oversold bounce)")
+    elif 5 < change_24h < 15:
         score += 5
-        signals.append(f"+{change:.1f}% (bullish momentum)")
-    elif change >= 15:
-        signals.append(f"+{change:.1f}% (overextended — risky long)")
+        signals.append(f"+{change_24h:.1f}% (bullish momentum)")
+    elif change_24h >= 15:
+        signals.append(f"+{change_24h:.1f}% (overextended — risky long)")
 
     # Near 24h low
-    if dist_low is not None and dist_low < 1.5:
+    if dist_from_low is not None and dist_from_low < 1.5:
         score += 10
-        signals.append(f"Near 24h low ({dist_low:.1f}% above)")
+        signals.append(f"Near 24h low ({dist_from_low:.1f}% above)")
 
     # Funding
     if funding is not None:
-        fr_pct = funding * 100
-        if fr_pct < -0.01:
-            score += W["funding_negative"]
-            signals.append(f"Negative Funding ({fr_pct:.4f}%) — crowded shorts, squeeze fuel")
-        elif fr_pct > 0.10:
+        funding_rate_pct = funding * 100
+        if funding_rate_pct < -0.01:
+            score += weights["funding_negative"]
+            signals.append(f"Negative Funding ({funding_rate_pct:.4f}%) — crowded shorts, squeeze fuel")
+        elif funding_rate_pct > 0.10:
             score -= 10
-            signals.append(f"Positive Funding ({fr_pct:.4f}%) — crowded longs, caution")
+            signals.append(f"Positive Funding ({funding_rate_pct:.4f}%) — crowded longs, caution")
 
     return max(int(round(score)), 0), signals
 
@@ -514,28 +512,29 @@ def score_short_window(
     closes: List[float],
     highs: List[float],
     lows: List[float],
-    vols: List[float],
+    volumes: List[float],
     rsi_1h: Optional[float] = None,
     funding: Optional[float] = None,
-    fr_prev: Optional[float] = None,
+    funding_prev: Optional[float] = None,
     spread: Optional[float] = None,
 ) -> Tuple[int, List[str]]:
-    W = SHORT_WEIGHTS
+    """Scores a window of data for a potential SHORT entry based on multiple indicators."""
+    weights = SHORT_WEIGHTS
     score = 0
     signals: List[str] = []
 
-    rsi, prev_rsi, rsi_hist = calc_rsi(closes)
-    bb = calc_bb(closes)
+    rsi, prev_rsi, rsi_history = calc_rsi(closes)
+    bollinger = calc_bb(closes)
     ema_series = calc_ema_series(closes)
     ema21 = ema_series[-1] if ema_series else None
-    vs = vol_spike_ratio(vols)
-    has_div = check_divergence(closes, rsi_hist, bullish=False)
+    volume_spike = vol_spike_ratio(volumes)
+    has_divergence = check_divergence(closes, rsi_history, bullish=False)
 
-    price  = closes[-1]
-    open24 = closes[0]
-    high24 = max(highs)
-    change = _pct(price, open24)
-    dist_high = _pct(high24, price) if price > 0 else None
+    current_price = closes[-1]
+    open_24h = closes[0]
+    high_24h = max(highs)
+    change_24h = calculate_percentage_change(current_price, open_24h)
+    dist_from_high = calculate_percentage_change(high_24h, current_price) if current_price > 0 else None
 
     # EMA slope
     ema200 = calc_ema(closes, period=200)
@@ -553,12 +552,12 @@ def score_short_window(
 
     # Trend Filter (Hard for Shorts)
     if ema200 is not None:
-        if price > ema200:
+        if current_price > ema200:
             score -= 15
-            signals.append(f"Price above EMA200 ({price:.2f} > {ema200:.2f}) — Uptrend (risky short)")
+            signals.append(f"Price above EMA200 ({current_price:.2f} > {ema200:.2f}) — Uptrend (risky short)")
         else:
             score += 10
-            signals.append(f"Price below EMA200 ({price:.2f} < {ema200:.2f}) — Downtrend (trend-aligned short)")
+            signals.append(f"Price below EMA200 ({current_price:.2f} < {ema200:.2f}) — Downtrend (trend-aligned short)")
 
     # Spread / liquidity
     if spread is not None:
@@ -570,34 +569,34 @@ def score_short_window(
             signals.append(f"High Liquidity (Spread {spread:.2f}%)")
 
     # Funding momentum
-    if funding is not None and fr_prev is not None:
-        fr_change = funding - fr_prev
-        if fr_change > 0:
-            score += W["funding_momentum"]
-            signals.append(f"Funding Momentum (becoming more positive +{fr_change*100:.4f}% — fade building)")
+    if funding is not None and funding_prev is not None:
+        funding_change = funding - funding_prev
+        if funding_change > 0:
+            score += weights["funding_momentum"]
+            signals.append(f"Funding Momentum (becoming more positive +{funding_change*100:.4f}% — fade building)")
 
     # HTF alignment
     if rsi_1h is not None:
         if rsi_1h > 65:
-            score += W["htf_align_overbought"]
+            score += weights["htf_align_overbought"]
             signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — deeply overbought")
         elif rsi_1h > 55:
             score += 8
             signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — overbought territory")
 
     # Divergence
-    if has_div:
-        score += W["divergence"]
+    if has_divergence:
+        score += weights["divergence"]
         signals.append("Bearish Divergence (Price HH vs RSI LH) — buyers exhausted")
 
     # RSI
     if rsi is not None:
         rolling_over = prev_rsi is not None and rsi < prev_rsi
         if rsi > 75:
-            score += W["rsi_overbought"]
+            score += weights["rsi_overbought"]
             signals.append(f"RSI {rsi:.1f} (extremely overbought)")
         elif 55 <= rsi <= 75:
-            pts = W["rsi_rollover"] + (8 if rolling_over else 0)
+            pts = weights["rsi_rollover"] + (8 if rolling_over else 0)
             signals.append(f"RSI {rsi:.1f} (rollover zone{' ✓ rolling over' if rolling_over else ''})")
             score += pts
         elif rsi < 35:
@@ -605,83 +604,83 @@ def score_short_window(
             signals.append(f"RSI {rsi:.1f} (oversold — risky short)")
 
     # BB
-    if bb is not None:
-        bb_range = bb["upper"] - bb["lower"]
+    if bollinger is not None:
+        bb_range = bollinger["upper"] - bollinger["lower"]
         if bb_range > 0:
-            bb_pct = (price - bb["lower"]) / bb_range
-            if bb_pct >= 0.90:
-                score += W["bb_upper_90"]
-                signals.append(f"Price at/above BB upper ({bb_pct*100:.0f}%) — extreme overbought")
-            elif bb_pct >= 0.75:
-                score += W["bb_upper_75"]
-                signals.append(f"Near BB upper ({bb_pct*100:.0f}%) — overbought")
-            elif bb_pct >= 0.55:
+            bb_percentage = (current_price - bollinger["lower"]) / bb_range
+            if bb_percentage >= 0.90:
+                score += weights["bb_upper_90"]
+                signals.append(f"Price at/above BB upper ({bb_percentage*100:.0f}%) — extreme overbought")
+            elif bb_percentage >= 0.75:
+                score += weights["bb_upper_75"]
+                signals.append(f"Near BB upper ({bb_percentage*100:.0f}%) — overbought")
+            elif bb_percentage >= 0.55:
                 score += 5
-                signals.append(f"Above BB mid ({bb_pct*100:.0f}%)")
-            elif bb_pct < 0.45:
+                signals.append(f"Above BB mid ({bb_percentage*100:.0f}%)")
+            elif bb_percentage < 0.45:
                 score -= 5
-                signals.append(f"Below BB mid — fading short ({bb_pct*100:.0f}%)")
+                signals.append(f"Below BB mid — fading short ({bb_percentage*100:.0f}%)")
 
     # EMA stretch
     if ema21 is not None:
-        pct_ema = _pct(price, ema21)
-        if pct_ema > 3.0:
-            score += W["ema_stretch_3"]
-            signals.append(f"Price {pct_ema:.1f}% above EMA21 (mean-reversion opportunity)")
+        pct_from_ema = calculate_percentage_change(current_price, ema21)
+        if pct_from_ema > 3.0:
+            score += weights["ema_stretch_3"]
+            signals.append(f"Price {pct_from_ema:.1f}% above EMA21 (mean-reversion opportunity)")
             if rsi is not None and rsi > 65:
                 score += 5
                 signals.append("Stretch bonus: Deeply overbought RSI + Above EMA21")
-        elif pct_ema > 1.0:
+        elif pct_from_ema > 1.0:
             score += 5
-            signals.append(f"Price {pct_ema:.1f}% above EMA21")
-        elif pct_ema < -1.0:
+            signals.append(f"Price {pct_from_ema:.1f}% above EMA21")
+        elif pct_from_ema < -1.0:
             score -= 10
-            signals.append(f"Price {abs(pct_ema):.1f}% below EMA21 (extended)")
+            signals.append(f"Price {abs(pct_from_ema):.1f}% below EMA21 (extended)")
 
     # Volume spike
-    if vs >= 2.0:
-        score += W["vol_spike_2"]
-        signals.append(f"Volume spike {vs:.1f}x (exhaustion/distribution)")
-    elif vs >= 1.4:
+    if volume_spike >= 2.0:
+        score += weights["vol_spike_2"]
+        signals.append(f"Volume spike {volume_spike:.1f}x (exhaustion/distribution)")
+    elif volume_spike >= 1.4:
         score += 7
-        signals.append(f"Elevated volume {vs:.1f}x")
+        signals.append(f"Elevated volume {volume_spike:.1f}x")
 
     # 24h change
-    if change > 12:
+    if change_24h > 12:
         score += 20
-        signals.append(f"+{change:.1f}% pump (overbought fade)")
-    elif 5 <= change <= 12:
+        signals.append(f"+{change_24h:.1f}% pump (overbought fade)")
+    elif 5 <= change_24h <= 12:
         score += 12
-        signals.append(f"+{change:.1f}% rally (fade opportunity)")
-    elif 2 < change < 5:
+        signals.append(f"+{change_24h:.1f}% rally (fade opportunity)")
+    elif 2 < change_24h < 5:
         score += 5
-        signals.append(f"+{change:.1f}% small rally (fade entry)")
-    elif change < -15:
-        signals.append(f"{change:.1f}% crash — already crashed (risky short)")
+        signals.append(f"+{change_24h:.1f}% small rally (fade entry)")
+    elif change_24h < -15:
+        signals.append(f"{change_24h:.1f}% crash — already crashed (risky short)")
 
     # Near 24h high
-    if dist_high is not None and dist_high < 1.0:
+    if dist_from_high is not None and dist_from_high < 1.0:
         score += 12
-        signals.append(f"Near 24h High ({dist_high:.1f}% distance) — supply zone")
-    elif dist_high is not None and dist_high < 2.0:
+        signals.append(f"Near 24h High ({dist_from_high:.1f}% distance) — supply zone")
+    elif dist_from_high is not None and dist_from_high < 2.0:
         score += 6
-        signals.append(f"Close to 24h High ({dist_high:.1f}% distance)")
+        signals.append(f"Close to 24h High ({dist_from_high:.1f}% distance)")
 
     # Funding
     if funding is not None:
-        fr_pct = funding * 100
-        if fr_pct > 0.10:
-            score += W["funding_high"]
-            signals.append(f"Funding +{fr_pct:.4f}% (heavily crowded longs — fade primed)")
-        elif fr_pct > 0.05:
+        funding_rate_pct = funding * 100
+        if funding_rate_pct > 0.10:
+            score += weights["funding_high"]
+            signals.append(f"Funding +{funding_rate_pct:.4f}% (heavily crowded longs — fade primed)")
+        elif funding_rate_pct > 0.05:
             score += 16
-            signals.append(f"Funding +{fr_pct:.4f}% (crowded longs)")
-        elif fr_pct > 0.01:
+            signals.append(f"Funding +{funding_rate_pct:.4f}% (crowded longs)")
+        elif funding_rate_pct > 0.01:
             score += 8
-            signals.append(f"Funding +{fr_pct:.4f}% (mild long bias)")
-        elif fr_pct < -0.05:
+            signals.append(f"Funding +{funding_rate_pct:.4f}% (mild long bias)")
+        elif funding_rate_pct < -0.05:
             score -= 12
-            signals.append(f"Funding {fr_pct:.4f}% (crowded shorts — risky short)")
+            signals.append(f"Funding {funding_rate_pct:.4f}% (crowded shorts — risky short)")
 
     return max(int(round(score)), 0), signals
 
@@ -730,23 +729,26 @@ def backtest_symbol(
     direction:         str   = "BOTH",# "LONG" | "SHORT" | "BOTH"
     min_score_gap:     int   = 0,     # min gap between long and short scores to enter
 ) -> List[Trade]:
-
+    """
+    Simulates a walk-forward backtest for a single symbol.
+    Iterates through historical candles, calculates scores, and manages simulated trades.
+    """
     if len(candles) < window + 2:
         return []
 
     # Parse to OHLCV tuples
-    ohlcv: List[Tuple[float, float, float, float, float]] = []
-    for c in candles:
+    ohlcv_data: List[Tuple[float, float, float, float, float]] = []
+    for candle in candles:
         try:
-            ohlcv.append((float(c[3]), float(c[4]), float(c[5]), float(c[6]),
-                          float(c[7]) if len(c) > 7 else 0.0))
+            ohlcv_data.append((float(candle[3]), float(candle[4]), float(candle[5]), float(candle[6]),
+                               float(candle[7]) if len(candle) > 7 else 0.0))
         except Exception:
             continue
-    if len(ohlcv) < window + 2:
+    if len(ohlcv_data) < window + 2:
         return []
 
     is_low_liq  = spread is not None and spread > 0.15
-    eff_min     = min_score_low_liq if is_low_liq else min_score
+    eff_min_score = min_score_low_liq if is_low_liq else min_score
 
     # Slippage: half the spread on each side (market order crosses half the spread)
     slip_one_side = (spread / 2.0 / 100.0) if spread is not None else 0.0008
@@ -755,179 +757,172 @@ def backtest_symbol(
     direction_upper = direction.upper()
 
     trades:       List[Trade] = []
-    in_pos:       bool        = False
-    pos:          Optional[Trade] = None
-    high_water:   float       = 0.0
-    low_water:    float       = float("inf")
-    stop_px:      float       = 0.0
-    last_exit_idx: int        = -(cooldown + 1)   # allows entry on very first bar
+    is_in_position = False
+    active_position: Optional[Trade] = None
+    high_water_mark = 0.0
+    low_water_mark = float("inf")
+    stop_price = 0.0
+    last_exit_index = -(cooldown + 1)   # allows entry on very first bar
 
-    for i in range(window, len(ohlcv) - 1):
-        c_open, c_high, c_low, c_close, c_vol = ohlcv[i]
+    for candle_index in range(window, len(ohlcv_data) - 1):
+        current_open, current_high, current_low, current_close, current_volume = ohlcv_data[candle_index]
 
         # ── Manage open position ──────────────────────────────────────
-        if in_pos and pos is not None and i > pos.entry_idx:
-            if pos.direction == "LONG":
+        if is_in_position and active_position is not None and candle_index > active_position.entry_idx:
+            if active_position.direction == "LONG":
                 # Take profit check
                 if take_profit_pct > 0:
-                    tp_level = pos.entry_price * (1.0 + take_profit_pct)
-                    if c_high >= tp_level:
-                        exit_px  = tp_level * (1.0 - slip_one_side - fee_one_side)
-                        raw_ret  = (exit_px - pos.entry_price) / pos.entry_price
-                        pos.exit_idx     = i
-                        pos.exit_price   = exit_px
-                        pos.pnl_pct      = raw_ret * 100
-                        pos.pnl_usdt     = raw_ret * leverage * margin
-                        pos.exit_reason  = "take_profit"
-                        pos.hold_candles = i - pos.entry_idx
-                        trades.append(pos)
-                        in_pos = False
-                        pos = None
-                        last_exit_idx = i
+                    tp_level = active_position.entry_price * (1.0 + take_profit_pct)
+                    if current_high >= tp_level:
+                        exit_price = tp_level * (1.0 - slip_one_side - fee_one_side)
+                        raw_return = (exit_price - active_position.entry_price) / active_position.entry_price
+                        active_position.exit_idx     = candle_index
+                        active_position.exit_price   = exit_price
+                        active_position.pnl_pct      = raw_return * 100
+                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.exit_reason  = "take_profit"
+                        active_position.hold_candles = candle_index - active_position.entry_idx
+                        trades.append(active_position)
+                        is_in_position = False; active_position = None
+                        last_exit_index = candle_index
                         continue
 
                 # Hard stop check (fires before trailing stop)
                 if hard_stop_pct > 0:
-                    hard_stop_level = pos.entry_price * (1.0 - hard_stop_pct)
-                    if c_low <= hard_stop_level:
-                        exit_px  = hard_stop_level * (1.0 - slip_one_side - fee_one_side)
-                        raw_ret  = (exit_px - pos.entry_price) / pos.entry_price
-                        pos.exit_idx     = i
-                        pos.exit_price   = exit_px
-                        pos.pnl_pct      = raw_ret * 100
-                        pos.pnl_usdt     = raw_ret * leverage * margin
-                        pos.exit_reason  = "hard_stop"
-                        pos.hold_candles = i - pos.entry_idx
-                        trades.append(pos)
-                        in_pos = False
-                        pos = None
-                        last_exit_idx = i
+                    hard_stop_level = active_position.entry_price * (1.0 - hard_stop_pct)
+                    if current_low <= hard_stop_level:
+                        exit_price = hard_stop_level * (1.0 - slip_one_side - fee_one_side)
+                        raw_return = (exit_price - active_position.entry_price) / active_position.entry_price
+                        active_position.exit_idx     = candle_index
+                        active_position.exit_price   = exit_price
+                        active_position.pnl_pct      = raw_return * 100
+                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.exit_reason  = "hard_stop"
+                        active_position.hold_candles = candle_index - active_position.entry_idx
+                        trades.append(active_position)
+                        is_in_position = False; active_position = None
+                        last_exit_index = candle_index
                         continue
 
                 # Ratchet high-water on candle high
-                if c_close > high_water:
-                    high_water = c_close
-                    stop_px = high_water * (1.0 - trail_pct)
+                if current_close > high_water_mark:
+                    high_water_mark = current_close
+                    stop_price = high_water_mark * (1.0 - trail_pct)
                 # Trail stop hit if candle low touches or crosses stop
-                if c_close <= stop_px:
-                    exit_px   = stop_px * (1.0 - slip_one_side - fee_one_side)
-                    raw_ret   = (exit_px - pos.entry_price) / pos.entry_price
-                    pos.exit_idx     = i
-                    pos.exit_price   = exit_px
-                    pos.pnl_pct      = raw_ret * 100
-                    pos.pnl_usdt     = raw_ret * leverage * margin
-                    pos.exit_reason  = "trail_stop"
-                    pos.hold_candles = i - pos.entry_idx
-                    trades.append(pos)
-                    in_pos = False
-                    pos = None
-                    last_exit_idx = i
+                if current_close <= stop_price:
+                    exit_price = stop_price * (1.0 - slip_one_side - fee_one_side)
+                    raw_return = (exit_price - active_position.entry_price) / active_position.entry_price
+                    active_position.exit_idx     = candle_index
+                    active_position.exit_price   = exit_price
+                    active_position.pnl_pct      = raw_return * 100
+                    active_position.pnl_usdt     = raw_return * leverage * margin
+                    active_position.exit_reason  = "trail_stop"
+                    active_position.hold_candles = candle_index - active_position.entry_idx
+                    trades.append(active_position)
+                    is_in_position = False; active_position = None
+                    last_exit_index = candle_index
                     continue
 
             else:  # SHORT
                 # Take profit check
                 if take_profit_pct > 0:
-                    tp_level = pos.entry_price * (1.0 - take_profit_pct)
-                    if c_low <= tp_level:
-                        exit_px  = tp_level * (1.0 + slip_one_side + fee_one_side)
-                        raw_ret  = (pos.entry_price - exit_px) / pos.entry_price
-                        pos.exit_idx     = i
-                        pos.exit_price   = exit_px
-                        pos.pnl_pct      = raw_ret * 100
-                        pos.pnl_usdt     = raw_ret * leverage * margin
-                        pos.exit_reason  = "take_profit"
-                        pos.hold_candles = i - pos.entry_idx
-                        trades.append(pos)
-                        in_pos = False
-                        pos = None
-                        last_exit_idx = i
+                    tp_level = active_position.entry_price * (1.0 - take_profit_pct)
+                    if current_low <= tp_level:
+                        exit_price = tp_level * (1.0 + slip_one_side + fee_one_side)
+                        raw_return = (active_position.entry_price - exit_price) / active_position.entry_price
+                        active_position.exit_idx     = candle_index
+                        active_position.exit_price   = exit_price
+                        active_position.pnl_pct      = raw_return * 100
+                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.exit_reason  = "take_profit"
+                        active_position.hold_candles = candle_index - active_position.entry_idx
+                        trades.append(active_position)
+                        is_in_position = False; active_position = None
+                        last_exit_index = candle_index
                         continue
 
                 # Hard stop check
                 if hard_stop_pct > 0:
-                    hard_stop_level = pos.entry_price * (1.0 + hard_stop_pct)
-                    if c_high >= hard_stop_level:
-                        exit_px  = hard_stop_level * (1.0 + slip_one_side + fee_one_side)
-                        raw_ret  = (pos.entry_price - exit_px) / pos.entry_price
-                        pos.exit_idx     = i
-                        pos.exit_price   = exit_px
-                        pos.pnl_pct      = raw_ret * 100
-                        pos.pnl_usdt     = raw_ret * leverage * margin
-                        pos.exit_reason  = "hard_stop"
-                        pos.hold_candles = i - pos.entry_idx
-                        trades.append(pos)
-                        in_pos = False
-                        pos = None
-                        last_exit_idx = i
+                    hard_stop_level = active_position.entry_price * (1.0 + hard_stop_pct)
+                    if current_high >= hard_stop_level:
+                        exit_price = hard_stop_level * (1.0 + slip_one_side + fee_one_side)
+                        raw_return = (active_position.entry_price - exit_price) / active_position.entry_price
+                        active_position.exit_idx     = candle_index
+                        active_position.exit_price   = exit_price
+                        active_position.pnl_pct      = raw_return * 100
+                        active_position.pnl_usdt     = raw_return * leverage * margin
+                        active_position.exit_reason  = "hard_stop"
+                        active_position.hold_candles = candle_index - active_position.entry_idx
+                        trades.append(active_position)
+                        is_in_position = False; active_position = None
+                        last_exit_index = candle_index
                         continue
 
-                if c_close < low_water:
-                    low_water = c_close
-                    stop_px = low_water * (1.0 + trail_pct)
-                if c_close >= stop_px:
-                    exit_px   = stop_px * (1.0 + slip_one_side + fee_one_side)
-                    raw_ret   = (pos.entry_price - exit_px) / pos.entry_price
-                    pos.exit_idx     = i
-                    pos.exit_price   = exit_px
-                    pos.pnl_pct      = raw_ret * 100
-                    pos.pnl_usdt     = raw_ret * leverage * margin
-                    pos.exit_reason  = "trail_stop"
-                    pos.hold_candles = i - pos.entry_idx
-                    trades.append(pos)
-                    in_pos = False
-                    pos = None
-                    last_exit_idx = i
+                if current_close < low_water_mark:
+                    low_water_mark = current_close
+                    stop_price = low_water_mark * (1.0 + trail_pct)
+                if current_close >= stop_price:
+                    exit_price = stop_price * (1.0 + slip_one_side + fee_one_side)
+                    raw_return = (active_position.entry_price - exit_price) / active_position.entry_price
+                    active_position.exit_idx     = candle_index
+                    active_position.exit_price   = exit_price
+                    active_position.pnl_pct      = raw_return * 100
+                    active_position.pnl_usdt     = raw_return * leverage * margin
+                    active_position.exit_reason  = "trail_stop"
+                    active_position.hold_candles = candle_index - active_position.entry_idx
+                    trades.append(active_position)
+                    is_in_position = False; active_position = None
+                    last_exit_index = candle_index
                     continue
 
             # Max hold exit at candle close
-            if i - pos.entry_idx >= max_hold:
-                exit_px = c_close
-                if pos.direction == "LONG":
-                    raw_ret = (exit_px - pos.entry_price) / pos.entry_price
+            if candle_index - active_position.entry_idx >= max_hold:
+                exit_price = current_close
+                if active_position.direction == "LONG":
+                    raw_return = (exit_price - active_position.entry_price) / active_position.entry_price
                 else:
-                    raw_ret = (pos.entry_price - exit_px) / pos.entry_price
-                pos.exit_idx     = i
-                pos.exit_price   = exit_px
-                pos.pnl_pct      = raw_ret * 100
-                pos.pnl_usdt     = raw_ret * leverage * margin
-                pos.exit_reason  = "max_hold"
-                pos.hold_candles = i - pos.entry_idx
-                trades.append(pos)
-                in_pos = False
-                pos = None
-                last_exit_idx = i
+                    raw_return = (active_position.entry_price - exit_price) / active_position.entry_price
+                active_position.exit_idx     = candle_index
+                active_position.exit_price   = exit_price
+                active_position.pnl_pct      = raw_return * 100
+                active_position.pnl_usdt     = raw_return * leverage * margin
+                active_position.exit_reason  = "max_hold"
+                active_position.hold_candles = candle_index - active_position.entry_idx
+                trades.append(active_position)
+                is_in_position = False; active_position = None
+                last_exit_index = candle_index
             continue
 
         # ── Cooldown guard ────────────────────────────────────────────
-        if cooldown > 0 and (i - last_exit_idx) < cooldown:
+        if cooldown > 0 and (candle_index - last_exit_index) < cooldown:
             continue
 
         # ── Look for entry signal on this window ──────────────────────
-        w = ohlcv[i - window: i]
-        closes_w = [x[3] for x in w]
-        highs_w  = [x[1] for x in w]
-        lows_w   = [x[2] for x in w]
-        vols_w   = [x[4] for x in w]
+        window_data = ohlcv_data[candle_index - window: candle_index]
+        closes_window = [x[3] for x in window_data]
+        highs_window  = [x[1] for x in window_data]
+        lows_window   = [x[2] for x in window_data]
+        vols_window   = [x[4] for x in window_data]
 
-        l_score, l_sigs = (0, []) if direction_upper == "SHORT" else \
-            score_long_window(closes_w, highs_w, lows_w, vols_w,
+        long_score, long_signals = (0, []) if direction_upper == "SHORT" else \
+            score_long_window(closes_window, highs_window, lows_window, vols_window,
                               rsi_1h, funding, None, spread)
-        s_score, s_sigs = (0, []) if direction_upper == "LONG" else \
-            score_short_window(closes_w, highs_w, lows_w, vols_w,
+        short_score, short_signals = (0, []) if direction_upper == "LONG" else \
+            score_short_window(closes_window, highs_window, lows_window, vols_window,
                                rsi_1h, funding, None, spread)
 
-        best = max(l_score, s_score)
-        if best < eff_min:
+        best_score = max(long_score, short_score)
+        if best_score < eff_min_score:
             continue
 
         # Score gap filter — skip ambiguous signals
-        if min_score_gap > 0 and abs(l_score - s_score) < min_score_gap:
+        if min_score_gap > 0 and abs(long_score - short_score) < min_score_gap:
             continue
 
-        if l_score >= s_score:
-            direction_trade, entry_score, entry_sigs = "LONG",  l_score, l_sigs
+        if long_score >= short_score:
+            direction_trade, entry_score, entry_signals = "LONG",  long_score, long_signals
         else:
-            direction_trade, entry_score, entry_sigs = "SHORT", s_score, s_sigs
+            direction_trade, entry_score, entry_signals = "SHORT", short_score, short_signals
 
         # ── Upgrade #3: Spread filter ─────────────────────────────────────────
         if spread is not None and spread > 0.10:   # 0.10% max spread
@@ -935,58 +930,58 @@ def backtest_symbol(
 
         # ── Upgrade #6: Volatility filter on ATR / price ─────────────────────
         # Compute ATR on the current window for filtering and stop sizing
-        atr_w = _calc_atr_simple(highs_w, lows_w, closes_w, 14)
-        mid_price = c_close
-        if atr_w and mid_price > 0:
-            vol_ratio = atr_w / mid_price
+        atr_window = _calc_atr_simple(highs_window, lows_window, closes_window, 14)
+        mid_price = current_close
+        if atr_window and mid_price > 0:
+            vol_ratio = atr_window / mid_price
             if vol_ratio < 0.002:   # ATR < 0.2% of price — skip choppy market
                 continue
 
         # Enter at NEXT candle OPEN (no lookahead bias)
-        n_open = ohlcv[i + 1][0]
-        if n_open <= 0:
+        next_open = ohlcv_data[candle_index + 1][0]
+        if next_open <= 0:
             continue
 
         # ── Upgrade #2: ATR-based stop-loss (with fallback to trail_pct) ──────
-        if atr_w and atr_w > 0:
+        if atr_window and atr_window > 0:
             atr_stop_mult  = 1.5
-            atr_stop_dist  = atr_w * atr_stop_mult
+            atr_stop_dist  = atr_window * atr_stop_mult
         else:
-            atr_stop_dist  = n_open * trail_pct
+            atr_stop_dist  = next_open * trail_pct
 
         if direction_trade == "LONG":
-            entry_px   = n_open * (1.0 + slip_one_side + fee_one_side)
-            stop_px    = entry_px - atr_stop_dist   # ATR-based initial stop
-            high_water = entry_px
+            entry_price   = next_open * (1.0 + slip_one_side + fee_one_side)
+            stop_price    = entry_price - atr_stop_dist   # ATR-based initial stop
+            high_water_mark = entry_price
         else:
-            entry_px  = n_open * (1.0 - slip_one_side - fee_one_side)
-            stop_px   = entry_px + atr_stop_dist    # ATR-based initial stop
-            low_water  = entry_px
+            entry_price  = next_open * (1.0 - slip_one_side - fee_one_side)
+            stop_price   = entry_price + atr_stop_dist    # ATR-based initial stop
+            low_water_mark  = entry_price
 
-        pos = Trade(
+        active_position = Trade(
             symbol=symbol, direction=direction_trade,
-            entry_idx=i + 1, entry_price=entry_px,
-            score=entry_score, signals=entry_sigs,
+            entry_idx=candle_index + 1, entry_price=entry_price,
+            score=entry_score, signals=entry_signals,
             slippage_pct=(slip_one_side + fee_one_side) * 100,
             leverage=leverage, margin=margin, trail_pct=trail_pct,
             is_low_liq=is_low_liq,
         )
-        in_pos = True
+        is_in_position = True
 
     # Close any remaining position at last candle close
-    if in_pos and pos is not None and i > pos.entry_idx:
-        exit_px = ohlcv[-1][3]
-        if pos.direction == "LONG":
-            raw_ret = (exit_px - pos.entry_price) / pos.entry_price
+    if is_in_position and active_position is not None and candle_index > active_position.entry_idx:
+        exit_price = ohlcv_data[-1][3]
+        if active_position.direction == "LONG":
+            raw_return = (exit_price - active_position.entry_price) / active_position.entry_price
         else:
-            raw_ret = (pos.entry_price - exit_px) / pos.entry_price
-        pos.exit_idx     = len(ohlcv) - 1
-        pos.exit_price   = exit_px
-        pos.pnl_pct      = raw_ret * 100
-        pos.pnl_usdt     = raw_ret * leverage * margin
-        pos.exit_reason  = "end_of_data"
-        pos.hold_candles = len(ohlcv) - 1 - pos.entry_idx
-        trades.append(pos)
+            raw_return = (active_position.entry_price - exit_price) / active_position.entry_price
+        active_position.exit_idx     = len(ohlcv_data) - 1
+        active_position.exit_price   = exit_price
+        active_position.pnl_pct      = raw_return * 100
+        active_position.pnl_usdt     = raw_return * leverage * margin
+        active_position.exit_reason  = "end_of_data"
+        active_position.hold_candles = len(ohlcv_data) - 1 - active_position.entry_idx
+        trades.append(active_position)
 
     return trades
 
@@ -994,56 +989,54 @@ def backtest_symbol(
 # Risk metrics
 # ─────────────────────────────────────────────────────────────────────
 def compute_drawdown(trades: List[Trade]) -> Tuple[float, float]:
-    """Max drawdown (absolute USDT and %) from the sequential trade order."""
+    """Calculates the maximum drawdown in absolute USDT and percentage terms."""
     if not trades:
         return 0.0, 0.0
-    equity = 0.0
-    peak   = 0.0
-    max_dd = 0.0
-    for t in trades:
-        equity += t.pnl_usdt or 0.0
-        if equity > peak:
-            peak = equity
-        dd = peak - equity
-        if dd > max_dd:
-            max_dd = dd
-    max_dd_pct = (max_dd / peak * 100.0) if peak > 0 else 0.0
-    return max_dd, max_dd_pct
+    current_equity = 0.0
+    peak_equity = 0.0
+    maximum_drawdown = 0.0
+    for trade in trades:
+        current_equity += trade.pnl_usdt or 0.0
+        if current_equity > peak_equity:
+            peak_equity = current_equity
+        drawdown = peak_equity - current_equity
+        if drawdown > maximum_drawdown:
+            maximum_drawdown = drawdown
+    max_drawdown_pct = (maximum_drawdown / peak_equity * 100.0) if peak_equity > 0 else 0.0
+    return maximum_drawdown, max_drawdown_pct
 
 
 def compute_sharpe(trades: List[Trade], timeframe: str = "15m") -> float:
-    """Annualised Sharpe ratio (risk-free rate = 0) from per-trade PnL."""
-    # REF: Tier 2: Statistical Instability (Zero Division)
+    """Calculates the annualised Sharpe ratio (assuming a risk-free rate of 0)."""
     if len(trades) < 2:
         return np.nan
-    pnls = np.array([t.pnl_usdt or 0.0 for t in trades], dtype=float)
-    avg_hold = float(np.mean([t.hold_candles for t in trades])) or 1.0
-    cpy = CANDLES_PER_YEAR.get(timeframe, 35_040)
-    trades_per_year = cpy / avg_hold
-    mean_r = float(np.mean(pnls))
-    std_r  = float(np.std(pnls, ddof=1))
-    if std_r == 0:
+    pnl_array = np.array([trade.pnl_usdt or 0.0 for trade in trades], dtype=float)
+    avg_hold_period = float(np.mean([trade.hold_candles for trade in trades])) or 1.0
+    candles_per_year = CANDLES_PER_YEAR.get(timeframe, 35_040)
+    trades_per_year = candles_per_year / avg_hold_period
+    mean_return = float(np.mean(pnl_array))
+    std_deviation = float(np.std(pnl_array, ddof=1))
+    if std_deviation == 0:
         return np.nan
-    return float(mean_r / std_r * math.sqrt(trades_per_year))
+    return float(mean_return / std_deviation * math.sqrt(trades_per_year))
 
 
 def compute_sortino(trades: List[Trade], timeframe: str = "15m") -> float:
-    """Annualised Sortino ratio — only penalises downside deviation."""
-    # REF: Tier 2: Statistical Instability (Zero Division)
+    """Calculates the annualised Sortino ratio, focusing on downside risk."""
     if len(trades) < 2:
         return np.nan
-    pnls = np.array([t.pnl_usdt or 0.0 for t in trades], dtype=float)
-    avg_hold = float(np.mean([t.hold_candles for t in trades])) or 1.0
-    cpy = CANDLES_PER_YEAR.get(timeframe, 35_040)
-    trades_per_year = cpy / avg_hold
-    mean_r  = float(np.mean(pnls))
-    neg_pnl = pnls[pnls < 0]
-    if len(neg_pnl) < 2:
+    pnl_array = np.array([trade.pnl_usdt or 0.0 for trade in trades], dtype=float)
+    avg_hold_period = float(np.mean([trade.hold_candles for trade in trades])) or 1.0
+    candles_per_year = CANDLES_PER_YEAR.get(timeframe, 35_040)
+    trades_per_year = candles_per_year / avg_hold_period
+    mean_return = float(np.mean(pnl_array))
+    negative_pnls = pnl_array[pnl_array < 0]
+    if len(negative_pnls) < 2:
         return np.nan
-    down_std = float(np.std(neg_pnl, ddof=1))
-    if down_std == 0:
+    downside_deviation = float(np.std(negative_pnls, ddof=1))
+    if downside_deviation == 0:
         return np.nan
-    return float(mean_r / down_std * math.sqrt(trades_per_year))
+    return float(mean_return / downside_deviation * math.sqrt(trades_per_year))
 
 
 def fmt_stat(val: float, fmt: str = ".2f") -> str:
@@ -1054,13 +1047,10 @@ def fmt_stat(val: float, fmt: str = ".2f") -> str:
 
 
 def max_streaks(trades: List[Trade]) -> Tuple[int, int]:
-    """Return (max_win_streak, max_loss_streak) from sequential trade list."""
-    max_win_streak = 0
-    max_loss_streak = 0
-    current_win_streak = 0
-    current_loss_streak = 0
-    for t in trades:
-        if (t.pnl_usdt or 0.0) > 0:
+    """Returns the maximum winning and losing streaks from a list of trades."""
+    max_win_streak = max_loss_streak = current_win_streak = current_loss_streak = 0
+    for trade in trades:
+        if (trade.pnl_usdt or 0.0) > 0:
             current_win_streak += 1
             current_loss_streak = 0
         else:
@@ -1094,134 +1084,137 @@ class SweepResult:
 
 
 def sweep(
-    sym_data:       List[Tuple],
-    trail_pcts:     List[float],
-    sl_pcts:        List[float],
-    tp_pcts:        List[float],
-    min_scores:     List[int],
-    leverages:      List[int],
-    margin:         float = 10.0,
-    max_hold:       int   = 96,
-    cooldown:       int   = 0,
-    direction:      str   = "BOTH",
-    min_score_gap:  int   = 0,
+    symbol_data_list: List[Tuple],
+    trail_percentages: List[float],
+    stop_loss_percentages: List[float],
+    take_profit_percentages: List[float],
+    min_scores: List[int],
+    leverages: List[int],
+    margin: float = 10.0,
+    max_hold: int = 96,
+    cooldown: int = 0,
+    direction: str = "BOTH",
+    min_score_gap: int = 0,
 ) -> List[SweepResult]:
-    combos = [
-        (t, sl, tp, m, lev)
-        for t in trail_pcts
-        for sl in sl_pcts
-        for tp in tp_pcts
-        for m in min_scores
-        for lev in leverages
+    """Runs a grid search over multiple parameter combinations to find optimal settings."""
+    grid_combinations = [
+        (tp_trail, sl, tp, ms, lv)
+        for tp_trail in trail_percentages
+        for sl in stop_loss_percentages
+        for tp in take_profit_percentages
+        for ms in min_scores
+        for lv in leverages
     ]
     results = []
-    for idx, (tp_trail, sl, tp, ms, lv) in enumerate(combos):
-        all_t = []
-        for sym, candles, spread, funding, rsi_1h in sym_data:
-            all_t.extend(backtest_symbol(
-                sym, candles, spread, funding, rsi_1h,
-                min_score=ms, trail_pct=tp_trail, leverage=lv,
+    for index, (tp_trail, stop_loss_pct, take_profit_pct, min_score, leverage) in enumerate(grid_combinations):
+        all_trades = []
+        for symbol, candles, spread, funding, rsi_1h in symbol_data_list:
+            all_trades.extend(backtest_symbol(
+                symbol, candles, spread, funding, rsi_1h,
+                min_score=min_score, trail_pct=tp_trail, leverage=leverage,
                 margin=margin, max_hold=max_hold,
-                hard_stop_pct=sl, take_profit_pct=tp,
+                hard_stop_pct=stop_loss_pct, take_profit_pct=take_profit_pct,
                 cooldown=cooldown,
                 direction=direction, min_score_gap=min_score_gap,
             ))
-        closed = [t for t in all_t if t.pnl_usdt is not None and t.exit_reason != "open"]
-        print(f"\r  Sweeping {idx+1}/{len(combos)} — trail={tp_trail*100:.1f}% sl={sl*100:.1f}% tp={tp*100:.1f}% score={ms} lev={lv}x"
-              f" → {len(closed)} trades", end="", flush=True)
-        if not closed:
+        closed_trades = [trade for trade in all_trades if trade.pnl_usdt is not None and trade.exit_reason != "open"]
+        print(f"\r  Sweeping {index+1}/{len(grid_combinations)} — trail={tp_trail*100:.1f}% sl={stop_loss_pct*100:.1f}% tp={take_profit_pct*100:.1f}% score={min_score} lev={leverage}x"
+              f" → {len(closed_trades)} trades", end="", flush=True)
+        if not closed_trades:
             continue
-        wins   = [t for t in closed if t.pnl_usdt > 0]
-        losses = [t for t in closed if t.pnl_usdt <= 0]
-        tpnl   = sum(t.pnl_usdt for t in closed)
-        gw     = sum(t.pnl_usdt for t in wins)
-        gl     = abs(sum(t.pnl_usdt for t in losses))
-        max_dd, _ = compute_drawdown(closed)
+        winning_trades = [trade for trade in closed_trades if trade.pnl_usdt > 0]
+        losing_trades  = [trade for trade in closed_trades if trade.pnl_usdt <= 0]
+        total_pnl = sum(trade.pnl_usdt for trade in closed_trades)
+        gross_profit = sum(trade.pnl_usdt for trade in winning_trades)
+        gross_loss = abs(sum(trade.pnl_usdt for trade in losing_trades))
+        max_drawdown, _ = compute_drawdown(closed_trades)
         results.append(SweepResult(
-            trail_pct=tp_trail, stop_loss_pct=sl, take_profit_pct=tp, min_score=ms, leverage=lv,
-            total_trades=len(closed),
-            wins=len(wins), losses=len(losses),
-            win_rate=len(wins)/len(closed)*100,
-            total_pnl=tpnl,
-            avg_win=float(np.mean([t.pnl_usdt for t in wins])) if wins else 0,
-            avg_loss=float(np.mean([t.pnl_usdt for t in losses])) if losses else 0,
-            profit_factor=gw/gl if gl > 0 else float("inf"),
-            avg_hold=float(np.mean([t.hold_candles for t in closed])),
-            expectancy=tpnl/len(closed),
-            max_drawdown=max_dd,
+            trail_pct=tp_trail, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct,
+            min_score=min_score, leverage=leverage,
+            total_trades=len(closed_trades),
+            wins=len(winning_trades), losses=len(losing_trades),
+            win_rate=len(winning_trades) / len(closed_trades) * 100,
+            total_pnl=total_pnl,
+            avg_win=float(np.mean([trade.pnl_usdt for trade in winning_trades])) if winning_trades else 0,
+            avg_loss=float(np.mean([trade.pnl_usdt for trade in losing_trades])) if losing_trades else 0,
+            profit_factor=gross_profit / gross_loss if gross_loss > 0 else float("inf"),
+            avg_hold=float(np.mean([trade.hold_candles for trade in closed_trades])),
+            expectancy=total_pnl / len(closed_trades),
+            max_drawdown=max_drawdown,
         ))
     print()
-    return sorted(results, key=lambda r: r.expectancy, reverse=True)
+    return sorted(results, key=lambda res: res.expectancy, reverse=True)
 
 # ─────────────────────────────────────────────────────────────────────
 # Stats & reporting
 # ─────────────────────────────────────────────────────────────────────
-def bar(pct: float, width: int = 20) -> str:
-    filled = int(pct / 100 * width)
-    return "█" * filled + "░" * (width - filled)
+def draw_bar(percentage: float, width: int = 20) -> str:
+    """Returns an ASCII bar representing a percentage."""
+    filled_length = int(percentage / 100 * width)
+    return "█" * filled_length + "░" * (width - filled_length)
 
 
 def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
-    closed = [t for t in trades if t.pnl_usdt is not None and t.exit_reason != "open"]
-    if not closed:
-        print(Fore.YELLOW + "  No closed trades to analyse.")
-        return
+    """Prints a comprehensive statistical report for a list of trades."""
+    closed_trades = [trade for trade in trades if trade.pnl_usdt is not None and trade.exit_reason != "open"]
+    if not closed_trades:
+        print(Fore.YELLOW + "  No closed trades to analyse."); return
 
-    wins   = [t for t in closed if t.pnl_usdt > 0]
-    losses = [t for t in closed if t.pnl_usdt <= 0]
-    tpnl   = sum(t.pnl_usdt for t in closed)
-    wr     = len(wins) / len(closed) * 100
-    aw     = float(np.mean([t.pnl_usdt for t in wins])) if wins else 0
-    al     = float(np.mean([t.pnl_usdt for t in losses])) if losses else 0
-    gw     = sum(t.pnl_usdt for t in wins)
-    gl     = abs(sum(t.pnl_usdt for t in losses))
-    pf     = gw / gl if gl > 0 else float("inf")
-    ah     = float(np.mean([t.hold_candles for t in closed]))
-    exp    = tpnl / len(closed)
-    pc     = Fore.GREEN if tpnl >= 0 else Fore.RED
+    winning_trades = [trade for trade in closed_trades if trade.pnl_usdt > 0]
+    losing_trades  = [trade for trade in closed_trades if trade.pnl_usdt <= 0]
+    total_pnl = sum(trade.pnl_usdt for trade in closed_trades)
+    win_rate  = len(winning_trades) / len(closed_trades) * 100
+    avg_win   = float(np.mean([trade.pnl_usdt for trade in winning_trades])) if winning_trades else 0
+    avg_loss  = float(np.mean([trade.pnl_usdt for trade in losing_trades])) if losing_trades else 0
+    gross_profit = sum(trade.pnl_usdt for trade in winning_trades)
+    gross_loss = abs(sum(trade.pnl_usdt for trade in losing_trades))
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
+    avg_hold_period = float(np.mean([trade.hold_candles for trade in closed_trades]))
+    expectancy = total_pnl / len(closed_trades)
+    pnl_color = Fore.GREEN if total_pnl >= 0 else Fore.RED
 
-    max_dd, max_dd_pct = compute_drawdown(closed)
-    sharpe  = compute_sharpe(closed, timeframe)
-    sortino = compute_sortino(closed, timeframe)
-    mws, mls = max_streaks(closed)
-    best_t  = max(closed, key=lambda t: t.pnl_usdt or 0.0)
-    worst_t = min(closed, key=lambda t: t.pnl_usdt or 0.0)
+    max_drawdown, max_drawdown_pct = compute_drawdown(closed_trades)
+    sharpe_ratio  = compute_sharpe(closed_trades, timeframe)
+    sortino_ratio = compute_sortino(closed_trades, timeframe)
+    max_win_streak, max_loss_streak = max_streaks(closed_trades)
+    best_trade  = max(closed_trades, key=lambda trade: trade.pnl_usdt or 0.0)
+    worst_trade = min(closed_trades, key=lambda trade: trade.pnl_usdt or 0.0)
 
     print(Fore.CYAN + f"\n{'═'*70}")
     if label:
         print(Fore.CYAN + Style.BRIGHT + f"  RESULTS — {label}")
     print(Fore.CYAN + f"{'═'*70}")
-    print(f"  Trades      : {len(closed)}  ({len(wins)} W / {len(losses)} L)")
-    print(f"  Win Rate    : {wr:.1f}%  [{bar(wr)}]")
-    print(f"  Total PnL   : {pc}{tpnl:+.4f} USDT{Style.RESET_ALL}")
-    print(f"  Expectancy  : {pc}{exp:+.4f} USDT/trade{Style.RESET_ALL}")
-    print(f"  Avg Win     : {Fore.GREEN}{aw:+.4f}{Style.RESET_ALL}  "
-          f"Avg Loss: {Fore.RED}{al:+.4f}{Style.RESET_ALL}")
-    pf_c = Fore.GREEN if pf >= 1.5 else (Fore.YELLOW if pf >= 1.0 else Fore.RED)
-    pf_str = f"{pf:.2f}" if pf < 99 else "∞"
-    print(f"  Prof. Factor: {pf_c}{pf_str}{Style.RESET_ALL}")
-    print(f"  Avg Hold    : {ah:.1f} candles")
+    print(f"  Trades      : {len(closed_trades)}  ({len(winning_trades)} W / {len(losing_trades)} L)")
+    print(f"  Win Rate    : {win_rate:.1f}%  [{draw_bar(win_rate)}]")
+    print(f"  Total PnL   : {pnl_color}{total_pnl:+.4f} USDT{Style.RESET_ALL}")
+    print(f"  Expectancy  : {pnl_color}{expectancy:+.4f} USDT/trade{Style.RESET_ALL}")
+    print(f"  Avg Win     : {Fore.GREEN}{avg_win:+.4f}{Style.RESET_ALL}  "
+          f"Avg Loss: {Fore.RED}{avg_loss:+.4f}{Style.RESET_ALL}")
+    pf_color = Fore.GREEN if profit_factor >= 1.5 else (Fore.YELLOW if profit_factor >= 1.0 else Fore.RED)
+    pf_str = f"{profit_factor:.2f}" if profit_factor < 99 else "∞"
+    print(f"  Prof. Factor: {pf_color}{pf_str}{Style.RESET_ALL}")
+    print(f"  Avg Hold    : {avg_hold_period:.1f} candles")
     print()
 
-    # ── NEW: Risk metrics ─────────────────────────────────────────────
-    dd_c = Fore.RED if max_dd > 0 else Fore.GREEN
-    sh_c = Fore.GREEN if (not np.isnan(sharpe) and sharpe >= 1.0) else (Fore.YELLOW if (not np.isnan(sharpe) and sharpe >= 0) else Fore.RED)
-    so_c = Fore.GREEN if (not np.isnan(sortino) and sortino >= 1.5) else (Fore.YELLOW if (not np.isnan(sortino) and sortino >= 0) else Fore.RED)
-    print(f"  Max Drawdown: {dd_c}{max_dd:+.4f} USDT  ({max_dd_pct:.1f}%){Style.RESET_ALL}")
-    print(f"  Sharpe (ann): {sh_c}{fmt_stat(sharpe)}{Style.RESET_ALL}   "
-          f"Sortino (ann): {so_c}{fmt_stat(sortino)}{Style.RESET_ALL}")
-    print(f"  Max Streak  : {Fore.GREEN}{mws}W{Style.RESET_ALL} / {Fore.RED}{mls}L{Style.RESET_ALL}")
-    print(f"  Best Trade  : {Fore.GREEN}{best_t.pnl_usdt:+.4f}{Style.RESET_ALL} "
-          f"({best_t.symbol} {best_t.direction})")
-    print(f"  Worst Trade : {Fore.RED}{worst_t.pnl_usdt:+.4f}{Style.RESET_ALL} "
-          f"({worst_t.symbol} {worst_t.direction})")
+    # ── Risk metrics ─────────────────────────────────────────────
+    dd_color = Fore.RED if max_drawdown > 0 else Fore.GREEN
+    sh_color = Fore.GREEN if (not np.isnan(sharpe_ratio) and sharpe_ratio >= 1.0) else (Fore.YELLOW if (not np.isnan(sharpe_ratio) and sharpe_ratio >= 0) else Fore.RED)
+    so_color = Fore.GREEN if (not np.isnan(sortino_ratio) and sortino_ratio >= 1.5) else (Fore.YELLOW if (not np.isnan(sortino_ratio) and sortino_ratio >= 0) else Fore.RED)
+    print(f"  Max Drawdown: {dd_color}{max_drawdown:+.4f} USDT  ({max_drawdown_pct:.1f}%){Style.RESET_ALL}")
+    print(f"  Sharpe (ann): {sh_color}{fmt_stat(sharpe_ratio)}{Style.RESET_ALL}   "
+          f"Sortino (ann): {so_color}{fmt_stat(sortino_ratio)}{Style.RESET_ALL}")
+    print(f"  Max Streak  : {Fore.GREEN}{max_win_streak}W{Style.RESET_ALL} / {Fore.RED}{max_loss_streak}L{Style.RESET_ALL}")
+    print(f"  Best Trade  : {Fore.GREEN}{best_trade.pnl_usdt:+.4f}{Style.RESET_ALL} "
+          f"({best_trade.symbol} {best_trade.direction})")
+    print(f"  Worst Trade : {Fore.RED}{worst_trade.pnl_usdt:+.4f}{Style.RESET_ALL} "
+          f"({worst_trade.symbol} {worst_trade.direction})")
     print()
+
 
     # Direction breakdown
     for dir_label, group in [("LONG", [t for t in closed if t.direction == "LONG"]),
-                              ("SHORT", [t for t in closed if t.direction == "SHORT"])]:
-        if not group:
-            continue
+                              ("SHORT",[t for t in closed if t.direction == "SHORT"])]:
+        if not group: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
         g_exp = g_pnl / len(group)
@@ -1233,8 +1226,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     # Exit reason breakdown
     for reason in ["trail_stop", "hard_stop", "take_profit", "max_hold", "end_of_data"]:
         group = [t for t in closed if t.exit_reason == reason]
-        if not group:
-            continue
+        if not group: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
         rc    = Fore.GREEN if g_pnl >= 0 else Fore.RED
@@ -1247,8 +1239,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
              (100, 119, "100-119"), (80, 99, "80-99"), (0, 79, "<80")]
     for lo, hi, tlabel in tiers:
         group = [t for t in closed if lo <= t.score <= hi]
-        if len(group) < 2:
-            continue
+        if len(group) < 2: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_exp = sum(t.pnl_usdt for t in group) / len(group)
         wc    = Fore.GREEN if g_wr >= 50 else Fore.RED
@@ -1286,8 +1277,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
                 for s in t.signals
             )
         group = [t for t in closed if has_signal(t)]
-        if len(group) < 3:
-            continue
+        if len(group) < 3: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_exp = sum(t.pnl_usdt for t in group) / len(group)
         wc = Fore.GREEN if g_wr >= 50 else Fore.RED
@@ -1299,8 +1289,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     print(Fore.CYAN + f"\n  {'─'*64}")
     for ll_label, ll_val in [("Normal liquidity", False), ("Low liquidity", True)]:
         group = [t for t in closed if t.is_low_liq == ll_val]
-        if not group:
-            continue
+        if not group: continue
         g_wr  = len([t for t in group if t.pnl_usdt > 0]) / len(group) * 100
         g_pnl = sum(t.pnl_usdt for t in group)
         lc    = Fore.GREEN if g_pnl >= 0 else Fore.RED
@@ -1447,7 +1436,7 @@ def main():
                         help="Skip 1H RSI fetch (faster)")
     args = parser.parse_args()
 
-    print(Fore.CYAN + BANNER)
+    print(Fore.CYAN + pc.BANNER)
 
     # Print active settings summary
     flags = []

@@ -1,6 +1,26 @@
 # Changelog - FancyBot Revised
 
-## [2026-03-08.4] - Architectural Stewardship & UTC Standardisation
+## [2026-03-08.6] - Filter Relaxation & Activity Pass
+
+### Changed
+- **Spread Filter Relaxation:** Increased `SPREAD_FILTER_MAX_PCT` from 0.10% to **0.20%** across all modules to improve entry success in moderately liquid markets.
+- **Aggressive Throttling Reduced:** Softened `ENTROPY_DEFLATOR` and `Hawkes Cluster` penalties to prevent the entry threshold from spiking too high during market activity.
+- **Lower Base Gate:** Reduced default `MIN_SCORE` from 130 to **120** to capture more high-probability trade setups that were previously filtered out.
+- **Low-Liquidity Optimization:** Lowered the entry gate for low-liquidity assets (like `RIVER`) from 145 to **135**.
+- **Increased Capacity:** Reduced default trade margin from $50 to **$25** to allow for more concurrent positions on smaller account balances.
+
+## [2026-03-08.5] - Performance Optimization & Refactoring Pass
+
+### Added
+- **JSON Lines Migration:** Migrated `sim_trade_results.json` to `.jsonl` (append-only) in `sim_bot.py` to prevent O(n^2) performance degradation during trade logging.
+
+### Fixed
+- **Animations Regression:** Resolved an `AttributeError` in `animations.py` caused by incomplete attribute renaming (`.w`/`.h` -> `.width`/`.height`) and function renaming (`rgb`/`clamp`).
+- **Redundant I/O:** Optimized `update_pnl_and_stops` in `sim_bot.py` to only flush the account state to disk if a position is actually closed or a trailing stop is ratcheted.
+
+### Changed
+- **Code Clarity Pass:** Completed the systemic refactoring of `backtest.py` and `animations.py`, replacing all remaining terse variables and single-letter functions with descriptive, self-documenting names.
+- **Enhanced Documentation:** Added comprehensive docstrings to all major functions in `backtest.py` and `animations.py` to align with Senior Architectural Steward standards.
 
 ### Added
 - **Architectural Audit:** Completed a Deep Static Analysis of the entire core engine (`Audit_and_Revision_Log_[2026-03-08_1903]`).

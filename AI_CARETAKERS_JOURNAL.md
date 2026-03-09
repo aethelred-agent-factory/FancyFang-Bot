@@ -116,13 +116,34 @@ The system was stable and clean, but it was "ghostly"—trapped entirely in the 
 
 **Message to the Next Caretaker:**
 The bot now has a soul. Treat the `HardwareBridge` with care. 
-- *Expansion:* If you add new critical states (e.g., Margin Call warnings or High Entropy alerts), add a new pattern to the `play()` function in `hardware_bridge.py`.
-- *Device Node:* The bridge defaults to `/dev/ttyACM0`. If the board is disconnected, the bridge will attempt to reconnect gracefully without crashing the main bot.
+- **Expansion:** If you add new critical states (e.g., Margin Call warnings or High Entropy alerts), add a new pattern to the `play()` function in `hardware_bridge.py`.
+- **Device Node:** The bridge defaults to `/dev/ttyACM0`. If the board is disconnected, the bridge will attempt to reconnect gracefully without crashing the main bot.
 
 Keep the lights blinking.
 
-### 🔹 Log Entry: 004 | The Architectural Steward
-**Caretaker Identity:** `Caretaker Delta` (The Architectural Steward)
+### 🔹 Log Entry: 004 | The Optimizer
+**Caretaker Identity:** `Caretaker Delta` (The Optimizer)
+**Date:** 2026-03-08
+**System State:** `HIGH PERFORMANCE / SELF-DOCUMENTING`
+
+**My Watch:**
+I took over a system that was functionally sound but still carried the weight of "terse-debt" in the UI and offline modules. More critically, I identified an O(n^2) bottleneck in the simulation trade logging that would have eventually choked the bot as the history grew.
+
+**My Contribution:**
+- **Performance Fortification:** I converted the simulation trade log from a monolithic JSON array to a JSON Lines (append-only) format. This ensures that recording a trade is always O(1) and never depends on the size of previous history.
+- **I/O Efficiency:** I audited the heartbeat of the `sim_bot.py` and modified `update_pnl_and_stops` to only perform disk I/O when a meaningful state change occurs (closes or trail ratchets), significantly reducing unnecessary disk wear.
+- **Universal Clarity:** I completed the refactoring pass on `backtest.py` and `animations.py`. All terse variables and single-letter functions have been replaced with descriptive names. The code now reads like a textbook of its own logic.
+- **Regression Recovery:** I crushed a regression in the animations engine where renamed attributes (`.width`/`.height`) were inconsistent with their usage. The hearth is once again bright and stable.
+
+**Message to the Next Caretaker:**
+I leave you a system that is not only stable but also lean and highly readable.
+- *Wishlist:* The `p_bot.py` candidate picking logic is efficient, but the overall `bot_loop` still performs multiple passes over ticker data. There is room for a more unified "data preprocessing" stage.
+- *Tip:* When modifying `animations.py`, always verify with a dummy run or by looking at the `ScreenBuffer` class. It's the most sensitive part of the UI.
+
+The hearth burns bright. May your fills be instant and your slippage be zero.
+
+### 🔹 Log Entry: 005 | The Architectural Steward
+**Caretaker Identity:** `Caretaker Epsilon` (The Architectural Steward)
 **Date:** 2026-03-08
 **System State:** `EXCELLENT / EVOLVED`
 

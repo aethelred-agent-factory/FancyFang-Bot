@@ -122,11 +122,11 @@ load_dotenv()
 init(autoreset=True)
 
 # ── Entropy Deflator Parameters (v2) ───────────────────────────
-ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "35"))
-ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "30"))
-ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "25"))
-ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "15"))
-ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "15"))
+ENTROPY_MAX_PENALTY   = int(os.getenv("ENTROPY_MAX_PENALTY", "30"))
+ENTROPY_SAT_WEIGHT    = int(os.getenv("ENTROPY_SAT_WEIGHT", "20"))
+ENTROPY_SAT_CAP       = int(os.getenv("ENTROPY_SAT_CAP", "20"))
+ENTROPY_IMB_WEIGHT    = int(os.getenv("ENTROPY_IMB_WEIGHT", "10"))
+ENTROPY_ALERT_LEVEL   = int(os.getenv("ENTROPY_ALERT_LEVEL", "20"))
 
 # ────────────────────────────────────────────────────────────────────
 # Configuration
@@ -158,7 +158,7 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
     return pc.make_entity_request(entity_name, method=method, data=data, entity_id=entity_id)
 
 # Strategy parameters
-MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "50.0"))   # $ margin per trade
+MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "25.0"))   # $ margin per trade
 LEVERAGE       = int(os.getenv("BOT_LEVERAGE", "30"))          # leverage multiplier
 TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.02"))     # 2% trailing stop
 TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.02")) # 2% take profit

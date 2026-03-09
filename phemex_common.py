@@ -130,10 +130,10 @@ def log_system_event(event_type: str, message: str, level: int = logging.INFO):
 # ── Centralised score thresholds ──────────────────────────────────────────────
 # Single source of truth for all score gating across p_bot, sim_bot, backtest,
 # and the scanner modules. Override any via @.env / args at call sites.
-SCORE_MIN_DEFAULT    = int(os.getenv("MIN_SCORE", 130))      # standard gate
+SCORE_MIN_DEFAULT    = int(os.getenv("MIN_SCORE", 120))      # standard gate
 SCORE_MIN_HTF_BYPASS = int(os.getenv("MIN_SCORE_HTF", 120))  # lower bar with HTF alignment
-SCORE_MIN_LOW_LIQ    = int(os.getenv("MIN_SCORE_LOW_LIQ", 145)) # higher bar for low-liquidity assets
-SCORE_FAST_TRACK     = int(os.getenv("FAST_TRACK_SCORE", 130)) # immediate-entry threshold
+SCORE_MIN_LOW_LIQ    = int(os.getenv("MIN_SCORE_LOW_LIQ", 135)) # higher bar for low-liquidity assets
+SCORE_FAST_TRACK     = int(os.getenv("FAST_TRACK_SCORE", 125)) # immediate-entry threshold
 SCORE_EXIT_SIGNAL    = int(os.getenv("EXIT_SIGNAL_SCORE", 100)) # opposite-signal exit threshold
 SCORE_GRADE_A        = 75  # grade() boundary
 SCORE_GRADE_B        = 60  # grade() boundary
@@ -834,7 +834,7 @@ def update_atr_trail(
 
 # ── Upgrade #3: Spread Filter ────────────────────────────────────────────────
 
-SPREAD_FILTER_MAX_PCT = float(os.getenv("SPREAD_FILTER_MAX_PCT", "0.10"))  # 0.10 %
+SPREAD_FILTER_MAX_PCT = float(os.getenv("SPREAD_FILTER_MAX_PCT", "0.20"))  # 0.20 %
 
 def check_spread_filter(spread_pct: Optional[float], symbol: str = "") -> Tuple[bool, str]:
     """
