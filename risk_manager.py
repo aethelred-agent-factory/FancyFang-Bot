@@ -23,10 +23,9 @@ Refactored into a class to eliminate global state and improve testability.
 from __future__ import annotations
 
 import logging
-import math
 import os
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Any
 
 logger = logging.getLogger("risk_manager")
@@ -73,9 +72,10 @@ class RiskManager:
 
     def get_open_position_risk(self, open_positions: List[Dict[str, Any]]) -> float:
         """Estimate the total current risk (in USD) committed to open positions."""
+        # REF: [Tier 3] Descriptive Naming
         total_risk = 0.0
-        for pos in open_positions:
-            margin = float(pos.get("margin", 0.0))
+        for position in open_positions:
+            margin = float(position.get("margin", 0.0))
             total_risk += margin
         return total_risk
 
@@ -93,37 +93,38 @@ class RiskManager:
 
     def _kelly_risk_amount(self, account_balance: float, signal_confidence: float) -> float:
         """Half-Kelly risk sizing based on rolling trade history."""
+        # REF: [Tier 3] Descriptive Naming
         with self._lock:
-            wins   = self._perf.wins
-            losses = self._perf.losses
-            gw     = self._perf.gross_wins
-            gl     = self._perf.gross_loss
+            wins         = self._perf.wins
+            losses       = self._perf.losses
+            gross_wins   = self._perf.gross_wins
+            gross_losses = self._perf.gross_loss
 
-        total = wins + losses
-        if total < 10:
-            base_pct = self._adaptive_risk_pct(account_balance)
+        total_trades = wins + losses
+        if total_trades < 10:
+            base_percentage = self._adaptive_risk_pct(account_balance)
             confidence_scalar = 0.5 + 0.5 * max(0.0, min(1.0, signal_confidence))
-            return account_balance * base_pct * confidence_scalar
+            return account_balance * base_percentage * confidence_scalar
 
-        win_rate = wins / total
-        avg_win  = gw / wins if wins > 0 else 0.0
-        avg_loss = gl / losses if losses > 0 else 0.0
+        win_rate = wins / total_trades
+        average_win  = gross_wins / wins if wins > 0 else 0.0
+        average_loss = gross_losses / losses if losses > 0 else 0.0
 
-        if avg_loss == 0 or avg_win == 0:
+        if average_loss == 0 or average_win == 0:
             return account_balance * self._adaptive_risk_pct(account_balance)
 
-        b = avg_win / avg_loss
-        q = 1.0 - win_rate
-        kelly_f = (win_rate * b - q) / b
+        win_loss_ratio = average_win / average_loss
+        loss_rate      = 1.0 - win_rate
+        kelly_fraction = (win_rate * win_loss_ratio - loss_rate) / win_loss_ratio
 
-        if kelly_f <= 0:
+        if kelly_fraction <= 0:
             return account_balance * MIN_ACCOUNT_RISK_PCT
 
         confidence_scalar = 0.5 + 0.5 * max(0.0, min(1.0, signal_confidence))
         fraction = 0.5 * confidence_scalar
-        amount   = account_balance * kelly_f * fraction
+        risk_amount = account_balance * kelly_fraction * fraction
 
-        return min(amount, account_balance * MAX_ACCOUNT_RISK_PCT)
+        return min(risk_amount, account_balance * MAX_ACCOUNT_RISK_PCT)
 
     def compute_dynamic_risk(
         self,

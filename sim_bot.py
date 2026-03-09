@@ -26,7 +26,6 @@ import argparse
 import datetime
 import json
 import logging
-import math
 import os
 import re
 import sys
@@ -38,15 +37,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 if sys.platform != "win32":
-    import select
-    import termios
-    import tty
+    pass
 
 import blessed
 import requests
 import websocket
 from colorama import Fore, Style, init
-from dotenv import load_dotenv
 
 import phemex_common as pc
 import phemex_long as scanner_long
@@ -213,6 +209,7 @@ class SimBotState:
 
     def load_account(self):
         """Loads paper account from disk into memory."""
+        # REF: [Tier 1] Lock Hierarchy (file_io_lock -> lock)
         with self.file_io_lock:
             if not PAPER_ACCOUNT_FILE.exists():
                 self.save_account()
@@ -221,26 +218,28 @@ class SimBotState:
             for attempt in range(5):
                 try:
                     content = PAPER_ACCOUNT_FILE.read_text()
-                    if not content: continue
-                    data = json.loads(content)
+                    if not content:
+                        continue
+                    account_data = json.loads(content)
                     with self.lock:
-                        self.balance = float(data.get("balance", INITIAL_BALANCE))
-                        self.positions = data.get("positions", [])
+                        self.balance = float(account_data.get("balance", INITIAL_BALANCE))
+                        self.positions = account_data.get("positions", [])
                     return
                 except (json.JSONDecodeError, ValueError, OSError):
                     time.sleep(0.05 * (attempt + 1))
 
     def save_account(self):
         """Flushes in-memory account state to disk."""
+        # REF: [Tier 1] Lock Hierarchy (file_io_lock -> lock)
         with self.file_io_lock:
             with self.lock:
-                data = {"balance": self.balance, "positions": self.positions}
+                account_snapshot = {"balance": self.balance, "positions": self.positions}
             try:
                 temp_file = PAPER_ACCOUNT_FILE.with_suffix(".tmp")
-                temp_file.write_text(json.dumps(data, indent=2))
+                temp_file.write_text(json.dumps(account_snapshot, indent=2))
                 temp_file.replace(PAPER_ACCOUNT_FILE)
-            except Exception as e:
-                logging.getLogger("sim_bot").error(f"Failed to save paper account: {e}")
+            except Exception as error:
+                logging.getLogger("sim_bot").error(f"Failed to save paper account: {error}")
 
     def update_price(self, symbol: str, price: float):
         """Thread-safe update of live prices."""
@@ -273,8 +272,10 @@ def _to_braille(left_row: int, right_row: int) -> str:
     """Convert two column bit patterns into a braille unicode char."""
     bits = 0
     for row in range(4):
-        if left_row & (1 << row):  bits |= BRAILLE_MAP[row][0]
-        if right_row & (1 << row): bits |= BRAILLE_MAP[row][1]
+        if left_row & (1 << row):
+            bits |= BRAILLE_MAP[row][0]
+        if right_row & (1 << row):
+            bits |= BRAILLE_MAP[row][1]
     return chr(0x2800 + bits)
 
 def render_pnl_chart(
@@ -329,8 +330,8 @@ def render_pnl_chart(
     for row_idx in range(height):
         line = ""
         for col_idx in range(width):
-            l, r = grid[row_idx][col_idx]
-            line += _to_braille(l, r)
+            left_dots, right_dots = grid[row_idx][col_idx]
+            line += _to_braille(left_dots, right_dots)
         lines.append(line)
 
     current_pnl = pnl_history[-1]
@@ -365,7 +366,7 @@ def render_pnl_chart(
                 zero_color + prefix + reset +
                 chart_color + line + reset +
                 zero_color + suffix + reset +
-                f" 0.00"
+                " 0.00"
             )
         else:
             output_lines.append(zero_color + prefix + reset + chart_color + line + reset + zero_color + suffix + reset)
@@ -644,8 +645,16 @@ def _ws_run_loop() -> None:
 
 def _ensure_ws_started() -> None:
     """Starts the WebSocket thread if it is not already running."""
+    import traceback
     if state.ws_thread is None or not state.ws_thread.is_alive():
-        state.ws_thread = threading.Thread(target=_ws_run_loop, daemon=True)
+        # REF: [Tier 1] Critical Thread Error Handling
+        def _ws_wrapper():
+            try:
+                _ws_run_loop()
+            except Exception as error:
+                logger.error(f"WS run loop crashed: {error}\n{traceback.format_exc()}")
+
+        state.ws_thread = threading.Thread(target=_ws_wrapper, daemon=True)
         state.ws_thread.start()
 
 
@@ -1038,9 +1047,12 @@ def _draw_positions_section(
                         entry_dt = entry_dt.replace(tzinfo=datetime.timezone.utc)
                     diff = datetime.datetime.now(datetime.timezone.utc) - entry_dt
                     tot_sec = int(diff.total_seconds())
-                    if tot_sec < 60: dur_str = f"{tot_sec}s"
-                    elif tot_sec < 3600: dur_str = f"{tot_sec//60}m"
-                    else: dur_str = f"{tot_sec//3600}h {(tot_sec%3600)//60}m"
+                    if tot_sec < 60:
+                        dur_str = f"{tot_sec}s"
+                    elif tot_sec < 3600:
+                        dur_str = f"{tot_sec // 60}m"
+                    else:
+                        dur_str = f"{tot_sec // 3600}h {(tot_sec % 3600) // 60}m"
                 except Exception:
                     pass
             dur_badge = term.white(f"({dur_str})")
@@ -1098,7 +1110,6 @@ def _draw_account_session_section(
     """Two-column panel: wallet left, session stats right."""
 
     # Use passed history to avoid global mutation side-effects
-    spark_data = equity_history if equity_history else []
 
     w   = max_width
     lw  = 36          # left column width
@@ -1301,9 +1312,12 @@ def _draw_consolidated_positions(
                     entry_dt = entry_dt.replace(tzinfo=datetime.timezone.utc)
                 diff = datetime.datetime.now(datetime.timezone.utc) - entry_dt
                 tot_sec = int(diff.total_seconds())
-                if tot_sec < 60: dur_str = f"{tot_sec}s"
-                elif tot_sec < 3600: dur_str = f"{tot_sec//60}m"
-                else: dur_str = f"{tot_sec//3600}h {(tot_sec%3600)//60}m"
+                if tot_sec < 60:
+                    dur_str = f"{tot_sec}s"
+                elif tot_sec < 3600:
+                    dur_str = f"{tot_sec // 60}m"
+                else:
+                    dur_str = f"{tot_sec // 3600}h {(tot_sec % 3600) // 60}m"
             except Exception:
                 pass
         dur_badge = term.white(f"({dur_str})")
@@ -1343,7 +1357,8 @@ def _draw_consolidated_positions(
         # --- Price Line (Entry/Stop/TP/Now) ---
         bar_w = max_width - 16
         pts   = [stop, entry, tp]
-        if now: pts.append(now)
+        if now:
+            pts.append(now)
         lo    = min(pts)
         hi    = max(pts)
         rng   = (hi - lo) if hi != lo else 1.0
@@ -1354,7 +1369,8 @@ def _draw_consolidated_positions(
         bar[gp(stop)]  = term.red("S")
         bar[gp(entry)] = term.yellow("E")
         bar[gp(tp)]    = term.green("T")
-        if now: bar[gp(now)] = term.bold_white("●")
+        if now:
+            bar[gp(now)] = term.bold_white("●")
 
         price_line = term.cyan("[") + "".join(bar) + term.cyan("]")
         print(term.move_xy(2, row) + _box_row(term, f"  Price: {price_line}", max_width))
@@ -1457,7 +1473,8 @@ def _live_pnl_display() -> None:
                 total_trades     = len(history)
                 win_rate         = (len(wins) / total_trades * 100) if total_trades > 0 else 0.0
                 total_closed_pnl = sum(t["pnl"] for t in history)
-                current_time     = datetime.datetime.now().strftime("%H:%M:%S")
+                # REF: [Tier 2] UTC Standardisation
+                current_time     = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
 
                 current_upnl = 0.0
                 locked_margin = 0.0
@@ -2018,6 +2035,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     active_trail_pct = p_bot.LOW_LIQ_TRAIL_PCT if is_low_liq else p_bot.TRAIL_PCT
     tui_log(f"LEV SELECT: {symbol} → {active_leverage}x (ATR%={atr_stop_pct}, spike={vol_spike:.1f}x, low_liq={is_low_liq})", event_type="INFO")
 
+    side     = "Buy" if direction == "LONG" else "Sell"
     notional = margin_to_use * active_leverage
     size     = notional / price
 
@@ -2143,7 +2161,14 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     with state.lock:
         if not state.display_thread_running:
             state.display_thread_running = True
-            threading.Thread(target=_live_pnl_display, daemon=True).start()
+            # REF: [Tier 1] Critical Thread Error Handling
+            def _display_wrapper():
+                import traceback
+                try:
+                    _live_pnl_display()
+                except Exception as error:
+                    logger.error(f"Display thread crashed: {error}\n{traceback.format_exc()}")
+            threading.Thread(target=_display_wrapper, daemon=True).start()
 
     return True
 
@@ -2170,9 +2195,12 @@ _hawkes_short = pc.HawkesTracker(mu=0.1, alpha=0.8, beta=0.1)
 
 def _get_cluster_threshold_penalty(intensity: float) -> int:
     """Returns a score penalty based on Hawkes intensity (λ)."""
-    if intensity > HAWKES_INTENSITY_CRITICAL: return 50  # Major cluster
-    if intensity > HAWKES_INTENSITY_HIGH:     return 30
-    if intensity > HAWKES_INTENSITY_MID:      return 15
+    if intensity > HAWKES_INTENSITY_CRITICAL:
+        return 50  # Major cluster
+    if intensity > HAWKES_INTENSITY_HIGH:
+        return 30
+    if intensity > HAWKES_INTENSITY_MID:
+        return 15
     return 0
 
 # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
@@ -2216,7 +2244,6 @@ def on_scan_result(scan_res: dict, direction: str) -> None:
     with state.lock:
         current_positions = state.positions
         acc_balance = state.balance
-        dynamic_max = p_bot.get_dynamic_max_positions(acc_balance)
 
         # Gate on free margin instead of position count
         pending_margin = len(state.fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)  # buffer for in-flight verifications
@@ -2290,16 +2317,21 @@ def sim_bot_loop(args) -> None:
     with state.lock:
         if not state.display_thread_running:
             state.display_thread_running = True
-            threading.Thread(target=_live_pnl_display, daemon=True).start()
+            # REF: [Tier 1] Critical Thread Error Handling
+            def _display_wrapper():
+                import traceback
+                try:
+                    _live_pnl_display()
+                except Exception as error:
+                    logger.error(f"Display thread crashed: {error}\n{traceback.format_exc()}")
+            threading.Thread(target=_display_wrapper, daemon=True).start()
 
     while True:
         update_pnl_and_stops()
 
-        positions      = get_sim_positions()
         # Recompute dynamic max positions and available slots
         # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
-        account        = load_paper_account()
-        acc_balance    = account.get("balance", 0.0)
+        _              = load_paper_account()
 
         # No slot cap — scan every cycle, gate on margin at execution time
         tui_log(f"Scanning LIVE market ({args.timeframe})...")
@@ -2356,7 +2388,7 @@ def sim_bot_loop(args) -> None:
             min_score=eff_min_score,
             min_score_gap=args.min_score_gap,
             direction_filter=args.direction,
-            in_position=in_pos_updated,
+            symbols_in_position=in_pos_updated,
             available_slots=9999,
         )
 
@@ -2409,8 +2441,8 @@ def main() -> None:
     args = parser.parse_args()
 
     print(Fore.GREEN + Style.BRIGHT + "  🚀 Phemex SIMULATION Bot Starting (Paper Trading)")
-    print(f"  Market   : LIVE (api.phemex.com)")
-    print(f"  Account  : LOCAL (paper_account.json)")
+    print("  Market   : LIVE (api.phemex.com)")
+    print("  Account  : LOCAL (paper_account.json)")
     print(f"  Balance  : {INITIAL_BALANCE} USDT")
     print(f"  Interval : {args.interval}s")
     print(f"  Score    : {args.min_score} (gap: {args.min_score_gap})  Direction: {args.direction}\n")

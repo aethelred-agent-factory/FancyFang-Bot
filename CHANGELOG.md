@@ -1,5 +1,21 @@
 # Changelog - FancyBot Revised
 
+## [2026-03-08.4] - Architectural Stewardship & UTC Standardisation
+
+### Added
+- **Architectural Audit:** Completed a Deep Static Analysis of the entire core engine (`Audit_and_Revision_Log_[2026-03-08_1903]`).
+- **Baseline Test Suite:** Initialized `tests/` directory with unit tests for `phemex_common.py` and `drawdown_guard.py` to ensure regression safety.
+
+### Fixed
+- **Deadlock Risks:** Resolved potential "Deadlock Freeze" by ensuring `file_io_lock` is always external to `lock` / `_lock` in `sim_bot.py`.
+- **Silent Thread Failures:** Wrapped all background workers (WebSocket, Cache, TUI) in `try...except` blocks with full `traceback.format_exc()` logging.
+- **Race Safety:** Refactored high-frequency paths in `p_bot.py` to identify missing prices and fetch them via REST outside of critical price-cache locks.
+
+### Changed
+- **UTC Standardisation:** Migrated every `datetime.now()` call to timezone-aware `datetime.now(datetime.timezone.utc)` for temporal consistency across logging and JSON storage.
+- **Descriptive Naming:** Performed a codebase-wide refactor of terse variables to descriptive ones (e.g., `nb` -> `new_balance`, `r` -> `scan_res`, `v` -> `volume`).
+- **Ruff Compliance:** Resolved over 100 linting violations including spacing, redundant semicolons, and unused imports to achieve "Senior Developer" code quality standards.
+
 ## [2026-03-08.3] - Performance Tuning & Logic Fixes
 
 ### Fixed

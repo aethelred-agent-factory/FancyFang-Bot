@@ -37,7 +37,6 @@ at runtime so this module has zero circular imports.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import threading

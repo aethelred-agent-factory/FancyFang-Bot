@@ -322,14 +322,13 @@ def print_summary(long_results: List[dict], short_results: List[dict], elapsed: 
     lg = grade_counts(long_results)
     sg = grade_counts(short_results)
 
-    avg_long  = (sum(r["score"] for r in long_results)  / len(long_results)  if long_results  else 0)
-    avg_short = (sum(r["score"] for r in short_results) / len(short_results) if short_results else 0)
+    # print(f"  Avg Score: L: {avg_long:.1f} S: {avg_short:.1f}")
 
     print(Fore.WHITE + Style.BRIGHT + hr("═"))
     print(Fore.WHITE + Style.BRIGHT + "  SCAN SUMMARY")
     print(Fore.WHITE + Style.BRIGHT + hr("─"))
     print(f"  Timeframe : {cfg['TIMEFRAME']}     Min Volume: {pc.fmt_vol(cfg['MIN_VOLUME'])} USDT     "
-          f"Completed: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+          f"Completed: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Elapsed   : {elapsed:.1f}s\n")
 
     for label, results, lc, gc_list in [
@@ -416,7 +415,7 @@ def main():
     print(Fore.CYAN + Style.BRIGHT +
           f"  ⚡ PHEMEX DUAL SCANNER  |  {args.timeframe}  |  "
           f"MinVol: {pc.fmt_vol(args.min_vol)} USDT  |  "
-          f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+          f"{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}")
     dirs_running = " + ".join(filter(None, [
         "▲ LONG" if run_long else None,
         "▼ SHORT" if run_short else None,

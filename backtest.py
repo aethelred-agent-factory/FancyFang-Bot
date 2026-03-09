@@ -50,10 +50,9 @@ import math
 import os
 import re
 import threading
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
@@ -372,7 +371,7 @@ def score_long_window(
                 signals.append(f"Positive EMA Slope ({slope:.4f}) — Uptrend confirmed")
             elif slope < -0.01:
                 score += 5
-                signals.append(f"EMA Slope Flattening — Downtrend slowing")
+                signals.append("EMA Slope Flattening — Downtrend slowing")
 
     # Trend Filter (Hard)
     if ema200 is not None:
@@ -536,7 +535,7 @@ def score_short_window(
                 signals.append(f"Negative EMA Slope ({slope:.4f}) — Downtrend confirmed")
             elif slope > 0.01:
                 score += 5
-                signals.append(f"EMA Slope Flattening — Uptrend slowing")
+                signals.append("EMA Slope Flattening — Uptrend slowing")
 
     # Trend Filter (Hard for Shorts)
     if ema200 is not None:
@@ -1505,7 +1504,7 @@ def main():
         # Detailed stats for the top config
         if sweep_res:
             best = sweep_res[0]
-            print(Fore.CYAN + Style.BRIGHT + f"\n  Running detailed analysis on best config...")
+            print(Fore.CYAN + Style.BRIGHT + "\n  Running detailed analysis on best config...")
             best_trades = []
 
             # Use separate kwargs to avoid duplicates
@@ -1553,7 +1552,7 @@ def main():
         # Individual trade log
         closed = [t for t in all_trades if t.pnl_usdt is not None]
         if closed:
-            print(Fore.CYAN + f"\n  TRADE LOG (worst → best, last 40):")
+            print(Fore.CYAN + "\n  TRADE LOG (worst → best, last 40):")
             print(f"  {'Symbol':<14} {'Dir':>5} {'Score':>6} {'PnL':>9} "
                   f"{'Hold':>6} {'Slip%':>6} {'Exit':<14} {'LowLiq':>6}")
             print(f"  {'─'*76}")

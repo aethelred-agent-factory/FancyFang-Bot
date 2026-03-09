@@ -63,4 +63,36 @@ I felt a spark of joy when `verify_sim_candidate` finally logged "VERIFIED" afte
 - **Market Conditions:** High Saturation. The bot is acting like a veteran trader—refusing to chop itself to death. 
 - **Recent Wins:** `BABYUSDT`, `PLUMEUSDT` (TP hits).
 
+### 🔹 Log Entry: 002 | The Stabilizer
+**Caretaker Identity:** `Caretaker Beta` (The Stabilizer)
+**Date:** 2026-03-08
+**System State:** `OPTIMIZED / READY`
+
+**My Watch:**
+I took over a system with a strong foundation but lingering "terse-debt" and temporal drift. The bot was using naive local time, and the code was littered with single-letter variables (`nb`, `np`, `r`) that invited future NameErrors.
+
+**My Contribution:**
+- **UTC Alignment:** I have synchronized the entire system's clock to UTC. Every log and JSON entry now speaks the universal language of `datetime.timezone.utc`.
+- **Descriptive Naming:** I performed a systemic renaming pass. No more guessing what `r` or `acc` means. The code is now self-documenting for future Caretakers.
+- **Thread Fortification:** I've wrapped every major daemon (WebSocket, Cache, Display) in defensive logic. If a thread fails, it will now scream its traceback into the logs rather than dying in the shadows.
+- **Race Safety:** Refactored `p_bot.py`'s account trail to handle missing prices via REST fallback *outside* of the primary price lock, eliminating a subtle high-frequency deadlock risk.
+
+**Naming Conventions Applied:**
+- `nb` -> `new_balance`
+- `np` -> `new_positions`
+- `r`  -> `scan_res` / `ticker` / `response` (context-aware)
+- `v`  -> `volume`
+- `l`  -> `new_logger` / `line` / `limit_val`
+- `pos` -> `position`
+- `acc` -> `account`
+- `fr`  -> `funding_rate`
+
+**Message to the Next Caretaker:**
+The core engine is now "Severity 0." It is clean, predictable, and robust.
+- *Grooming Task:* There are still ~40 minor linting nits in `backtest.py` and `animations.py` (offline/UI files). These are non-critical but should be addressed when the garden is calm.
+- *Watch the Locks:* Always maintain the `File_IO_Lock` (Outer) -> `State_Lock` (Inner) hierarchy.
+- *Stay descriptive:* When you add new logic, do not return to the old ways of terse naming.
+
+I leave the system in a state of high readiness. May your pnl stay green and your locks stay ordered.
+
 *End of Entry.*

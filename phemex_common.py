@@ -34,17 +34,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# ── Exchange Constants ───────────────────────────────────────────────
-TAKER_FEE = 0.0006  # 0.06% standard taker fee for Phemex contracts
-# Banner is defined in banner.py — single source of truth for the project name graphic.
-# See NAME.md for the full name origin story.
-from banner import BANNER
-
 import numpy as np
 import requests
 from colorama import Fore, Style
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# ── Exchange Constants ───────────────────────────────────────────────
+TAKER_FEE = 0.0006  # 0.06% standard taker fee for Phemex contracts
+# Banner is defined in banner.py — single source of truth for the project name graphic.
+# See NAME.md for the full name origin story.
 
 # ----------------------------
 # EXCEPTIONS
@@ -83,18 +82,21 @@ _audit_queue: queue.Queue = queue.Queue()
 
 def _audit_worker():
     """Background worker to process audit log entries."""
+    import traceback
     while True:
         try:
             msg = _audit_queue.get()
             if msg is None:  # Sentinel
                 break
-            
+
             # Ensure the directory exists
             try:
-                with open(SYSTEM_AUDIT_LOG, "a", encoding="utf-8") as f:
-                    f.write(msg + "\n")
-            except Exception as e:
-                logging.getLogger("phemex_common").error(f"Audit worker failed to write: {e}")
+                with open(SYSTEM_AUDIT_LOG, "a", encoding="utf-8") as audit_file:
+                    audit_file.write(msg + "\n")
+            except Exception as error:
+                logging.getLogger("phemex_common").error(f"Audit worker failed to write: {error}\n{traceback.format_exc()}")
+        except Exception as error:
+            logging.getLogger("phemex_common").error(f"Audit worker loop failed: {error}\n{traceback.format_exc()}")
         finally:
             _audit_queue.task_done()
 
@@ -108,12 +110,12 @@ def log_system_event(event_type: str, message: str, level: int = logging.INFO):
     This ensures a permanent record of all significant system actions.
     Uses a background worker to avoid blocking the hot path on disk I/O.
     """
-    # REF: Tier 3: Human-Readable Logs
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # REF: [Tier 2] UTC Standardisation
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     formatted_msg = f"[{timestamp}] [{event_type.upper()}] {message}"
 
     # 1. Queue the audit file message
-    # REF: Tier 3: Human-Readable Logs
+    # REF: [Tier 3] Traceability
     _audit_queue.put(formatted_msg)
 
     # 2. Also log via the standard logging system so it appears in TUI
@@ -184,34 +186,35 @@ class ColoredFormatter(logging.Formatter):
 
 def setup_colored_logging(logger_name: str, level: int = logging.INFO, log_file: Optional[str] = None, buffer: Optional[deque] = None):
     """Sets up a logger with a colored console handler, optional file handler, and optional buffer handler."""
-    l = logging.getLogger(logger_name)
-    l.setLevel(level)
+    # REF: [Tier 3] Descriptive Naming
+    new_logger = logging.getLogger(logger_name)
+    new_logger.setLevel(level)
 
     # Avoid duplicate handlers
-    if l.hasHandlers():
-        l.handlers.clear()
+    if new_logger.hasHandlers():
+        new_logger.handlers.clear()
 
     # Formatter
     formatter = ColoredFormatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
     # Console Handler
-    ch = logging.StreamHandler()
-    ch.setFormatter(formatter)
-    l.addHandler(ch)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    new_logger.addHandler(console_handler)
 
     # Buffer Handler (for TUI)
     if buffer is not None:
-        bh = LogBufferHandler(buffer)
-        bh.setFormatter(formatter)
-        l.addHandler(bh)
+        buffer_handler = LogBufferHandler(buffer)
+        buffer_handler.setFormatter(formatter)
+        new_logger.addHandler(buffer_handler)
 
     # File Handler
     if log_file:
-        fh = logging.FileHandler(log_file)
-        fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-        l.addHandler(fh)
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+        new_logger.addHandler(file_handler)
 
-    return l
+    return new_logger
 
 # ----------------------------
 # Data classes
@@ -418,19 +421,19 @@ def pct_change(new: float, base: float) -> float:
     except Exception:
         return 0.0
 
-def fmt_vol(v: float) -> str:
+def fmt_vol(volume: float) -> str:
     """Format a volume value into a human-readable K / M / B suffix string."""
     try:
-        v = float(v)
+        volume = float(volume)
     except Exception:
-        return str(v)
-    if v >= 1_000_000_000:
-        return f"{v/1_000_000_000:.1f}B"
-    if v >= 1_000_000:
-        return f"{v/1_000_000:.1f}M"
-    if v >= 1_000:
-        return f"{v/1_000:.1f}K"
-    return f"{v:.2f}"
+        return str(volume)
+    if volume >= 1_000_000_000:
+        return f"{volume/1_000_000_000:.1f}B"
+    if volume >= 1_000_000:
+        return f"{volume/1_000_000:.1f}M"
+    if volume >= 1_000:
+        return f"{volume/1_000:.1f}K"
+    return f"{volume:.2f}"
 
 def grade(score: int) -> Tuple[str, str]:
     """Map a raw score to a (letter, colour) tuple."""
@@ -458,58 +461,72 @@ def calc_dynamic_threshold(scores: List[int], default_min: int, percentile: int 
 # Indicator calculations
 # ----------------------------
 def calc_rsi(closes: List[float], period: int = 14) -> Tuple[Optional[float], Optional[float], List[Optional[float]]]:
-    n = len(closes)
-    if n <= period:
-        return None, None, [None] * n
+    num_closes = len(closes)
+    if num_closes <= period:
+        return None, None, [None] * num_closes
 
-    arr = np.asarray(closes, dtype=float)
-    diffs = np.diff(arr)
-    gains = np.where(diffs > 0, diffs, 0.0)
-    losses = np.where(diffs < 0, -diffs, 0.0)
+    price_array = np.asarray(closes, dtype=float)
+    price_diffs = np.diff(price_array)
+    gains = np.where(price_diffs > 0, price_diffs, 0.0)
+    losses = np.where(price_diffs < 0, -price_diffs, 0.0)
 
     avg_gain = float(gains[:period].sum() / period)
     avg_loss = float(losses[:period].sum() / period)
-    history: List[Optional[float]] = [None] * period
+    rsi_history: List[Optional[float]] = [None] * period
 
-    def rs_to_rsi(g: float, l: float) -> float:
-        if l == 0.0:
-            return 100.0 if g > 0 else 50.0
-        rs = g / l
-        return 100.0 - (100.0 / (1.0 + rs))
+    def rs_to_rsi(gain: float, loss: float) -> float:
+        if loss == 0.0:
+            return 100.0 if gain > 0 else 50.0
+        relative_strength = gain / loss
+        return 100.0 - (100.0 / (1.0 + relative_strength))
 
-    history.append(rs_to_rsi(avg_gain, avg_loss))
+    rsi_history.append(rs_to_rsi(avg_gain, avg_loss))
     for i in range(period, len(gains)):
         avg_gain = (avg_gain * (period - 1) + float(gains[i])) / period
         avg_loss = (avg_loss * (period - 1) + float(losses[i])) / period
-        history.append(rs_to_rsi(avg_gain, avg_loss))
+        rsi_history.append(rs_to_rsi(avg_gain, avg_loss))
 
-    current = history[-1]
-    prev = history[-2] if len(history) >= 2 else None
-    return current, prev, history
+    current_rsi = rsi_history[-1]
+    previous_rsi = rsi_history[-2] if len(rsi_history) >= 2 else None
+    return current_rsi, previous_rsi, rsi_history
 
 def calc_bb(closes: List[float], period: int = 21, mult: float = 2.0) -> Optional[Dict[str, float]]:
+    """
+    Calculates Bollinger Bands for a given series of close prices.
+    REF: [Tier 3] Descriptive Naming
+    """
     if len(closes) < period:
         return None
-    window = np.asarray(closes[-period:], dtype=float)
-    mid = float(window.mean())
+    window_array = np.asarray(closes[-period:], dtype=float)
+    middle_band = float(window_array.mean())
     # Use population std (ddof=0) — industry convention for Bollinger Bands
-    std = float(np.std(window, ddof=0))
-    upper = mid + mult * std
-    lower = mid - mult * std
-    width_pct = (2.0 * mult * std / mid * 100.0) if mid != 0.0 else 0.0
-    return {"upper": upper, "mid": mid, "lower": lower, "std": std, "width_pct": width_pct}
+    standard_deviation = float(np.std(window_array, ddof=0))
+    upper_band = middle_band + mult * standard_deviation
+    lower_band = middle_band - mult * standard_deviation
+    width_percentage = (2.0 * mult * standard_deviation / middle_band * 100.0) if middle_band != 0.0 else 0.0
+    return {
+        "upper": upper_band,
+        "mid": middle_band,
+        "lower": lower_band,
+        "std": standard_deviation,
+        "width_pct": width_percentage
+    }
 
 def calc_ema_series(closes: List[float], period: int = 21) -> List[float]:
-    n = len(closes)
-    if n < period:
+    """
+    Calculates an Exponential Moving Average (EMA) series.
+    REF: [Tier 3] Descriptive Naming
+    """
+    num_closes = len(closes)
+    if num_closes < period:
         return []
-    k = 2.0 / (period + 1.0)
-    ema = float(sum(closes[:period]) / period)
-    series = [ema]
+    smoothing_factor = 2.0 / (period + 1.0)
+    current_ema = float(sum(closes[:period]) / period)
+    ema_series = [current_ema]
     for price in closes[period:]:
-        ema = (price - ema) * k + ema
-        series.append(ema)
-    return series
+        current_ema = (price - current_ema) * smoothing_factor + current_ema
+        ema_series.append(current_ema)
+    return ema_series
 
 def calc_ema_slope(series: List[float], lookback: int = 3) -> Tuple[Optional[float], Optional[float]]:
     if not series or len(series) <= lookback:
@@ -526,25 +543,25 @@ def calc_ema_slope(series: List[float], lookback: int = 3) -> Tuple[Optional[flo
     return last_slope, delta
 
 def calc_atr(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> Optional[float]:
-    n = len(closes)
-    if n <= period:
+    num_closes = len(closes)
+    if num_closes <= period:
         return None
-    highs_a = np.asarray(highs, dtype=float)
-    lows_a = np.asarray(lows, dtype=float)
-    closes_a = np.asarray(closes, dtype=float)
-    tr_list = []
-    for i in range(1, n):
-        h_l = highs_a[i] - lows_a[i]
-        h_pc = abs(highs_a[i] - closes_a[i - 1])
-        l_pc = abs(lows_a[i] - closes_a[i - 1])
-        tr = float(max(h_l, h_pc, l_pc))
-        tr_list.append(tr)
-    if len(tr_list) < period:
+    highs_array = np.asarray(highs, dtype=float)
+    lows_array = np.asarray(lows, dtype=float)
+    closes_array = np.asarray(closes, dtype=float)
+    true_range_list = []
+    for i in range(1, num_closes):
+        high_low = highs_array[i] - lows_array[i]
+        high_prev_close = abs(highs_array[i] - closes_array[i - 1])
+        low_prev_close = abs(lows_array[i] - closes_array[i - 1])
+        true_range = float(max(high_low, high_prev_close, low_prev_close))
+        true_range_list.append(true_range)
+    if len(true_range_list) < period:
         return None
-    atr = sum(tr_list[:period]) / period
-    for i in range(period, len(tr_list)):
-        atr = (atr * (period - 1) + tr_list[i]) / period
-    return atr
+    average_true_range = sum(true_range_list[:period]) / period
+    for i in range(period, len(true_range_list)):
+        average_true_range = (average_true_range * (period - 1) + true_range_list[i]) / period
+    return average_true_range
 
 def calc_market_regime(closes: List[float], period: int = 20) -> Tuple[str, float]:
     """
@@ -554,134 +571,143 @@ def calc_market_regime(closes: List[float], period: int = 20) -> Tuple[str, floa
     if len(closes) < period + 1:
         return "UNKNOWN", 0.0
 
-    # [T2-FIX] Replace range(len()) index loop with Pythonic zip+slice
+    # [Tier 2] Logic Improvements
     returns = [
-        (c - p) / p
-        for p, c in zip(closes[-period - 1 : -1], closes[-period:])
+        (curr - prev) / prev
+        for prev, curr in zip(closes[-period - 1 : -1], closes[-period:])
     ]
 
     # Bin returns into 8 buckets
-    bins = 8
-    min_r, max_r = min(returns), max(returns)
-    span = max_r - min_r or 1e-10
+    num_bins = 8
+    min_return, max_return = min(returns), max(returns)
+    return_span = max_return - min_return or 1e-10
 
-    counts = [0] * bins
-    for r in returns:
-        idx = min(bins - 1, int((r - min_r) / span * bins))
-        counts[idx] += 1
+    bin_counts = [0] * num_bins
+    for ret in returns:
+        bin_index = min(num_bins - 1, int((ret - min_return) / return_span * num_bins))
+        bin_counts[bin_index] += 1
 
     # Shannon entropy
-    entropy = 0.0
-    for c in counts:
-        if c > 0:
-            p = c / period
-            entropy -= p * math.log2(p)
+    market_entropy = 0.0
+    for count in bin_counts:
+        if count > 0:
+            probability = count / period
+            market_entropy -= probability * math.log2(probability)
 
-    max_entropy = math.log2(bins)  # ~3.0 for 8 bins
+    max_entropy_value = math.log2(num_bins)  # ~3.0 for 8 bins
 
-    if entropy < max_entropy * 0.45:
-        regime = "TRENDING"
-    elif entropy > max_entropy * 0.80:
-        regime = "VOLATILE"
+    if market_entropy < max_entropy_value * 0.45:
+        market_regime = "TRENDING"
+    elif market_entropy > max_entropy_value * 0.80:
+        market_regime = "VOLATILE"
     else:
-        regime = "RANGING"
+        market_regime = "RANGING"
 
-    return regime, round(entropy, 4)
+    return market_regime, round(market_entropy, 4)
 
 def calc_kalman_series(
     closes: List[float],
-    process_noise: float = 1e-4,   # Q — how much true price can change
-    measurement_noise: float = 1e-2 # R — how noisy observations are
+    process_noise: float = 1e-4,
+    measurement_noise: float = 1e-2
 ) -> List[float]:
     """
     Kalman filter price smoother.
-    Lower R = trusts price more (tracks faster).
-    Higher R = trusts model more (smoother, lags more).
     Adaptive: automatically adjusts in volatile conditions.
+    REF: [Tier 3] Descriptive Naming
     """
     if not closes:
         return []
 
-    x = closes[0]   # initial state estimate
-    P = 1.0          # initial error covariance
-    Q = process_noise
-    R = measurement_noise
-    result = [x]
+    state_estimate = closes[0]
+    error_covariance = 1.0
+    kalman_series = [state_estimate]
 
-    for z in closes[1:]:
+    for observation in closes[1:]:
         # Predict
-        P = P + Q
+        error_covariance = error_covariance + process_noise
         # Update
-        K = P / (P + R)          # Kalman gain
-        x = x + K * (z - x)     # state update
-        P = (1 - K) * P          # covariance update
-        result.append(x)
+        kalman_gain = error_covariance / (error_covariance + measurement_noise)
+        state_estimate = state_estimate + kalman_gain * (observation - state_estimate)
+        error_covariance = (1 - kalman_gain) * error_covariance
+        kalman_series.append(state_estimate)
 
-    return result
+    return kalman_series
 
 def calc_kelly_margin(
     bankroll: float,
-    win_rate: float,      # e.g. 0.58 for 58%
-    avg_win: float,       # average winning trade PnL
-    avg_loss: float,      # average losing trade PnL (positive number)
-    fraction: float = 0.5 # half-Kelly is safer
+    win_rate: float,               # e.g. 0.58 for 58%
+    average_win: float,            # average winning trade PnL
+    average_loss: float,           # average losing trade PnL (positive number)
+    kelly_fraction: float = 0.5    # half-Kelly is safer
 ) -> float:
+    """
+    Calculates the recommended margin using the Kelly Criterion.
+    REF: [Tier 3] Descriptive Naming
+    """
     # Not enough history yet or no edge — use flat 2% of bankroll fallback
-    if avg_loss == 0 or avg_win == 0 or win_rate <= 0:
+    if average_loss == 0 or average_win == 0 or win_rate <= 0:
         logging.getLogger("phemex_common").debug("Kelly: Insufficient history, fallback to 2% margin")
         return round(bankroll * 0.02, 2)
 
-    b = avg_win / avg_loss
-    q = 1 - win_rate
-    kelly = (win_rate * b - q) / b
+    win_loss_ratio = average_win / average_loss
+    loss_rate = 1 - win_rate
+    kelly_percentage = (win_rate * win_loss_ratio - loss_rate) / win_loss_ratio
 
     # Kelly went negative — no edge detected yet, use flat fallback
-    if kelly <= 0:
-        logging.getLogger("phemex_common").debug(f"Kelly: Negative edge ({kelly:.4f}), fallback to 2% margin")
+    if kelly_percentage <= 0:
+        logging.getLogger("phemex_common").debug(f"Kelly: Negative edge ({kelly_percentage:.4f}), fallback to 2% margin")
         return round(bankroll * 0.02, 2)
 
-    margin = bankroll * kelly * fraction
+    margin = bankroll * kelly_percentage * kelly_fraction
     # Hard cap at 10% bankroll to prevent massive drawdowns from single trade outliers
     return round(min(margin, bankroll * 0.1), 2)
 
 def calc_volume_profile(ohlc: List[Tuple[float, float, float, float]], volumes: List[float], bins: int = 20) -> Tuple[Optional[float], List[float]]:
+    """
+    Calculates the volume profile and identifies Point of Control (POC) and value nodes.
+    REF: [Tier 3] Descriptive Naming
+    """
     if not ohlc or not volumes or len(ohlc) != len(volumes):
         return None, []
-    highs = [c[1] for c in ohlc]
-    lows = [c[2] for c in ohlc]
-    min_p = min(lows)
-    max_p = max(highs)
-    if min_p == max_p:
-        return min_p, []
-    bin_size = (max_p - min_p) / bins
+    highs = [candle[1] for candle in ohlc]
+    lows = [candle[2] for candle in ohlc]
+    min_price = min(lows)
+    max_price = max(highs)
+    if min_price == max_price:
+        return min_price, []
+    bin_size = (max_price - min_price) / bins
     profile = [0.0] * bins
-    for (o, h, l, c), v in zip(ohlc, volumes):
-        lo_bin = max(0, int((l - min_p) / bin_size))
-        hi_bin = min(bins - 1, int((h - min_p) / bin_size))
-        span = max(1, hi_bin - lo_bin + 1)
-        for b in range(lo_bin, hi_bin + 1):
-            profile[b] += v / span
-    max_vol = max(profile)
-    if max_vol <= 0.0:
+    for (_, high, low, _), volume in zip(ohlc, volumes):
+        low_bin = max(0, int((low - min_price) / bin_size))
+        high_bin = min(bins - 1, int((high - min_price) / bin_size))
+        bin_span = max(1, high_bin - low_bin + 1)
+        for bin_index in range(low_bin, high_bin + 1):
+            profile[bin_index] += volume / bin_span
+    max_volume = max(profile)
+    if max_volume <= 0.0:
         # Fallback to first bin if all volumes are effectively zero
-        poc_idx = 0
-        return min_p + bin_size * (poc_idx + 0.5), []
-    poc_idx = profile.index(max_vol)
-    poc_price = min_p + bin_size * (poc_idx + 0.5)
-    threshold = max_vol * 0.70
-    nodes = [min_p + bin_size * (i + 0.5) for i, vol in enumerate(profile) if vol >= threshold]
-    return poc_price, nodes
+        poc_index = 0
+        return min_price + bin_size * (poc_index + 0.5), []
+    poc_index = profile.index(max_volume)
+    poc_price = min_price + bin_size * (poc_index + 0.5)
+    threshold = max_volume * 0.70
+    value_nodes = [min_price + bin_size * (i + 0.5) for i, vol in enumerate(profile) if vol >= threshold]
+    return poc_price, value_nodes
 
 def calc_volume_spike(volumes: List[float], period: int = 20) -> float:
-    n = len(volumes)
-    if n <= period:
+    """
+    Calculates the ratio of the latest volume to the average of the trailing period.
+    REF: [Tier 3] Descriptive Naming
+    """
+    num_volumes = len(volumes)
+    if num_volumes <= period:
         return 1.0
-    trailing = np.asarray(volumes[-(period + 1):-1], dtype=float)
-    avg = float(trailing.mean()) if trailing.size > 0 else 0.0
-    if avg <= 0.0:
+    trailing_volumes = np.asarray(volumes[-(period + 1):-1], dtype=float)
+    average_volume = float(trailing_volumes.mean()) if trailing_volumes.size > 0 else 0.0
+    if average_volume <= 0.0:
         return 1.0
-    latest = float(volumes[-1])
-    return latest / avg
+    latest_volume = float(volumes[-1])
+    return latest_volume / average_volume
 
 # ══════════════════════════════════════════════════════════════════════════════
 # UPGRADE BLOCK — added by the incremental upgrade pass
@@ -1133,12 +1159,13 @@ def calc_hurst_exponent(series: List[float], max_window: int = 50) -> float:
     returns = np.diff(np.log(arr))
 
     def rs_analysis(data):
-        if len(data) < 4: return 0.0
-        mean = np.mean(data)
-        y = np.cumsum(data - mean)
-        r = np.max(y) - np.min(y)
-        s = np.std(data)
-        return r / s if s > 0 else 0.0
+        if len(data) < 4:
+            return 0.0
+        mean_val = np.mean(data)
+        cumulative_sum = np.cumsum(data - mean_val)
+        range_val = np.max(cumulative_sum) - np.min(cumulative_sum)
+        std_val = np.std(data)
+        return range_val / std_val if std_val > 0 else 0.0
 
     # We use a few window sizes to estimate the slope of log(R/S) vs log(size)
     # For a quick estimation on ~100 candles, we can just use the full range vs half range
@@ -1157,11 +1184,11 @@ def calc_hurst_exponent(series: List[float], max_window: int = 50) -> float:
     if len(valid_idx) < 2:
         return 0.5
 
-    x = np.log([sizes[i] for i in valid_idx])
-    y = np.log([rs_vals[i] for i in valid_idx])
+    log_sizes = np.log([sizes[idx] for idx in valid_idx])
+    log_rs_vals = np.log([rs_vals[idx] for idx in valid_idx])
 
     # Linear regression slope is H
-    slope, _ = np.polyfit(x, y, 1)
+    slope, _ = np.polyfit(log_sizes, log_rs_vals, 1)
     return round(float(np.clip(slope, 0.0, 1.0)), 3)
 
 class HawkesTracker:
@@ -1220,13 +1247,16 @@ def get_tickers(rps: float = None) -> List[Dict[str, Any]]:
     result = data.get("result", []) or []
 
     filtered = []
-    for t in result:
-        if not isinstance(t, dict): continue
-        symbol = t.get("symbol", "")
-        if not symbol.endswith("USDT"): continue
-        if symbol.startswith("s"): continue
+    for ticker in result:
+        if not isinstance(ticker, dict):
+            continue
+        symbol = ticker.get("symbol", "")
+        if not symbol.endswith("USDT"):
+            continue
+        if symbol.startswith("s"):
+            continue
 
-        filtered.append(t)
+        filtered.append(ticker)
 
     filtered.sort(key=lambda x: float(x.get("turnoverRv") or 0.0), reverse=True)
     return filtered
@@ -1250,7 +1280,7 @@ def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: floa
 
     # Map custom limits to allowed Phemex limits: [5, 10, 50, 100, 500, 1000]
     allowed_limits = [5, 10, 50, 100, 500, 1000]
-    api_limit = next((l for l in allowed_limits if l >= limit), 1000)
+    api_limit = next((limit_val for limit_val in allowed_limits if limit_val >= limit), 1000)
 
     url = f"{BASE_URL}/exchange/public/md/v2/kline/last"
     params = {"symbol": api_symbol, "resolution": resolution, "limit": api_limit}
@@ -1354,9 +1384,11 @@ def prefetch_all_funding_rates(rps: float = None):
 
         populated = 0
         for item in items:
-            if not isinstance(item, dict): continue
+            if not isinstance(item, dict):
+                continue
             sym = item.get("symbol")
-            if not sym: continue
+            if not sym:
+                continue
             fr_raw = item.get("fundingRate") or item.get("fundingRateRr")
             if fr_raw is not None:
                 # REF: Tier 3: Non-Descriptive Variable Naming (fr -> funding_rate)
@@ -1424,8 +1456,9 @@ def get_order_book(symbol: str, rps: float = None):
         total = 0.0
         for row in entries:
             try:
-                p = float(row[0]); q = float(row[1])
-                total += p * q
+                price = float(row[0])
+                qty = float(row[1])
+                total += price * qty
             except Exception:
                 continue
         return total
@@ -1543,14 +1576,18 @@ def unified_analyse(
             return None
 
         ohlc, highs, lows, closes, vols = [], [], [], [], []
-        for c in candles:
+        for candle in candles:
             try:
                 # API mapping: [timestamp, interval, last, open, high, low, close, volume, ...]
-                o, h, l, cl = float(c[3]), float(c[4]), float(c[5]), float(c[6])
-                v = float(c[7]) if len(c) > 7 else 0.0
-                ohlc.append((o, h, l, cl))
-                highs.append(h); lows.append(l); closes.append(cl); vols.append(v)
-            except Exception as e:
+                # REF: [Tier 3] Descriptive Naming
+                open_px, high_px, low_px, close_px = float(candle[3]), float(candle[4]), float(candle[5]), float(candle[6])
+                volume = float(candle[7]) if len(candle) > 7 else 0.0
+                ohlc.append((open_px, high_px, low_px, close_px))
+                highs.append(high_px)
+                lows.append(low_px)
+                closes.append(close_px)
+                vols.append(volume)
+            except Exception:
                 continue
 
         if not closes:
@@ -1651,7 +1688,8 @@ def unified_analyse(
         bb_pct = None
         if bb:
             bb_range = bb["upper"] - bb["lower"]
-            if bb_range > 0: bb_pct = (last - bb["lower"]) / bb_range * 100.0
+            if bb_range > 0:
+                bb_pct = (last - bb["lower"]) / bb_range * 100.0
 
         confidence, conf_color, conf_notes = calc_confidence_func(data, score, bb_pct)
         stop_pct = (0.5 * atr / last * 100.0) if (atr and last > 0) else None
@@ -1686,7 +1724,8 @@ def unified_analyse(
                 "score": score, "signals": signals, "atr_stop_pct": stop_pct or 0.0,
                 "vol_spike": vol_spike or 0.0, "spread": spread or 0.0, "direction": direction.capitalize()
             })
-            if pc_res and isinstance(pc_res, dict): result["entity_id"] = pc_res.get("id")
+            if pc_res and isinstance(pc_res, dict):
+                result["entity_id"] = pc_res.get("id")
 
         return result
 
@@ -1703,14 +1742,14 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
     headers = {"api_key": ENTITY_API_KEY, "Content-Type": "application/json"}
     try:
         if method.upper() == "GET":
-            r = safe_request("GET", url, params=data, headers=headers)
+            response = safe_request("GET", url, params=data, headers=headers)
         elif method.upper() == "PUT":
-            r = safe_request("PUT", url, json_data=data, headers=headers)
+            response = safe_request("PUT", url, json_data=data, headers=headers)
         else:
-            r = safe_request("POST", url, json_data=data, headers=headers)
-        if not r:
+            response = safe_request("POST", url, json_data=data, headers=headers)
+        if not response:
             return None
-        return r.json()
+        return response.json()
     except Exception:
         return None
 
@@ -1761,8 +1800,8 @@ def call_deepseek(
                     if data_raw == "[DONE]":
                         break
                     try:
-                        d = json.loads(data_raw)
-                        delta = d["choices"][0]["delta"]
+                        resp_data = json.loads(data_raw)
+                        delta = resp_data["choices"][0]["delta"]
                         if "content" in delta:
                             token = delta["content"]
                             if output_callback is not None:
@@ -1775,8 +1814,8 @@ def call_deepseek(
                         continue
             return full_text
         else:
-            d = resp.json()
-            return d["choices"][0]["message"]["content"]
+            resp_json = resp.json()
+            return resp_json["choices"][0]["message"]["content"]
     except Exception as e:
         logger.debug("DeepSeek call failed: %s", e)
         return None
