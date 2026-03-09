@@ -160,8 +160,8 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
 # Strategy parameters
 MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "25.0"))   # $ margin per trade
 LEVERAGE       = int(os.getenv("BOT_LEVERAGE", "30"))          # leverage multiplier
-TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.02"))     # 2% trailing stop
-TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.02")) # 2% take profit
+TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.04"))     # 4% trailing stop
+TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.15")) # 15% take profit
 SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "300"))    # seconds between scans
 MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "130"))        # minimum score to trade (consolidated)
 MIN_SCORE_GAP  = int(os.getenv("BOT_MIN_SCORE_GAP", "30"))     # minimum gap between long/short scores

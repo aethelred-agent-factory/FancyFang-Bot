@@ -105,7 +105,7 @@ def get_sim_free_margin(balance: float, positions: List[Dict[str, Any]]) -> floa
     return balance - used
 
 MIN_FREE_MARGIN = float(os.getenv("BOT_MIN_FREE_MARGIN", "5.0"))
-MAX_MARGIN_PER_SYMBOL = float(os.getenv("MAX_MARGIN_PER_SYMBOL", "75.0"))
+MAX_MARGIN_PER_SYMBOL = float(os.getenv("MAX_MARGIN_PER_SYMBOL", "150.0"))
 
 def pick_sim_leverage(atr_stop_pct: float | None, vol_spike: float = 1.0, is_low_liq: bool = False) -> int:
     """

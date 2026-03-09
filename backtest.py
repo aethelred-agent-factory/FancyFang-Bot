@@ -112,7 +112,7 @@ SHORT_WEIGHTS = {
 }
 
 TAKER_FEE = 0.0006  # 0.06% per side (Phemex USDT-M maker/taker)
-MAX_MARGIN_PER_SYMBOL = 75.0
+MAX_MARGIN_PER_SYMBOL = 150.0
 
 def pick_sim_leverage(atr_stop_pct: float | None, vol_spike: float = 1.0, is_low_liq: bool = False) -> int:
     """Select leverage based on asset volatility measured at scan time. (Ported from sim_bot)"""
