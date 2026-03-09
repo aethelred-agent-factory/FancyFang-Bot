@@ -105,6 +105,7 @@ def get_sim_free_margin(balance: float, positions: List[Dict[str, Any]]) -> floa
     return balance - used
 
 MIN_FREE_MARGIN = float(os.getenv("BOT_MIN_FREE_MARGIN", "5.0"))
+MAX_MARGIN_PER_SYMBOL = float(os.getenv("MAX_MARGIN_PER_SYMBOL", "75.0"))
 
 def pick_sim_leverage(atr_stop_pct: float | None, vol_spike: float = 1.0, is_low_liq: bool = False) -> int:
     """
@@ -1903,23 +1904,14 @@ def verify_sim_candidate(symbol: str, direction: str, original_score: int, wait_
 
 def execute_sim_setup(result: dict, direction: str) -> bool:
     """
-    Opens a new simulated position from a scanner result.
+    Opens a new simulated position or scales into an existing one.
     Returns True on success, False if the trade is skipped.
-
-    Upgrades integrated:
-      #1  Realistic slippage on fill price
-      #2  ATR-based stop-loss and trailing stop distance
-      #3  Spread filter (skips illiquid conditions)
-      #5  MAX_POSITIONS concurrent limit
-      #6  Volatility filter (skips low-ATR/price setups)
-      #7  Daily drawdown kill switch
-      #8  Signal analytics recording on entry
-      #12 Dynamic/adaptive risk manager for position sizing
-      #13 Telegram halt check
     """
     symbol = result["inst_id"]
     price  = result["price"]
     score  = result["score"]
+    
+    was_scale_in = False
 
     # ── Upgrade #7: Daily drawdown kill switch ────────────────────────────────
     if _DD_OK:
@@ -1953,16 +1945,20 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
 
     # Narrow lock scope: only for initial checks
     with state.lock:
-        if any(p["symbol"] == symbol for p in state.positions):
-            tui_log(f"SKIP: {symbol} already in positions (race prevention)", event_type="SKIP")
-            return False
-
-        last_exit = state.last_exit_times.get(symbol, 0)
-
-        if time.time() - last_exit < COOLDOWN_SECONDS:
-            remaining_h = (COOLDOWN_SECONDS - (time.time() - last_exit)) / 3600
-            tui_log(f"COOLDOWN: {symbol} — {remaining_h:.1f}h remaining before re-entry", event_type="SKIP")
-            return False
+        existing_pos = next((p for p in state.positions if p["symbol"] == symbol), None)
+        
+        if existing_pos:
+            was_scale_in = True
+            if existing_pos.get("margin", 0.0) >= MAX_MARGIN_PER_SYMBOL:
+                tui_log(f"SKIP: {symbol} at MAX MARGIN (${existing_pos['margin']:.2f})", event_type="SKIP")
+                return False
+            # If scaling in, we skip the cooldown check since we already have skin in the game
+        else:
+            last_exit = state.last_exit_times.get(symbol, 0)
+            if time.time() - last_exit < COOLDOWN_SECONDS:
+                remaining_h = (COOLDOWN_SECONDS - (time.time() - last_exit)) / 3600
+                tui_log(f"COOLDOWN: {symbol} — {remaining_h:.1f}h remaining before re-entry", event_type="SKIP")
+                return False
 
         signals       = result.get("signals", [])
         is_low_liq    = any("Low Liquidity" in s for s in signals)
@@ -2139,19 +2135,66 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
 
     # Final state update: atomic append and balance deduction
     with state.lock:
-        # Re-check position existence inside final lock to avoid races
-        if any(p["symbol"] == symbol for p in state.positions):
-            tui_log(f"SKIP: {symbol} acquired by another thread during verification.", event_type="SKIP")
-            return False
+        # Re-check for existing position inside final lock to avoid races
+        current_pos = next((p for p in state.positions if p["symbol"] == symbol), None)
+        
+        if current_pos:
+            # --- SCALE IN LOGIC ---
+            old_size   = current_pos["size"]
+            old_entry  = current_pos["entry"]
+            new_size   = size
+            new_entry  = entry_price
+            
+            total_size = old_size + new_size
+            # Weighted average entry
+            avg_entry  = (old_entry * old_size + new_entry * new_size) / total_size
+            
+            current_pos["size"]        = total_size
+            current_pos["entry"]       = avg_entry
+            current_pos["margin"]     += margin_to_use
+            current_pos["fee"]        += fee
+            current_pos["stop_price"]  = stop_px
+            current_pos["take_profit"] = tp_px
+            current_pos["trail_dist"]  = trail_dist
+            # Reset watermarks to new avg entry for fresh trailing
+            current_pos["high_water"]  = avg_entry if direction == "LONG" else 0.0
+            current_pos["low_water"]   = avg_entry if direction == "SHORT" else 9_999_999.0
+            
+            tui_log(f"SCALED-IN: {symbol} | New Avg Entry: {avg_entry:.6g} | Total Margin: ${current_pos['margin']:.2f}", event_type="SCALE")
+        else:
+            # --- NEW POSITION ---
+            new_pos = {
+                "symbol":        symbol,
+                "side":          side,
+                "size":          size,
+                "margin":        margin_to_use,
+                "leverage":      active_leverage,
+                "fee":           fee,
+                "entry":         entry_price,
+                "mid_price":     price,           # original mid before slippage
+                "slippage":      slippage_amt,
+                "pnl":           0.0,
+                "stop_price":    stop_px,
+                "original_stop": stop_px,
+                "take_profit":   tp_px,
+                "trail_dist":    trail_dist,      # ATR-based trail distance stored for updates
+                "high_water":    high_water,
+                "low_water":     low_water,
+                "timestamp":     datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "entry_time":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "entry_score":   score,
+                "signals":       signals,
+            }
+            state.positions.append(new_pos)
         
         state.balance -= (margin_to_use + fee)
-        state.positions.append(new_pos)
     
     # Save outside the state.lock to avoid nested lock deadlock
     state.save_account()
 
     arrow = "▲ LONG" if direction == "LONG" else "▼ SHORT"
-    tui_log(f"ENTERED {arrow} {symbol} @ {entry_price:.6g} (Score: {score}) slippage={slippage_amt:.6g}")
+    action_label = "SCALED-IN" if was_scale_in else "ENTERED"
+    tui_log(f"{action_label} {arrow} {symbol} @ {entry_price:.6g} (Score: {score}) slippage={slippage_amt:.6g}")
 
     # --- Entry Cinematic ---
     hw.bridge.signal('ENTRY')
@@ -2160,9 +2203,10 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     else:
         play_animation(animations.short)
 
-    emoji = "🚀" if direction == "LONG" else "📉"
+    emoji = "➕" if was_scale_in else ("🚀" if direction == "LONG" else "📉")
+    msg_title = "SIM TRADE SCALED-IN" if was_scale_in else "SIM TRADE OPENED"
     send_telegram_message(
-        f"{emoji} *SIM TRADE OPENED*\n\n"
+        f"{emoji} *{msg_title}*\n\n"
         f"*Symbol:* {symbol}\n"
         f"*Direction:* {direction}\n"
         f"*Price:* {price}\n"
@@ -2171,13 +2215,13 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     )
 
     p_bot.log_trade({
-        "timestamp": new_pos["timestamp"],
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "symbol":    symbol,
         "direction": direction,
         "price":     price,
         "qty":       str(size),
         "score":     score,
-        "status":    "simulated_entry",
+        "status":    "simulated_scale_in" if was_scale_in else "simulated_entry",
     })
 
     _subscribe_symbol(symbol)

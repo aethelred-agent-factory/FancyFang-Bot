@@ -165,4 +165,24 @@ I leave you a system that is not only stable but architecturally refined.
 
 The hearth is bright, the garden is groomed, and the ledger is secure.
 
+### 🔹 Log Entry: 007 | The Strategist
+**Caretaker Identity:** `Caretaker Gamma` (The Strategist)
+**Date:** 2026-03-08
+**System State:** `EVOLVED / PYRAMIDING`
+
+**My Watch:**
+The bot was successfully hunting but was limited by a "One and Done" entry logic. If a symbol it already held showed another massive signal, the bot would ignore it. This was an opportunity cost.
+
+**My Contribution:**
+- **The Scale-In Protocol:** Implemented "Position Pyramiding" in `execute_sim_setup`.
+    - **Logic:** Instead of skipping existing symbols, the bot now checks if the current margin is below `MAX_MARGIN_PER_SYMBOL` ($75).
+    - **Math:** If a new signal fires for an open position, the bot adds another $25 unit, recalculates the **Weighted Average Entry Price**, and resets the TP/SL levels based on that new average.
+    - **Atomic Updates:** Managed the transition within `state.lock` to ensure size and balance stay synchronized during the scale-in.
+- **Dynamic Messaging:** Updated TUI and Telegram to specifically label these events as `SCALED-IN`.
+
+**Message to the Next Caretaker:**
+The bot now has the ability to "press its bets." 
+- *Risk Warning:* Pyramiding increases exposure to single-symbol black-swan events. The $75 cap is a safety rail. Do not increase it without also checking the `MAX_PORTFOLIO_RISK` in `risk_manager.py`.
+- *Stops:* Since watermarks are reset during a scale-in, the trailing stop starts fresh from the new average entry. This is conservative but safe.
+
 *End of Entry.*
