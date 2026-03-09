@@ -673,11 +673,15 @@ def _ensure_ws_started() -> None:
 def _subscribe_symbol(symbol: str) -> None:
     """Subscribes the WebSocket to a new symbol after a short delay."""
     def _do_sub() -> None:
-        time.sleep(1.5)
-        if state.ws_app and state.ws_app.sock and state.ws_app.sock.connected:
-            with state.lock:
-                symbols = [p["symbol"] for p in state.positions]
-            state.ws_app.send(json.dumps({"id": 1, "method": "market24h_p.subscribe", "params": symbols}))
+        import traceback
+        try:
+            time.sleep(1.5)
+            if state.ws_app and state.ws_app.sock and state.ws_app.sock.connected:
+                with state.lock:
+                    symbols = [p["symbol"] for p in state.positions]
+                state.ws_app.send(json.dumps({"id": 1, "method": "market24h_p.subscribe", "params": symbols}))
+        except Exception as e:
+            logger.error(f"Subscription thread failed for {symbol}: {e}\n{traceback.format_exc()}")
 
     threading.Thread(target=_do_sub, daemon=True).start()
 

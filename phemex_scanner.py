@@ -116,15 +116,15 @@ def run_scan(scanner_module, direction: str, cfg: dict, args, tickers: List[dict
 
     def _task(ticker_item):
         nonlocal done
-        r = scanner_module.analyse(
+        scan_res = scanner_module.analyse(
             ticker_item, cfg,
             enable_ai=enable_ai,
             enable_entity=enable_entity,
             scan_id=None,
         )
         with lock:
-            if r:
-                results.append(r)
+            if scan_res:
+                results.append(scan_res)
             done += 1
             pct = done / total
             bar = "█" * int(pct * 28) + "░" * (28 - int(pct * 28))
@@ -169,8 +169,8 @@ def print_direction_results(
     arrow = "▲ LONG SETUPS" if direction == "LONG" else "▼ SHORT SETUPS"
     funding_label = "Neg=Bullish" if direction == "LONG" else "Pos=Bearish"
 
-    sorted_r = sorted(results, key=lambda x: x["score"], reverse=True)
-    top = [r for r in sorted_r[:limit] if r["score"] >= cfg["MIN_SCORE"]]
+    sorted_results = sorted(results, key=lambda x: x["score"], reverse=True)
+    top = [scan_res for scan_res in sorted_results[:limit] if scan_res["score"] >= cfg["MIN_SCORE"]]
 
     print(dir_color + Style.BRIGHT + hr("═"))
     print(dir_color + Style.BRIGHT + f"  {arrow}  ({cfg['TIMEFRAME']} | {len(top)} shown of {len(results)} hits)")
@@ -180,12 +180,12 @@ def print_direction_results(
         print(Fore.YELLOW + "  No setups pass the minimum score threshold.\n")
         return
 
-    for i, r in enumerate(top, 1):
-        g, gc = grade(r["score"])
-        conf = r.get("confidence", "N/A")
-        cc = r.get("conf_color", Fore.WHITE)
+    for i, scan_res in enumerate(top, 1):
+        g, gc = grade(scan_res["score"])
+        conf = scan_res.get("confidence", "N/A")
+        cc = scan_res.get("conf_color", Fore.WHITE)
 
-        fp = r.get("funding_pct")
+        fp = scan_res.get("funding_pct")
         if fp is None:
             fp_str = "N/A"
             fp_color = Fore.WHITE
@@ -196,18 +196,18 @@ def print_direction_results(
             else:
                 fp_color = Fore.RED if fp > 0.05 else (Fore.GREEN if fp < -0.01 else Fore.WHITE)
 
-        rsi_val = r.get("rsi")
+        rsi_val = scan_res.get("rsi")
         rsi_str = f"{rsi_val:.1f}" if rsi_val is not None else "N/A"
 
         print(gc + Style.BRIGHT + f"  {'─'*88}")
         print(gc + Style.BRIGHT +
-              f"  #{i:02d}  {r['inst_id']:<16} Grade: {g}  Score: {r['score']:>3}  "
-              f"Price: {r['price']:.4g}  "
-              f"Change: {r.get('change_24h', 0):+.2f}%")
+              f"  #{i:02d}  {scan_res['inst_id']:<16} Grade: {g}  Score: {scan_res['score']:>3}  "
+              f"Price: {scan_res['price']:.4g}  "
+              f"Change: {scan_res.get('change_24h', 0):+.2f}%")
 
         print(f"       RSI: {rsi_str:<8}  "
               f"Funding: {fp_color}{fp_str}{Style.RESET_ALL} ({funding_label})  "
-              f"Vol 24h: {pc.fmt_vol(r.get('vol_24h', 0))}  "
+              f"Vol 24h: {pc.fmt_vol(scan_res.get('vol_24h', 0))}  "
               f"Confidence: {cc}{conf}{Style.RESET_ALL}")
 
         # BB / EMA line

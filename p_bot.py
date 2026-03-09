@@ -870,10 +870,14 @@ def _cache_refresher():
 
 def _subscribe_symbol(symbol):
     def _do_sub():
-        time.sleep(2)
-        if _ws_app and _ws_app.sock and _ws_app.sock.connected:
-            sub = {"id": 1, "method": "market24h_p.subscribe", "params": [symbol]}
-            _ws_app.send(json.dumps(sub))
+        import traceback
+        try:
+            time.sleep(2)
+            if _ws_app and _ws_app.sock and _ws_app.sock.connected:
+                sub = {"id": 1, "method": "market24h_p.subscribe", "params": [symbol]}
+                _ws_app.send(json.dumps(sub))
+        except Exception as e:
+            logger.error(f"Subscription thread failed for {symbol}: {e}\n{traceback.format_exc()}")
     threading.Thread(target=_do_sub, daemon=True).start()
 
 
@@ -1412,44 +1416,44 @@ def _read_trade_log() -> list:
     """Read all trade entries from the JSON Lines log file. O(n) but called rarely."""
     log_file_jsonl = BOT_LOG_FILE.with_suffix(".jsonl")
     trades = []
-    if log_file_jsonl.exists():
-        try:
-            with open(log_file_jsonl) as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        try:
-                            trades.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            pass
-        except Exception as e:
-            logger.warning(f"Failed to read trade log: {e}")
-    elif BOT_LOG_FILE.exists():
-        # Migrate legacy .json list to .jsonl on first read
-        try:
-            old = json.loads(BOT_LOG_FILE.read_text())
-            if isinstance(old, list):
-                trades = old
-                with open(log_file_jsonl, "a") as f:
-                    for t in old:
-                        f.write(json.dumps(t) + "\n")
-                logger.info(f"Migrated {len(old)} legacy trades to {log_file_jsonl}")
-        except Exception as e:
-            logger.warning(f"Legacy trade log migration failed: {e}")
+    with _log_lock:
+        if log_file_jsonl.exists():
+            try:
+                with open(log_file_jsonl) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                trades.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                pass
+            except Exception as e:
+                logger.warning(f"Failed to read trade log: {e}")
+        elif BOT_LOG_FILE.exists():
+            # Migrate legacy .json list to .jsonl on first read
+            try:
+                old = json.loads(BOT_LOG_FILE.read_text())
+                if isinstance(old, list):
+                    trades = old
+                    with open(log_file_jsonl, "a") as f:
+                        for t in old:
+                            f.write(json.dumps(t) + "\n")
+                    logger.info(f"Migrated {len(old)} legacy trades to {log_file_jsonl}")
+            except Exception as e:
+                logger.warning(f"Legacy trade log migration failed: {e}")
     return trades
-
 def verify_candidate(symbol: str, direction: str, original_score: int, wait_seconds: int = 15) -> Optional[dict]:
     """
     Waits, then re-scans a single symbol to verify the signal is still valid.
     """
-    print(Fore.CYAN + f" [WAIT] Verifying {symbol} in {wait_seconds}s...")
+    tui_log(f"VERIFY: {symbol} in {wait_seconds}s...", event_type="WAIT")
     time.sleep(wait_seconds)
 
     # Fetch fresh ticker
     tickers = pc.get_tickers(rps=RATE_LIMIT_RPS)
     ticker = next((t for t in tickers if t["symbol"] == symbol), None)
     if not ticker:
-        print(Fore.RED + f" [FAIL] {symbol} ticker not found during verification.")
+        tui_log(f"FAIL: {symbol} ticker not found during verification.", event_type="FAIL")
         return None
 
     # Re-scan using the appropriate scanner module
@@ -1463,11 +1467,11 @@ def verify_candidate(symbol: str, direction: str, original_score: int, wait_seco
         "CANDLES": 100
     }
 
-    print(Fore.CYAN + f" [RE-SCAN] Re-analysing {symbol}...")
+    tui_log(f"RE-SCAN: Re-analysing {symbol}...", event_type="SCAN")
     fresh_result = scanner.analyse(ticker, cfg, enable_ai=False, enable_entity=False)
 
     if not fresh_result:
-        print(Fore.RED + f" [FAIL] {symbol} no longer qualifies after wait.")
+        tui_log(f"FAIL: {symbol} no longer qualifies after wait.", event_type="FAIL")
         return None
 
     fresh_score = fresh_result["score"]
@@ -1475,10 +1479,10 @@ def verify_candidate(symbol: str, direction: str, original_score: int, wait_seco
     diff_str = f"{diff:+.0f}" if diff != 0 else "0"
 
     if fresh_score < original_score * 0.9: # Allow 10% score degradation
-        print(Fore.RED + f" [FAIL] {symbol} score dropped too much: {original_score} -> {fresh_score}")
+        tui_log(f"FAIL: {symbol} score dropped too much: {original_score} -> {fresh_score}", event_type="FAIL")
         return None
 
-    print(Fore.GREEN + f" [VERIFIED] {symbol} score: {fresh_score} (Change: {diff_str})")
+    tui_log(f"VERIFIED: {symbol} score: {fresh_score} (Change: {diff_str})", event_type="VERIFY")
     return fresh_result
 
 def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
@@ -2277,7 +2281,7 @@ def bot_loop(args):
             eff_min_score = max(eff_min_score, dynamic_min)
 
         if eff_min_score > args.min_score:
-            print(Fore.YELLOW + f" [ADAPTIVE FILTER] Effective Min Score: {eff_min_score} (Penalty: +{_entropy_penalty})")
+            tui_log(f"ADAPTIVE FILTER: Effective Min Score: {eff_min_score} (Penalty: +{_entropy_penalty})", event_type="ADAPTIVE")
 
         # ── Staleness filter ──────────────────────────────────────────
         now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -2326,7 +2330,7 @@ def bot_loop(args):
                             "executed": False,
                             "skip_reason": "MAX_POSITIONS_AFTER_SCAN_CANDIDATE"
                         })
-                        print(Fore.YELLOW + f" [SKIP] {result['inst_id']} - Max positions reached while processing candidates.")
+                        tui_log(f"SKIP: {result['inst_id']} - Max positions reached while processing candidates.", event_type="SKIP")
                         continue # Skip this candidate
 
                 # Entity API Hook: Execute Candidate

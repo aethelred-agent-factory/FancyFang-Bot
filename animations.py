@@ -25,13 +25,31 @@ SHOW_CURSOR  = "\033[?25h"
 BOLD         = "\033[1m"
 RESET        = "\033[0m"
 
-def goto(x, y):      return f"\033[{y};{x}H"
-def clear():         sys.stdout.write(CLEAR + HOME); sys.stdout.flush()
-def hide_cursor():   sys.stdout.write(HIDE_CURSOR); sys.stdout.flush()
-def show_cursor():   sys.stdout.write(SHOW_CURSOR); sys.stdout.flush()
+def goto(x, y):
+    return f"\033[{y};{x}H"
 
-def get_terminal_width():  return shutil.get_terminal_size().columns
-def get_terminal_height():  return shutil.get_terminal_size().lines
+
+def clear():
+    sys.stdout.write(CLEAR + HOME)
+    sys.stdout.flush()
+
+
+def hide_cursor():
+    sys.stdout.write(HIDE_CURSOR)
+    sys.stdout.flush()
+
+
+def show_cursor():
+    sys.stdout.write(SHOW_CURSOR)
+    sys.stdout.flush()
+
+
+def get_terminal_width():
+    return shutil.get_terminal_size().columns
+
+
+def get_terminal_height():
+    return shutil.get_terminal_size().lines
 
 # ══════════════════════════════════════════════════════════════
 #  COLOR ENGINE  —  TRUECOLOR + BG + PALETTES
@@ -214,12 +232,13 @@ class ParticleSystem:
                 palette=palette, gravity=0.04))
 
     def update(self):
-        for p in self.particles: p.update()
+        for particle in self.particles:
+            particle.update()
         self.particles = [p for p in self.particles if p.alive]
 
     def render(self, buf, t):
-        for p in self.particles:
-            buf.put(p.x, p.y, p.glyph, p.color(t))
+        for particle in self.particles:
+            buf.put(particle.x, particle.y, particle.glyph, particle.color(t))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -274,7 +293,6 @@ def chromatic_shift(text, palette, t, shift=2):
     """Render text 3 times with slight horizontal shift for RGB split look."""
     fn = PALETTES.get(palette, PALETTES["plasma"])
     lines = text.split("\n")
-    w = W()
     result = []
     for li, line in enumerate(lines):
         # shadow pass (red channel, offset left)
@@ -320,7 +338,6 @@ def noise_background(buf, density=0.05, palette="void"):
 def scanlines(buf, t):
     """Darken every other row slightly for CRT scanline feel."""
     # We simulate this by inserting dim horizontal rule chars
-    scanline_char = "─"
     row = int(t * 20) % buf.height
     for x in range(buf.width):
         existing_char, existing_col = buf._buffer[row][x]
@@ -342,7 +359,9 @@ BORDER_STYLES = {
 def draw_border(buf, x1, y1, x2, y2, style="double", palette="plasma", t=0):
     tl, tr, bl, br, h, v, ml, mr, mt, mb = BORDER_STYLES[style]
     fn = PALETTES[palette]
-    def col(i): r,g,b = fn(t,i); return get_ansi_rgb(r,g,b)
+    def col(i):
+        r, g, b = fn(t, i)
+        return get_ansi_rgb(r, g, b)
 
     for x in range(x1+1, x2):
         buf.put(x, y1, h, col(x))
@@ -365,9 +384,11 @@ def render_text_to_buf(buf, text, palette, t, cx=None, cy=None, glitch=False):
     Render multi-line `text` centered at (cx,cy) onto `buf`.
     cx/cy default to center of buffer.
     """
-    lines = [l for l in text.split("\n")]
-    if cx is None: cx = buf.width // 2
-    if cy is None: cy = buf.height // 2
+    lines = [line_str for line_str in text.split("\n")]
+    if cx is None:
+        cx = buf.width // 2
+    if cy is None:
+        cy = buf.height // 2
 
     # vertical center
     total_h = len(lines)
@@ -504,12 +525,14 @@ class Animator:
                 fired = True
 
             ps.update()
-            for w in waves: w.update()
+            for wave in waves:
+                wave.update()
             waves[:] = [w for w in waves if w.alive]
 
             noise_background(buf, density=0.03, palette=palette)
             ps.render(buf, tt)
-            for w in waves: w.render(buf, tt)
+            for wave in waves:
+                wave.render(buf, tt)
             render_text_to_buf(buf, text, palette, tt, glitch=True)
             draw_border(buf, 0, 0, buf.width-1, buf.height-1,
                         style="double", palette=palette, t=tt)
@@ -521,7 +544,7 @@ class Animator:
     #  SCAN  —  wipe reveal line-by-line
     # ─────────────────────────────────────────────
     def scan(self, text, palette="ice", duration=2.5):
-        lines = [l for l in text.split("\n")]
+        lines = [line_str for line_str in text.split("\n")]
         def frame(t):
             elapsed = t - _start[0]
             buf     = ScreenBuffer()
@@ -532,13 +555,14 @@ class Animator:
             cy = buf.height // 2
             sy = cy - total // 2
             fn = PALETTES[palette]
-            for li, line in enumerate(lines):
-                if li > reveal: break
+            for li, line_str in enumerate(lines):
+                if li > reveal:
+                    break
                 y      = sy + li
-                sx     = buf.width // 2 - len(line) // 2
+                sx     = buf.width // 2 - len(line_str) // 2
                 # scanline highlight on the reveal frontier
                 is_frontier = (li == reveal)
-                for i, c in enumerate(line):
+                for i, c in enumerate(line_str):
                     if c != " ":
                         r, g, b = fn(tt, i + li * 7)
                         if is_frontier:
@@ -614,7 +638,6 @@ class Animator:
         lines   = text.split("\n")
         chars   = []
         # collect all character positions
-        cx_base = 40  # placeholder; recalc in frame
         for li, line in enumerate(lines):
             for i, c in enumerate(line):
                 if c.strip():
@@ -624,7 +647,6 @@ class Animator:
                         "vx": random.uniform(-3, 3),
                         "vy": random.uniform(-2, 2),
                     })
-        exploded = [False]
 
         def frame(t):
             elapsed = t - _start[0]
@@ -670,7 +692,8 @@ class Animator:
     #  ASYNC RUNNER
     # ─────────────────────────────────────────────
     def run_async(self, func, *args, **kwargs):
-        if self.running: return
+        if self.running:
+            return
         def target():
             self.running = True
             func(*args, **kwargs)
@@ -679,7 +702,8 @@ class Animator:
         self.thread.start()
 
     def wait(self):
-        if self.thread: self.thread.join()
+        if self.thread:
+            self.thread.join()
 
 
 # ══════════════════════════════════════════════════════════════

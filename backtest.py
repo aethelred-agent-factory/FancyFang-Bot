@@ -261,8 +261,8 @@ def calc_rsi(closes: List[float], period: int = 14
     avg_loss = float(losses[:period].sum() / period)
     history: List[Optional[float]] = [None] * period
 
-    def _rsi_formula(g, l):
-        return 100.0 if l == 0 else 100.0 - 100.0 / (1.0 + g / l)
+    def _rsi_formula(gain_val: float, loss_val: float) -> float:
+        return 100.0 if loss_val == 0 else 100.0 - 100.0 / (1.0 + gain_val / loss_val)
 
     history.append(_rsi_formula(avg_gain, avg_loss))
     for i in range(period, len(gains)):
@@ -313,7 +313,9 @@ def vol_spike_ratio(volumes: List[float], lookback: int = 20) -> float:
     if len(volumes) < lookback + 1:
         return 1.0
     avg_volume = float(np.mean(volumes[-lookback - 1:-1]))
-    return volumes[-1] / avg_volume if avg_volume > 0 else 1.0
+    if avg_volume > 0:
+        return volumes[-1] / avg_volume
+    return 1.0
 
 
 def check_divergence(
@@ -1394,24 +1396,24 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
 
 def print_per_symbol_stats(trades: List[Trade], top_n: int = 20):
     """Print a per-symbol performance table sorted by total PnL."""
-    closed = [t for t in trades if t.pnl_usdt is not None and t.exit_reason != "open"]
-    if not closed:
+    closed_trades = [trade for trade in trades if trade.pnl_usdt is not None and trade.exit_reason != "open"]
+    if not closed_trades:
         return
 
     from collections import defaultdict
     sym_map: Dict[str, List[Trade]] = defaultdict(list)
-    for t in closed:
-        sym_map[t.symbol].append(t)
+    for trade in closed_trades:
+        sym_map[trade.symbol].append(trade)
 
     rows = []
-    for sym, ts in sym_map.items():
-        wins_   = [t for t in ts if t.pnl_usdt > 0]
-        pnl     = sum(t.pnl_usdt for t in ts)
-        wr      = len(wins_) / len(ts) * 100
-        exp     = pnl / len(ts)
-        rows.append((sym, len(ts), wr, pnl, exp))
+    for sym, symbol_trades in sym_map.items():
+        wins_   = [trade for trade in symbol_trades if trade.pnl_usdt > 0]
+        pnl     = sum(trade.pnl_usdt for trade in symbol_trades)
+        wr      = len(wins_) / len(symbol_trades) * 100
+        exp     = pnl / len(symbol_trades)
+        rows.append((sym, len(symbol_trades), wr, pnl, exp))
 
-    rows.sort(key=lambda r: r[3], reverse=True)   # sort by total PnL
+    rows.sort(key=lambda row: row[3], reverse=True)   # sort by total PnL
 
     print(Fore.CYAN + f"\n{'═'*70}")
     print(Fore.CYAN + Style.BRIGHT + f"  PER-SYMBOL BREAKDOWN  (top/bottom {top_n}, sorted by PnL)")
@@ -1467,8 +1469,8 @@ def print_sweep_results(results: List[SweepResult], top_n: int = 15):
 
 def save_trades_csv(trades: List[Trade], path: str):
     """Export closed trades to CSV."""
-    closed = [t for t in trades if t.pnl_usdt is not None and t.exit_reason != "open"]
-    if not closed:
+    closed_trades = [trade for trade in trades if trade.pnl_usdt is not None and trade.exit_reason != "open"]
+    if not closed_trades:
         return
     fields = ["symbol", "direction", "score", "entry_price", "exit_price",
               "pnl_usdt", "pnl_pct", "hold_candles", "exit_reason",
@@ -1476,8 +1478,8 @@ def save_trades_csv(trades: List[Trade], path: str):
     with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
-        for t in closed:
-            w.writerow({k: getattr(t, k) for k in fields})
+        for trade in closed_trades:
+            w.writerow({k: getattr(trade, k) for k in fields})
     print(Fore.GREEN + f"  CSV saved → {path}")
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1671,29 +1673,29 @@ def main():
         print_per_symbol_stats(all_trades)
 
         # Individual trade log
-        closed = [t for t in all_trades if t.pnl_usdt is not None]
-        if closed:
+        closed_trades = [trade for trade in all_trades if trade.pnl_usdt is not None]
+        if closed_trades:
             print(Fore.CYAN + "\n  TRADE LOG (worst → best, last 40):")
             print(f"  {'Symbol':<14} {'Dir':>5} {'Score':>6} {'PnL':>9} "
                   f"{'Hold':>6} {'Slip%':>6} {'Exit':<14} {'LowLiq':>6}")
             print(f"  {'─'*76}")
-            for t in sorted(closed, key=lambda x: x.pnl_usdt or 0)[-40:]:
-                pc = Fore.GREEN if (t.pnl_usdt or 0) > 0 else Fore.RED
+            for trade in sorted(closed_trades, key=lambda x: x.pnl_usdt or 0)[-40:]:
+                pc_color = Fore.GREEN if (trade.pnl_usdt or 0) > 0 else Fore.RED
                 print(
-                    f"  {t.symbol:<14} {t.direction:>5} {t.score:>6} "
-                    f"{pc}{t.pnl_usdt:>+8.4f}{Style.RESET_ALL} "
-                    f"{t.hold_candles:>5}c {t.slippage_pct:>5.3f}% "
-                    f"{t.exit_reason:<14} {'⚠' if t.is_low_liq else '  '}"
+                    f"  {trade.symbol:<14} {trade.direction:>5} {trade.score:>6} "
+                    f"{pc_color}{trade.pnl_usdt:>+8.4f}{Style.RESET_ALL} "
+                    f"{trade.hold_candles:>5}c {trade.slippage_pct:>5.3f}% "
+                    f"{trade.exit_reason:<14} {'⚠' if trade.is_low_liq else '  '}"
                 )
 
         Path(args.output).write_text(json.dumps([
-            {"symbol": t.symbol, "direction": t.direction, "score": t.score,
-             "entry": t.entry_price, "exit": t.exit_price,
-             "pnl_usdt": t.pnl_usdt, "pnl_pct": t.pnl_pct,
-             "hold_candles": t.hold_candles, "exit_reason": t.exit_reason,
-             "signals": t.signals, "slippage_pct": t.slippage_pct,
-             "is_low_liq": t.is_low_liq}
-            for t in closed
+            {"symbol": trade.symbol, "direction": trade.direction, "score": trade.score,
+             "entry": trade.entry_price, "exit": trade.exit_price,
+             "pnl_usdt": trade.pnl_usdt, "pnl_pct": trade.pnl_pct,
+             "hold_candles": trade.hold_candles, "exit_reason": trade.exit_reason,
+             "signals": trade.signals, "slippage_pct": trade.slippage_pct,
+             "is_low_liq": trade.is_low_liq}
+            for trade in closed_trades
         ], indent=2))
 
         if args.csv:
