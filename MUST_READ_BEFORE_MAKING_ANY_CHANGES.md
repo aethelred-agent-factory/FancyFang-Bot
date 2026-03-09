@@ -37,6 +37,19 @@ A classic **Lock Order Inversion**.
 
 ---
 
+## 🛑 Incident 3: The "TTY Crash" (Terminal Contention)
+**Date:** 2026-03-08  
+**Symptom:** Bot restarts frequently (`drawdown_guard: active` appearing in logs) specifically during trade entry or exit.
+
+### 🔍 Root Cause
+Background threads (Fast-Track verification) were calling `play_animation()`. This function clears the terminal and prints ASCII art. When multiple threads attempted to manipulate the TTY/Terminal at the same time as the TUI display thread, it caused a low-level terminal crash, forcing the entire bot process to terminate and restart.
+
+### 🛠 The Fix
+1.  **Serialized Animations:** Implemented an `animation_queue` in `state`.
+2.  **Main-Thread Execution:** `play_animation()` now only *queues* the animation. The actual rendering is done by the main thread during the `sim_bot_loop`, ensuring only one thread ever touches the terminal at a time.
+
+---
+
 ## 📜 Mandatory Protocols for Future AI Developers
 
 ### 1. The Test-First Mandate (NEW)
@@ -54,6 +67,7 @@ Never assume a refactor works because it "looks" clean.
 - **Avoid Nested Locks:** If you must nest locks, you **must** use the same order everywhere in the codebase.
 - **Narrow the Scope:** Hold a lock for the absolute minimum time required to copy or update data. Never perform I/O (file writes, API calls) or play animations while holding a lock.
 - **Use RLock by Default:** When managing complex class states where methods might call each other, prefer `threading.RLock`.
+- **Serialize Terminal Access:** NEVER manipulate the terminal (`print`, `term.clear`, `play_animation`) from a background thread. Use a queue to funnel all visual updates to the main thread.
 
 ### 3. Log your Failures
 - **Never** use `except Exception: pass`.

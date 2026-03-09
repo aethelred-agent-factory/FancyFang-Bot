@@ -27,6 +27,7 @@ import datetime
 import json
 import logging
 import os
+import queue
 import re
 import sys
 import threading
@@ -204,6 +205,9 @@ class SimBotState:
     # Events
     slot_available_event: threading.Event = field(default_factory=threading.Event)
     display_paused_event: threading.Event = field(default_factory=threading.Event)
+    
+    # Queues
+    animation_queue: queue.Queue = field(default_factory=queue.Queue)
     
     # Locks
     lock: threading.RLock = field(default_factory=threading.RLock)
@@ -419,15 +423,25 @@ def tui_log(msg: str, event_type: str = "SIM") -> None:
 
 
 def play_animation(anim_fn):
-    """Safely plays a cinematic animation by pausing the TUI thread."""
-    state.display_paused_event.set()
-    time.sleep(0.5) # Let TUI finish its last frame
-    animations.clear()
-    try:
-        anim_fn()
-    finally:
+    """Queues a cinematic animation to be played safely."""
+    state.animation_queue.put(anim_fn)
+
+
+def _process_animations():
+    """Processes any queued animations. Should be called from a safe thread context (main loop)."""
+    while not state.animation_queue.empty():
+        anim_fn = state.animation_queue.get()
+        state.display_paused_event.set()
+        time.sleep(0.5) # Let TUI finish its last frame
         animations.clear()
-        state.display_paused_event.clear()
+        try:
+            anim_fn()
+        except Exception as e:
+            logger.error(f"Animation failed: {e}")
+        finally:
+            animations.clear()
+            state.display_paused_event.clear()
+            state.animation_queue.task_done()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -819,19 +833,18 @@ def _log_closed_trade(
     signals: Optional[List[str]] = None,
     slippage: float = 0.0,
 ) -> None:
-    """Appends a closed-trade record to sim_trade_results.json."""
-    results_file = SCRIPT_DIR / "sim_trade_results.json"
+    """Appends a closed-trade record to sim_trade_results.jsonl using an efficient append-only strategy."""
+    results_file_jsonl = SCRIPT_DIR / "sim_trade_results.jsonl"
     pnl = (exit_price - entry) * size if direction == "Buy" else (entry - exit_price) * size
 
-    hold_time = 0
+    hold_time_seconds = 0
     if entry_time:
         try:
-                # REF: Tier 3: Temporal Inconsistency
-                entry_time_dt = datetime.datetime.fromisoformat(entry_time)
-                if entry_time_dt.tzinfo is None:
-                    entry_time_dt = entry_time_dt.replace(tzinfo=datetime.timezone.utc)
-                hold_time = (datetime.datetime.now(datetime.timezone.utc) - entry_time_dt).total_seconds()
-        except ValueError:
+            entry_time_dt = datetime.datetime.fromisoformat(entry_time)
+            if entry_time_dt.tzinfo is None:
+                entry_time_dt = entry_time_dt.replace(tzinfo=datetime.timezone.utc)
+            hold_time_seconds = int((datetime.datetime.now(datetime.timezone.utc) - entry_time_dt).total_seconds())
+        except (ValueError, TypeError):
             logger.error("Invalid entry_time format — using zero hold time.")
 
     # Standardize on timezone-aware UTC for JSON storage
@@ -842,23 +855,21 @@ def _log_closed_trade(
         "entry":       entry,
         "exit":        exit_price,
         "pnl":         round(pnl, 4),
-        "hold_time_s": int(hold_time),
+        "hold_time_s": hold_time_seconds,
         "score":       entry_score,
         "reason":      reason,
-        "timestamp":   now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
+        "timestamp":   now_utc.isoformat(),
         "signals":     signals or [],
         "slippage":    round(slippage, 8),
     }
 
-    history: List[dict] = []
+    # REF: [Tier 1] Lock Hierarchy (file_io_lock only for disk append)
     with state.file_io_lock:
-        if results_file.exists():
-            try:
-                history = json.loads(results_file.read_text())
-            except (json.JSONDecodeError, OSError):
-                logger.error("Failed to read trade history — starting fresh.")
-        history.append(record)
-        results_file.write_text(json.dumps(history, indent=2))
+        try:
+            with open(results_file_jsonl, "a") as f:
+                f.write(json.dumps(record) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to append to trade history log: {e}")
 
     # ── Upgrade #8: Signal analytics recording ────────────────────────────────
     if _ANALYTICS_OK:
@@ -886,17 +897,17 @@ def _log_closed_trade(
     # ── Upgrade #7: Notify drawdown guard ─────────────────────────────────────
     if _DD_OK:
         with state.lock:
-            current_bal = state.balance
-        drawdown_guard.record_pnl(pnl, current_balance=current_bal)
+            current_balance = state.balance
+        drawdown_guard.record_pnl(pnl, current_balance=current_balance)
 
     # ── Upgrade #12: Notify risk manager ─────────────────────────────────────
     if _RISK_MGR_OK:
         risk_mgr.record_trade_result(pnl)
 
-    m, s = divmod(int(hold_time), 60)
+    minutes, seconds = divmod(hold_time_seconds, 60)
     tui_log(
         f"CLOSED {symbol} | Entry: {entry}  Exit: {exit_price} | "
-        f"PnL: {pnl:+.4f} USDT | Held: {m}m {s}s | Score: {entry_score}",
+        f"PnL: {pnl:+.4f} USDT | Held: {minutes}m {seconds}s | Score: {entry_score}",
         event_type="HISTORY"
     )
 
@@ -1611,6 +1622,8 @@ def update_pnl_and_stops() -> None:
     Polls live prices for all open positions, updates PnL, and evaluates
     trailing-stop and take-profit levels.
     """
+    _process_animations()
+
     # Initialize outside lock to avoid UnboundLocalError
     ticker_map: Dict[str, Any] = {}
     missing: List[str] = []
@@ -1637,6 +1650,7 @@ def update_pnl_and_stops() -> None:
 
     # To store events for I/O outside the lock
     exits_to_process = []
+    state_changed = False
 
     with state.lock:
         # Re-derive current positions state to avoid phantom PnL on just-closed symbols
@@ -1672,6 +1686,7 @@ def update_pnl_and_stops() -> None:
             direction_str = "LONG" if side == "Buy" else "SHORT"
 
             if trail_dist and trail_dist > 0:
+                old_stop = stop_price
                 # Use ATR-based trail via pc.update_atr_trail
                 new_stop, new_hw, new_lw = pc.update_atr_trail(
                     current_price  = current_price,
@@ -1681,6 +1696,8 @@ def update_pnl_and_stops() -> None:
                     trail_distance = trail_dist,
                     direction      = direction_str,
                 )
+                if new_stop != old_stop:
+                    state_changed = True
                 pos["stop_price"] = new_stop
                 pos["high_water"] = new_hw
                 pos["low_water"]  = new_lw
@@ -1692,11 +1709,13 @@ def update_pnl_and_stops() -> None:
                         pos["high_water"] = current_price
                         pos["stop_price"] = current_price * (1.0 - p_bot.TRAIL_PCT)
                         stop_price = pos["stop_price"]
+                        state_changed = True
                 else:
                     if current_price < pos.get("low_water", 999_999_999.0):
                         pos["low_water"]  = current_price
                         pos["stop_price"] = current_price * (1.0 + p_bot.TRAIL_PCT)
                         stop_price = pos["stop_price"]
+                        state_changed = True
 
             if side == "Buy":
                 if current_price <= stop_price:
@@ -1740,6 +1759,7 @@ def update_pnl_and_stops() -> None:
                 state.balance += (pos.get("margin", 0.0) + pnl)
                 state.last_exit_times[symbol] = time.time()
                 closed_any = True
+                state_changed = True
                 continue
 
             # Position remains open
@@ -1749,8 +1769,9 @@ def update_pnl_and_stops() -> None:
         if closed_any:
             state.positions = new_positions
     
-    # Save outside the lock to maintain order (file_io_lock -> lock)
-    state.save_account()
+    # Save only if something actually changed (closes or ratchets)
+    if state_changed:
+        state.save_account()
 
     # Process I/O (exits) outside the lock to avoid blocking
     for ex in exits_to_process:
@@ -1861,9 +1882,10 @@ def verify_sim_candidate(symbol: str, direction: str, original_score: int, wait_
         fresh_score = fresh_result["score"]
 
         # Spread check: avoid illiquid assets that may have fake signals
-        current_spread = fresh_result.get("spread", 0.0)
-        if current_spread is not None and current_spread > 0.25:
-            tui_log(f"FAIL: {symbol} spread too high: {current_spread:.2f}%")
+        current_spread = fresh_result.get("spread")
+        spread_ok, spread_reason = pc.check_spread_filter(current_spread, symbol)
+        if not spread_ok:
+            tui_log(f"FAIL: {symbol} verification aborted — {spread_reason}")
             return None
 
         # RSI Momentum Check: Ensure RSI isn't deep in the "over-exhaustion" zone already
@@ -1946,6 +1968,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     # Narrow lock scope: only for initial checks
     with state.lock:
         if any(p["symbol"] == symbol for p in state.positions):
+            tui_log(f"SKIP: {symbol} already in positions (race prevention)", event_type="SKIP")
             return False
 
         last_exit = state.last_exit_times.get(symbol, 0)
@@ -2132,6 +2155,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     with state.lock:
         # Re-check position existence inside final lock to avoid races
         if any(p["symbol"] == symbol for p in state.positions):
+            tui_log(f"SKIP: {symbol} acquired by another thread during verification.", event_type="SKIP")
             return False
         
         state.balance -= (margin_to_use + fee)
@@ -2358,6 +2382,8 @@ def sim_bot_loop(args) -> None:
         state.display_paused_event.clear()
         tui_log(f"Scan complete in {elapsed:.1f}s — L: {len(long_r)}  S: {len(short_r)}")
 
+        _process_animations()
+
         # ── Cross-Asset Entropy Deflator (Idea 2) ─────────────────────
         all_tickers = pc.get_tickers(rps=args.rate)
         total_universe = len([t for t in all_tickers if float(t.get("turnoverRv", 0)) >= args.min_vol])
@@ -2427,6 +2453,8 @@ def sim_bot_loop(args) -> None:
                     import traceback
                     tui_log(f"CRITICAL ERROR in candidate loop for {res['inst_id']}: {e}", event_type="ERROR")
                     logger.error(traceback.format_exc())
+            
+            _process_animations()
         else:
             tui_log("No qualifying setups found.")
 
