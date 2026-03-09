@@ -281,28 +281,6 @@ if _CM_OK:
     corr_mgr.init(state.storage)
 if _EF_OK:
     event_filter.init(state.storage)
-    # Check if we need to update the matrix (weekly)
-    with corr_mgr.correlation_mgr._lock:
-        updated_at = corr_mgr.correlation_mgr.updated_at
-        is_stale = True
-        if updated_at:
-            try:
-                dt = datetime.datetime.fromisoformat(updated_at)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=datetime.timezone.utc)
-                if (datetime.datetime.now(datetime.timezone.utc) - dt).days < 7:
-                    is_stale = False
-            except Exception:
-                is_stale = True
-        
-        if is_stale:
-            # Run initial update in a background thread to not block bot startup
-            def _initial_corr_update():
-                # We need a rate limit here to avoid 429 during large initial crawl
-                tickers = pc.get_tickers(rps=10.0)
-                symbols = [t["symbol"] for t in tickers if float(t.get("turnoverRv", 0)) >= INITIAL_BALANCE * 1000] # Use min volume threshold
-                corr_mgr.correlation_mgr.update_matrix(symbols, rps=10.0)
-            threading.Thread(target=_initial_corr_update, daemon=True).start()
 
 # Unicode Block Elements U+2581–U+2588 (8 chars; index math in sparkline() depends on count=8)
 _SPARK_CHARS = "▁▂▃▄▅▆▇█"

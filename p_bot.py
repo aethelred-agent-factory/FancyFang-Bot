@@ -131,8 +131,6 @@ if SCRIPT_DIR not in sys.path:
 
 # Initialize unified storage for upgrade modules
 p_bot_storage = StorageManager(Path(SCRIPT_DIR) / "fancybot.db")
-if _RM_OK:
-    risk_mgr.init(p_bot_storage)
 if _SA_OK:
     analytics.init_storage(p_bot_storage)
 if _DD_OK:
@@ -141,27 +139,6 @@ if _CM_OK:
     corr_mgr.init(p_bot_storage)
 if _EF_OK:
     event_filter.init(p_bot_storage)
-    # Check if we need to update the matrix (weekly)
-    with corr_mgr.correlation_mgr._lock:
-        updated_at = corr_mgr.correlation_mgr.updated_at
-        is_stale = True
-        if updated_at:
-            try:
-                dt = datetime.datetime.fromisoformat(updated_at)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=datetime.timezone.utc)
-                if (datetime.datetime.now(datetime.timezone.utc) - dt).days < 7:
-                    is_stale = False
-            except Exception:
-                is_stale = True
-        
-        if is_stale:
-            # Run initial update in a background thread to not block bot startup
-            def _initial_corr_update():
-                tickers = pc.get_tickers(rps=RATE_LIMIT_RPS)
-                symbols = [t["symbol"] for t in tickers if float(t.get("turnoverRv", 0)) >= MIN_VOLUME]
-                corr_mgr.correlation_mgr.update_matrix(symbols, rps=RATE_LIMIT_RPS)
-            threading.Thread(target=_initial_corr_update, daemon=True).start()
 
 try:
     import phemex_long as scanner_long
