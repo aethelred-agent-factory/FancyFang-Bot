@@ -30,8 +30,10 @@ import os
 import queue
 import re
 import sys
+import sys
 import threading
 import time
+import signal
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,6 +53,26 @@ import phemex_short as scanner_short
 import animations
 import hardware_bridge as hw
 from storage_manager import StorageManager
+
+# ── Global Control ───────────────────────────────────────────────────
+_running = True
+_shutdown_requested = False
+
+def handle_exit(signum, frame):
+    """Force an immediate exit on signal, ensuring all loops are terminated."""
+    global _running, _shutdown_requested
+    if not _shutdown_requested:
+        _shutdown_requested = True
+        msg = f"Signal {signum} received. Forcing immediate shutdown..."
+        try:
+            logging.getLogger("sim_bot").info(msg)
+        except Exception:
+            print(msg)
+        _running = False
+        sys.exit(0)
+
+signal.signal(signal.SIGINT,  handle_exit)
+signal.signal(signal.SIGTERM, handle_exit)
 
 # Safely import p_bot
 try:
@@ -2439,7 +2461,11 @@ def on_scan_result(scan_res: dict, direction: str) -> None:
 
 
 def sim_bot_loop(args) -> None:
-    """The main scan-and-execute loop for the simulation bot."""
+    """
+    The main scan-and-execute loop for the simulation bot.
+    Periodically scans the market, evaluates signals, and manages simulated positions.
+    Exits gracefully when the global _running flag is False.
+    """
     global COOLDOWN_SECONDS
 
     # Calculate dynamic cooldown based on timeframe and cooldown argument (T3-16)
@@ -2480,116 +2506,137 @@ def sim_bot_loop(args) -> None:
                     logger.error(f"Display thread crashed: {error}\n{traceback.format_exc()}")
             threading.Thread(target=_display_wrapper, daemon=True).start()
 
-    while True:
-        # ── Time-of-day Profitability Filter ──
-        if pc.is_hour_blocked():
-            curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
-            tui_log(f"HOUR FILTER: Skipping scan cycle — hour {curr_hour} UTC is blocked.", event_type="SKIP")
-            time.sleep(60)
-            continue
-
-        # ── Event/News Suppression Filter ──
-        if _EF_OK:
-            suppressed, reason = event_filter.filter.should_suppress()
-            if suppressed:
-                tui_log(f"EVENT FILTER: Skipping scan cycle — {reason}", event_type="SKIP")
+    while _running:
+        try:
+            # ── Time-of-day Profitability Filter ──
+            if pc.is_hour_blocked():
+                curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
+                tui_log(f"HOUR FILTER: Skipping scan cycle — hour {curr_hour} UTC is blocked.", event_type="SKIP")
                 time.sleep(60)
                 continue
 
-        update_pnl_and_stops()
+            # ── Event/News Suppression Filter ──
+            if _EF_OK:
+                suppressed, reason = event_filter.filter.should_suppress()
+                if suppressed:
+                    tui_log(f"EVENT FILTER: Skipping scan cycle — {reason}", event_type="SKIP")
+                    time.sleep(60)
+                    continue
 
-        # Recompute dynamic max positions and available slots
-        # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
-        _              = load_paper_account()
+            update_pnl_and_stops()
 
-        # No slot cap — scan every cycle, gate on margin at execution time
-        tui_log(f"Scanning LIVE market ({args.timeframe})...")
-        state.display_paused_event.set()
-        t0 = time.time()
-        long_r, short_r = p_bot.run_scanner_both(cfg, args, on_result=on_scan_result)
-        elapsed = time.time() - t0
-        state.display_paused_event.clear()
-        tui_log(f"Scan complete in {elapsed:.1f}s — L: {len(long_r)}  S: {len(short_r)}")
+            # Recompute dynamic max positions and available slots
+            # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
+            _              = load_paper_account()
 
-        _process_animations()
+            # No slot cap — scan every cycle, gate on margin at execution time
+            tui_log(f"Scanning LIVE market ({args.timeframe})...")
+            state.display_paused_event.set()
+            t0 = time.time()
+            long_r, short_r = p_bot.run_scanner_both(cfg, args, on_result=on_scan_result)
+            elapsed = time.time() - t0
+            state.display_paused_event.clear()
+            tui_log(f"Scan complete in {elapsed:.1f}s — L: {len(long_r)}  S: {len(short_r)}")
 
-        # ── Cross-Asset Entropy Deflator (Idea 2) ─────────────────────
-        all_tickers = pc.get_tickers(rps=args.rate)
-        total_universe = len([t for t in all_tickers if float(t.get("turnoverRv", 0)) >= args.min_vol])
-
-        n_hits = len(long_r) + len(short_r)
-        new_entropy_penalty = 0
-        if total_universe > 0 and n_hits > 0:
-            # Saturation: percentage of universe firing
-            sat_ratio = n_hits / total_universe
-            # Capped and less aggressive entropy penalties
-            sat_penalty = min(ENTROPY_SAT_CAP, int(sat_ratio * ENTROPY_SAT_WEIGHT)) 
-
-            # One-sidedness: how imbalanced are the signals?
-            imbalance = abs(len(long_r) - len(short_r)) / n_hits
-            side_penalty = int(ENTROPY_IMB_WEIGHT * imbalance)
-
-            new_entropy_penalty = min(ENTROPY_MAX_PENALTY, sat_penalty + side_penalty)
-
-        with state.lock:
-            state.entropy_penalty = new_entropy_penalty
-
-        if new_entropy_penalty > ENTROPY_ALERT_LEVEL:
-            tui_log(f"ENTROPY DEFLATOR: Raising min_score by +{new_entropy_penalty} (Saturation: {n_hits}/{total_universe}, Imbalance: {imbalance:.2f})")
-
-        # Calculate dynamic threshold for this scan cycle
-        eff_min_score = args.min_score + new_entropy_penalty
-        if not args.no_dynamic:
-            all_scores = [r["score"] for r in (long_r + short_r)]
-            dynamic_min = pc.calc_dynamic_threshold(all_scores, args.min_score)
-            eff_min_score = max(eff_min_score, dynamic_min)
-
-        if eff_min_score > args.min_score:
-            tui_log(f"ADAPTIVE FILTER: Effective min_score = {eff_min_score} (Penalty: +{new_entropy_penalty})")
-
-        now_dt = datetime.datetime.now(datetime.timezone.utc)
-
-        fresh_long  = [r for r in long_r  if is_fresh(r, now_dt)]
-        fresh_short = [r for r in short_r if is_fresh(r, now_dt)]
-
-        in_pos_updated   = {p["symbol"] for p in get_sim_positions()}
-
-        candidates = p_bot.pick_candidates(
-            fresh_long, fresh_short,
-            min_score=eff_min_score,
-            min_score_gap=args.min_score_gap,
-            direction_filter=args.direction,
-            symbols_in_position=in_pos_updated,
-            available_slots=9999,
-        )
-
-        if candidates:
-            tui_log(f"Picked {len(candidates)} candidate(s).")
-            for res, direction in candidates:
-                # Account for positions already open PLUS those currently being verified by fast-track
-                with state.lock:
-                    eff_free = get_sim_free_margin(state.balance, state.positions)
-                    eff_free -= len(state.fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)
-                    if eff_free < MIN_FREE_MARGIN:
-                        continue
-
-                # ── Wait & Verify ────────────────────────────────────
-                try:
-                    verified_result = verify_sim_candidate(res["inst_id"], direction, res["score"])
-                    if verified_result:
-                        execute_sim_setup(verified_result, direction)
-                except Exception as e:
-                    import traceback
-                    tui_log(f"CRITICAL ERROR in candidate loop for {res['inst_id']}: {e}", event_type="ERROR")
-                    logger.error(traceback.format_exc())
-            
             _process_animations()
-        else:
-            tui_log("No qualifying setups found.")
 
-        sleep_interval = args.interval
-        state.slot_available_event.wait(timeout=sleep_interval)
-        state.slot_available_event.clear()
+            # ── Cross-Asset Entropy Deflator (Idea 2) ─────────────────────
+            all_tickers = pc.get_tickers(rps=args.rate)
+            total_universe = len([t for t in all_tickers if float(t.get("turnoverRv", 0)) >= args.min_vol])
+
+            n_hits = len(long_r) + len(short_r)
+            new_entropy_penalty = 0
+            if total_universe > 0 and n_hits > 0:
+                # Saturation: percentage of universe firing
+                sat_ratio = n_hits / total_universe
+                # Capped and less aggressive entropy penalties
+                sat_penalty = min(ENTROPY_SAT_CAP, int(sat_ratio * ENTROPY_SAT_WEIGHT)) 
+
+                # One-sidedness: how imbalanced are the signals?
+                imbalance = abs(len(long_r) - len(short_r)) / n_hits
+                side_penalty = int(ENTROPY_IMB_WEIGHT * imbalance)
+
+                new_entropy_penalty = min(ENTROPY_MAX_PENALTY, sat_penalty + side_penalty)
+
+            with state.lock:
+                state.entropy_penalty = new_entropy_penalty
+
+            if new_entropy_penalty > ENTROPY_ALERT_LEVEL:
+                tui_log(f"ENTROPY DEFLATOR: Raising min_score by +{new_entropy_penalty} (Saturation: {n_hits}/{total_universe}, Imbalance: {imbalance:.2f})")
+
+            # Calculate dynamic threshold for this scan cycle
+            eff_min_score = args.min_score + new_entropy_penalty
+            if not args.no_dynamic:
+                all_scores = [r["score"] for r in (long_r + short_r)]
+                dynamic_min = pc.calc_dynamic_threshold(all_scores, args.min_score)
+                eff_min_score = max(eff_min_score, dynamic_min)
+
+            if eff_min_score > args.min_score:
+                tui_log(f"ADAPTIVE FILTER: Effective min_score = {eff_min_score} (Penalty: +{new_entropy_penalty})")
+
+            now_dt = datetime.datetime.now(datetime.timezone.utc)
+
+            fresh_long  = [r for r in long_r  if is_fresh(r, now_dt)]
+            fresh_short = [r for r in short_r if is_fresh(r, now_dt)]
+
+            in_pos_updated   = {p["symbol"] for p in get_sim_positions()}
+
+            candidates = p_bot.pick_candidates(
+                fresh_long, fresh_short,
+                min_score=eff_min_score,
+                min_score_gap=args.min_score_gap,
+                direction_filter=args.direction,
+                symbols_in_position=in_pos_updated,
+                available_slots=9999,
+            )
+
+            if candidates:
+                tui_log(f"Picked {len(candidates)} candidate(s).")
+                for res, direction in candidates:
+                    # Account for positions already open PLUS those currently being verified by fast-track
+                    with state.lock:
+                        eff_free = get_sim_free_margin(state.balance, state.positions)
+                        eff_free -= len(state.fast_track_opened) * (p_bot.MARGIN_USDT * 1.05)
+                        if eff_free < MIN_FREE_MARGIN:
+                            continue
+
+                    # ── Wait & Verify ────────────────────────────────────
+                    try:
+                        verified_result = verify_sim_candidate(res["inst_id"], direction, res["score"])
+                        if verified_result:
+                            execute_sim_setup(verified_result, direction)
+                    except Exception as e:
+                        import traceback
+                        tui_log(f"CRITICAL ERROR in candidate loop for {res['inst_id']}: {e}", event_type="ERROR")
+                        logger.error(traceback.format_exc())
+                
+                _process_animations()
+            else:
+                tui_log("No qualifying setups found.")
+
+            sleep_interval = args.interval
+            state.slot_available_event.wait(timeout=sleep_interval)
+            state.slot_available_event.clear()
+
+        except Exception as e:
+            logger.error(f"Sim bot loop error: {e}. Backing off for 30s...")
+            import traceback
+            logger.debug(traceback.format_exc())
+            time.sleep(30)
+
+    tui_log("Simulation bot shutdown requested. Cleaning up...", event_type="HALT")
+    # Signal the display thread to stop and wait for it
+    with state.lock:
+        if state.display_thread_running:
+            state.display_paused_event.set() # Signal to stop drawing
+            state.display_thread_running = False
+
+    # Ensure WebSocket client is closed if it was started
+    if state.ws_app:
+        try:
+            state.ws_app.close()
+        except Exception as e:
+            logger.debug(f"Error closing WebSocket: {e}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2643,22 +2690,23 @@ def main() -> None:
 
     try:
         sim_bot_loop(args)
-    except KeyboardInterrupt:
-        print(Fore.YELLOW + "\n  Bot stopped by user. Shutting down...")
-        # Signal the display thread to stop and wait for it
-        with state.lock:
-            if state.display_thread_running:
-                state.display_paused_event.set() # Signal to stop drawing
-                state.display_thread_running = False
+    finally:
+        if not _running:
+            print(Fore.YELLOW + "\n  Bot stopped by user. Shutting down...")
+            # Signal the display thread to stop and wait for it
+            with state.lock:
+                if state.display_thread_running:
+                    state.display_paused_event.set() # Signal to stop drawing
+                    state.display_thread_running = False
 
-        # Ensure WebSocket client is closed if it was started
-        if state.ws_app:
-            try:
-                state.ws_app.close()
-            except Exception as e:
-                logger.debug(f"Error closing WebSocket: {e}")
+            # Ensure WebSocket client is closed if it was started
+            if state.ws_app:
+                try:
+                    state.ws_app.close()
+                except Exception as e:
+                    logger.debug(f"Error closing WebSocket: {e}")
 
-        print(Fore.YELLOW + "  Shutdown complete.")
+            print(Fore.YELLOW + "  Shutdown complete.")
 
 
 if __name__ == "__main__":

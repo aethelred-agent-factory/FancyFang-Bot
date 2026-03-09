@@ -65,6 +65,8 @@ from typing import Dict, List, Optional, Tuple
 
 import random
 import requests
+import sys
+import signal
 from websocket import WebSocketApp
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -72,6 +74,22 @@ from colorama import init, Fore, Style
 from dotenv import load_dotenv
 import phemex_common as pc
 from storage_manager import StorageManager
+
+# ── Global Control ───────────────────────────────────────────────────
+_running = True
+_shutdown_requested = False
+
+def handle_exit(signum, frame):
+    """Force an immediate exit on signal, ensuring loops are terminated."""
+    global _running, _shutdown_requested
+    if not _shutdown_requested:
+        _shutdown_requested = True
+        logger.info(f"Signal {signum} received. Forcing immediate shutdown...")
+        _running = False
+        sys.exit(0)
+
+signal.signal(signal.SIGINT,  handle_exit)
+signal.signal(signal.SIGTERM, handle_exit)
 
 # ── New-module imports (graceful degradation) ────────────────────────
 try:
@@ -179,9 +197,14 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
     Delegate to phemex_common.make_entity_request() so all entity calls benefit
     from the shared retry session, rate-limit compliance, and connection pooling.
 
-    [T2-05] The former local implementation called requests.get/post/put directly,
-    bypassing _session (no retry on 429/5xx, no connection pooling).  Under
-    network instability this caused silent failures for all entity logging.
+    Args:
+        entity_name: The endpoint or category for the request (e.g. 'signalevent').
+        method: HTTP method (POST, GET, PUT).
+        data: Optional payload for the request.
+        entity_id: Optional ID for the entity.
+
+    Returns:
+        The JSON response as a dict, or None if the request failed or is disabled.
     """
     if not ENABLE_ENTITY:
         return None
@@ -728,7 +751,12 @@ def _ws_heartbeat(ws, stop_event):
 
 
 def _ws_run_loop():
-    global _ws_app
+    """
+    Main WebSocket execution thread.
+    Handles connection lifecycle, heartbeats, and automatic reconnection with exponential backoff.
+    Exits gracefully when the global _running flag is False.
+    """
+    global _ws_app, _ws_connected
     ws_url = "wss://ws.phemex.com"
     if "testnet" in BASE_URL:
         ws_url = "wss://testnet.phemex.com/ws"
@@ -736,7 +764,7 @@ def _ws_run_loop():
     reconnect_delay = 1  # Start with 1 second delay
     max_reconnect_delay = 60 # Max delay of 60 seconds
 
-    while True:
+    while _running:
         try:
             logger.info(f"Attempting WS connection... (current _ws_connected: {_ws_connected}, next retry in {reconnect_delay}s)")
             stop_event = threading.Event()
@@ -780,10 +808,14 @@ def _ensure_ws_started():
 
 
 def _cache_refresher():
-    """Periodically refresh balance and positions for the dashboard/trail-stop."""
+    """
+    Background thread to periodically refresh account balance and open positions.
+    Detects closed positions to log them and sends Telegram notifications.
+    Synchronizes with the local trailing stop state.
+    """
     import traceback
     global _cached_balance, _cached_positions
-    while True:
+    while _running:
         try:
             # REF: [Tier 3] Descriptive Naming
             new_balance, new_positions = get_account_status()
@@ -2215,266 +2247,278 @@ def bot_loop(args):
         logger.info("[TG] Telegram controller started")
 
     scan_number = 0
-    while True:
-        # ── Time-of-day Profitability Filter ──
-        if pc.is_hour_blocked():
-            curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
-            tui_log(f"HOUR FILTER: Skipping scan cycle — hour {curr_hour} UTC is blocked.", event_type="SKIP")
-            time.sleep(60)
-            continue
-
-        # ── Event/News Suppression Filter ──
-        if _EF_OK:
-            suppressed, reason = event_filter.filter.should_suppress()
-            if suppressed:
-                tui_log(f"EVENT FILTER: Skipping scan cycle — {reason}", event_type="SKIP")
+    # ── Main Bot Execution Loop ──────────────────────────────────────
+    while _running:
+        try:
+            # ── Time-of-day Profitability Filter ──
+            if pc.is_hour_blocked():
+                curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
+                tui_log(f"HOUR FILTER: Skipping scan cycle — hour {curr_hour} UTC is blocked.", event_type="SKIP")
                 time.sleep(60)
                 continue
 
-        if _account_trading_halted:
-            time.sleep(30)
-            continue
+            # ── Event/News Suppression Filter ──
+            if _EF_OK:
+                suppressed, reason = event_filter.filter.should_suppress()
+                if suppressed:
+                    tui_log(f"EVENT FILTER: Skipping scan cycle — {reason}", event_type="SKIP")
+                    time.sleep(60)
+                    continue
 
-        # ── Drawdown kill-switch check ────────────────────────────────
-        if _DD_OK:
-            _dd_ok_flag, _dd_reason = drawdown_guard.can_open_trade(_cached_balance)
-            if not _dd_ok_flag:
-                tui_log(f"[DD] Trading halted by drawdown guard: {_dd_reason}", event_type="HALT")
-                time.sleep(60)
-                continue
-
-        # ── Telegram halt check ───────────────────────────────────────
-        if _TG_OK and telegram.is_halted():
-            tui_log("[TG] Trading halted via Telegram /stop command", event_type="HALT")
-            time.sleep(30)
-            continue
-
-        scan_number += 1
-
-        # ── Account status ───────────────────────────────────────────
-        with _cache_lock:
-            # Dynamic scaling: more positions as equity grows
-            dynamic_max = get_dynamic_max_positions(_cached_balance)
-            available_slots = dynamic_max - len(_cached_positions)
-
-        # ── Fast-track callback ──────────────────────────────────────
-        # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
-        def on_scan_result(scan_res, direction, args=args):
             if _account_trading_halted:
-                return
+                time.sleep(30)
+                continue
+
+            # ── Drawdown kill-switch check ────────────────────────────────
             if _DD_OK:
-                _ok, _reason = drawdown_guard.can_open_trade(_cached_balance)
-                if not _ok:
-                    return
+                _dd_ok_flag, _dd_reason = drawdown_guard.can_open_trade(_cached_balance)
+                if not _dd_ok_flag:
+                    tui_log(f"[DD] Trading halted by drawdown guard: {_dd_reason}", event_type="HALT")
+                    time.sleep(60)
+                    continue
+
+            # ── Telegram halt check ───────────────────────────────────────
             if _TG_OK and telegram.is_halted():
-                return
+                tui_log("[TG] Trading halted via Telegram /stop command", event_type="HALT")
+                time.sleep(30)
+                continue
 
-            # ── Hawkes Cluster Throttling (Idea 3) ────────────────────
-            tracker = _hawkes_long if direction == "LONG" else _hawkes_short
-            intensity = tracker.get_intensity() # Check intensity WITHOUT updating it yet
-            hawkes_penalty = _get_cluster_threshold_penalty(intensity)
+            scan_number += 1
 
-            # Use global _entropy_penalty from last scan to block cascades
-            effective_fast_track = FAST_TRACK_SCORE + hawkes_penalty + _entropy_penalty
-            if scan_res["score"] < effective_fast_track:
-                if hawkes_penalty > 0 or _entropy_penalty > 0:
-                    tui_log(f"FT THROTTLE: {scan_res['inst_id']} score {scan_res['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={_entropy_penalty})", event_type="THROTTLE")
-                return
+            # ── Account status ───────────────────────────────────────────
+            with _cache_lock:
+                # Dynamic scaling: more positions as equity grows
+                dynamic_max = get_dynamic_max_positions(_cached_balance)
+                available_slots = dynamic_max - len(_cached_positions)
 
-            # Signal passed! Now update the tracker to throttle the NEXT one in this cluster.
-            intensity = tracker.update(event_occurred=True)
-
-            # Staleness check
-            result_time = scan_res.get("scan_timestamp")
-            if result_time:
-                if result_time.tzinfo is None:
-                    result_time = result_time.replace(tzinfo=datetime.timezone.utc)
-                if (datetime.datetime.now(datetime.timezone.utc) - result_time).total_seconds() > RESULT_STALENESS_SECONDS:
+            # ── Fast-track callback ──────────────────────────────────────
+            # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
+            def on_scan_result(scan_res, direction, args=args):
+                if not _running or _account_trading_halted:
                     return
-
-            with _fast_track_lock:
-                with _cache_lock:
-                    # Account for positions already open PLUS those currently being verified
-                    if len(_cached_positions) + len(_fast_track_opened) >= get_dynamic_max_positions(_cached_balance):
+                if _DD_OK:
+                    _ok, _reason = drawdown_guard.can_open_trade(_cached_balance)
+                    if not _ok:
                         return
-                    if scan_res["inst_id"] in {p["symbol"] for p in _cached_positions}:
+                if _TG_OK and telegram.is_halted():
+                    return
+
+                # ── Hawkes Cluster Throttling (Idea 3) ────────────────────
+                tracker = _hawkes_long if direction == "LONG" else _hawkes_short
+                intensity = tracker.get_intensity() # Check intensity WITHOUT updating it yet
+                hawkes_penalty = _get_cluster_threshold_penalty(intensity)
+
+                # Use global _entropy_penalty from last scan to block cascades
+                effective_fast_track = FAST_TRACK_SCORE + hawkes_penalty + _entropy_penalty
+                if scan_res["score"] < effective_fast_track:
+                    if hawkes_penalty > 0 or _entropy_penalty > 0:
+                        tui_log(f"FT THROTTLE: {scan_res['inst_id']} score {scan_res['score']} < dynamic FT threshold {effective_fast_track} (λ={intensity:.2f}, H_pen={_entropy_penalty})", event_type="THROTTLE")
+                    return
+
+                # Signal passed! Now update the tracker to throttle the NEXT one in this cluster.
+                intensity = tracker.update(event_occurred=True)
+
+                # Staleness check
+                result_time = scan_res.get("scan_timestamp")
+                if result_time:
+                    if result_time.tzinfo is None:
+                        result_time = result_time.replace(tzinfo=datetime.timezone.utc)
+                    if (datetime.datetime.now(datetime.timezone.utc) - result_time).total_seconds() > RESULT_STALENESS_SECONDS:
                         return
 
-                if scan_res["inst_id"] in _fast_track_opened:
-                    return
+                with _fast_track_lock:
+                    with _cache_lock:
+                        # Account for positions already open PLUS those currently being verified
+                        if len(_cached_positions) + len(_fast_track_opened) >= get_dynamic_max_positions(_cached_balance):
+                            return
+                        if scan_res["inst_id"] in {p["symbol"] for p in _cached_positions}:
+                            return
 
-                # Cooldown check
-                last_ft = FAST_TRACK_COOLDOWN.get(scan_res["inst_id"], 0)
-                if time.time() - last_ft < FAST_TRACK_COOLDOWN_SECONDS:
-                    return
+                    if scan_res["inst_id"] in _fast_track_opened:
+                        return
 
-                _fast_track_opened.add(scan_res["inst_id"])
-                FAST_TRACK_COOLDOWN[scan_res["inst_id"]] = time.time()
+                    # Cooldown check
+                    last_ft = FAST_TRACK_COOLDOWN.get(scan_res["inst_id"], 0)
+                    if time.time() - last_ft < FAST_TRACK_COOLDOWN_SECONDS:
+                        return
 
-            try:
-                tui_log(f"FAST-TRACK: {scan_res['inst_id']} scored {scan_res['score']} — opening immediately (λ={intensity:.2f})", event_type="FAST")
+                    _fast_track_opened.add(scan_res["inst_id"])
+                    FAST_TRACK_COOLDOWN[scan_res["inst_id"]] = time.time()
 
-                # Entity API Hook: Fast Track signal
-                make_entity_request("signalevent", data={
-                    "signal_id": f"sig-{scan_res['inst_id']}-{int(time.time())}",
-                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                    "symbol": scan_res["inst_id"],
-                    "direction": direction,
-                    "raw_score": scan_res["score"],
-                    "effective_score": _effective_score(scan_res),
-                    "passed_quality_gate": True,
-                    "executed": True,
-                    "skip_reason": "FAST_TRACK",
-                    "hawkes_intensity": intensity,
-                    "entropy_penalty": _entropy_penalty
-                })
+                try:
+                    tui_log(f"FAST-TRACK: {scan_res['inst_id']} scored {scan_res['score']} — opening immediately (λ={intensity:.2f})", event_type="FAST")
 
-                # ── Wait & Verify ────────────────────────────────────
-                # Release lock during verify_candidate (15s sleep) and setup
-                verified_result = verify_candidate(scan_res["inst_id"], direction, scan_res["score"])
+                    # Entity API Hook: Fast Track signal
+                    make_entity_request("signalevent", data={
+                        "signal_id": f"sig-{scan_res['inst_id']}-{int(time.time())}",
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "symbol": scan_res["inst_id"],
+                        "direction": direction,
+                        "raw_score": scan_res["score"],
+                        "effective_score": _effective_score(scan_res),
+                        "passed_quality_gate": True,
+                        "executed": True,
+                        "skip_reason": "FAST_TRACK",
+                        "hawkes_intensity": intensity,
+                        "entropy_penalty": _entropy_penalty
+                    })
 
-                if verified_result:
+                    # ── Wait & Verify ────────────────────────────────────
+                    # Release lock during verify_candidate (15s sleep) and setup
+                    verified_result = verify_candidate(scan_res["inst_id"], direction, scan_res["score"])
+
+                    if verified_result:
+                        ok = execute_setup(verified_result, direction, dry_run=args.dry_run)
+                        if ok:
+                            _subscribe_symbol(scan_res["inst_id"])
+                            time.sleep(2)
+                finally:
+                    with _fast_track_lock:
+                        if scan_res["inst_id"] in _fast_track_opened:
+                            _fast_track_opened.remove(scan_res["inst_id"])
+
+            # ── Scan ─────────────────────────────────────────────────────
+            if _cached_balance < LOW_LIQ_MARGIN: # allow entry even in low-liq mode ($5 min)
+                 # Wait if balance is critical
+                 time.sleep(args.interval)
+                 continue
+
+            if available_slots <= 0:
+                time.sleep(args.interval)
+                continue
+
+            _display_paused.set() # pause dashboard during scan output to avoid mess
+            # REF: Tier 3: Non-Descriptive Variable Naming (long_r, short_r -> long_results, short_results)
+            long_results, short_results = run_scanner_both(cfg, args, on_result=on_scan_result)
+            _display_paused.clear()
+
+            # ── Cross-Asset Entropy Deflator (Idea 2) ─────────────────────
+            # Fetch total tickers again to get the universe size for entropy calculation
+            all_tickers = pc.get_tickers(rps=args.rate)
+            total_universe = len([t for t in all_tickers if float(t.get("turnoverRv", 0)) >= args.min_vol])
+
+            n_hits = len(long_results) + len(short_results)
+            imbalance = 0.0
+            if total_universe > 0 and n_hits > 0:
+                # Saturation: percentage of universe firing
+                sat_ratio = n_hits / total_universe
+                # Capped and less aggressive entropy penalties
+                sat_penalty = min(ENTROPY_SAT_CAP, int(sat_ratio * ENTROPY_SAT_WEIGHT)) 
+
+                # One-sidedness: how imbalanced are the signals?
+                imbalance = abs(len(long_results) - len(short_results)) / n_hits
+                side_penalty = int(ENTROPY_IMB_WEIGHT * imbalance)
+
+                _entropy_penalty = min(ENTROPY_MAX_PENALTY, sat_penalty + side_penalty)
+            else:
+                _entropy_penalty = 0
+
+            if _entropy_penalty > ENTROPY_ALERT_LEVEL:
+                tui_log(f"ENTROPY DEFLATOR: Raising min_score by +{_entropy_penalty} (Saturation: {n_hits}/{total_universe}, Imbalance: {imbalance:.2f})", event_type="DEFLATOR")
+
+            # ── Dynamic threshold calculation ─────────────────────────────
+            eff_min_score = args.min_score + _entropy_penalty
+            if not args.no_dynamic:
+                # REF: Tier 3: Non-Descriptive Variable Naming (r -> res)
+                all_scores = [res["score"] for res in (long_results + short_results)]
+                dynamic_min = pc.calc_dynamic_threshold(all_scores, args.min_score)
+                eff_min_score = max(eff_min_score, dynamic_min)
+
+            if eff_min_score > args.min_score:
+                tui_log(f"ADAPTIVE FILTER: Effective Min Score: {eff_min_score} (Penalty: +{_entropy_penalty})", event_type="ADAPTIVE")
+
+            # ── Staleness filter ──────────────────────────────────────────
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            def is_result_fresh(res, now):
+                ts = res.get("scan_timestamp")
+                if not ts:
+                    return True
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=datetime.timezone.utc)
+                return (now - ts).total_seconds() < RESULT_STALENESS_SECONDS
+
+            fresh_long  = [res for res in long_results  if is_result_fresh(res, now_utc)]
+            fresh_short = [res for res in short_results if is_result_fresh(res, now_utc)]
+
+            # ── Pick candidates ──────────────────────────────────────
+            with _cache_lock:
+                in_pos_updated    = {p["symbol"] for p in _cached_positions}
+                available_updated = get_dynamic_max_positions(_cached_balance) - len(_cached_positions)
+
+            candidates = pick_candidates(
+                fresh_long, fresh_short,
+                min_score=eff_min_score,
+                min_score_gap=args.min_score_gap,
+                direction_filter=args.direction,
+                symbols_in_position=in_pos_updated,
+                available_slots=available_updated,
+            )
+
+            # ── Execute ──────────────────────────────────────────────
+            sleep_interval = args.interval
+            if candidates:
+                for result, direction in candidates:
+                    with _cache_lock:
+                        # Recheck available slots before executing each candidate,
+                        # as a fast-track or manual action might have filled a slot
+                        if len(_cached_positions) >= get_dynamic_max_positions(_cached_balance):
+                            # REF: Tier 3: Temporal Inconsistency
+                            make_entity_request("signalevent", data={
+                                "signal_id": f"sig-{result['inst_id']}-{int(time.time())}",
+                                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                "symbol": result["inst_id"],
+                                "direction": direction,
+                                "raw_score": result["score"],
+                                "effective_score": _effective_score(result),
+                                "passed_quality_gate": True,
+                                "executed": False,
+                                "skip_reason": "MAX_POSITIONS_AFTER_SCAN_CANDIDATE"
+                            })
+                            tui_log(f"SKIP: {result['inst_id']} - Max positions reached while processing candidates.", event_type="SKIP")
+                            continue # Skip this candidate
+
+                    # Entity API Hook: Execute Candidate
+                    # REF: Tier 3: Temporal Inconsistency
+                    make_entity_request("signalevent", data={
+                        "signal_id": f"sig-{result['inst_id']}-{int(time.time())}",
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "symbol": result["inst_id"],
+                        "direction": direction,
+                        "raw_score": result["score"],
+                        "effective_score": _effective_score(result),
+                        "passed_quality_gate": True,
+                        "executed": True,
+                        "skip_reason": "SCAN_CANDIDATE"
+                    })
+
+                    # ── Wait & Verify ────────────────────────────────────
+                    # scan -> select -> wait -> verify -> enter
+                    verified_result = verify_candidate(result["inst_id"], direction, result["score"])
+                    if not verified_result:
+                        continue # Verification failed, skip to next candidate
+
                     ok = execute_setup(verified_result, direction, dry_run=args.dry_run)
                     if ok:
-                        _subscribe_symbol(scan_res["inst_id"])
+                        _subscribe_symbol(result["inst_id"])
                         time.sleep(2)
-            finally:
-                with _fast_track_lock:
-                    if scan_res["inst_id"] in _fast_track_opened:
-                        _fast_track_opened.remove(scan_res["inst_id"])
+            else:
+                # If no candidates, scan more frequently
+                logger.info("No qualifying candidates found. Shortening scan interval.")
+                sleep_interval = 5 # Check every 5 seconds if nothing is found
 
-        # ── Scan ─────────────────────────────────────────────────────
-        if _cached_balance < LOW_LIQ_MARGIN: # allow entry even in low-liq mode ($5 min)
-             # Wait if balance is critical
-             time.sleep(args.interval)
-             continue
+            # ── Sleep ────────────────────────────────────────────────────
+            _slot_available_event.wait(timeout=sleep_interval)
+            _slot_available_event.clear()
 
-        if available_slots <= 0:
-            time.sleep(args.interval)
-            continue
+        except Exception as e:
+            logger.error(f"Main loop error: {e}. Backing off for 30s...")
+            import traceback
+            logger.debug(traceback.format_exc())
+            time.sleep(30)
 
-        _display_paused.set() # pause dashboard during scan output to avoid mess
-        # REF: Tier 3: Non-Descriptive Variable Naming (long_r, short_r -> long_results, short_results)
-        long_results, short_results = run_scanner_both(cfg, args, on_result=on_scan_result)
-        _display_paused.clear()
-
-        # ── Cross-Asset Entropy Deflator (Idea 2) ─────────────────────
-        # Fetch total tickers again to get the universe size for entropy calculation
-        all_tickers = pc.get_tickers(rps=args.rate)
-        total_universe = len([t for t in all_tickers if float(t.get("turnoverRv", 0)) >= args.min_vol])
-
-        n_hits = len(long_results) + len(short_results)
-        imbalance = 0.0
-        if total_universe > 0 and n_hits > 0:
-            # Saturation: percentage of universe firing
-            sat_ratio = n_hits / total_universe
-            # Capped and less aggressive entropy penalties
-            sat_penalty = min(ENTROPY_SAT_CAP, int(sat_ratio * ENTROPY_SAT_WEIGHT)) 
-
-            # One-sidedness: how imbalanced are the signals?
-            imbalance = abs(len(long_results) - len(short_results)) / n_hits
-            side_penalty = int(ENTROPY_IMB_WEIGHT * imbalance)
-
-            _entropy_penalty = min(ENTROPY_MAX_PENALTY, sat_penalty + side_penalty)
-        else:
-            _entropy_penalty = 0
-
-        if _entropy_penalty > ENTROPY_ALERT_LEVEL:
-            tui_log(f"ENTROPY DEFLATOR: Raising min_score by +{_entropy_penalty} (Saturation: {n_hits}/{total_universe}, Imbalance: {imbalance:.2f})", event_type="DEFLATOR")
-
-        # ── Dynamic threshold calculation ─────────────────────────────
-        eff_min_score = args.min_score + _entropy_penalty
-        if not args.no_dynamic:
-            # REF: Tier 3: Non-Descriptive Variable Naming (r -> res)
-            all_scores = [res["score"] for res in (long_results + short_results)]
-            dynamic_min = pc.calc_dynamic_threshold(all_scores, args.min_score)
-            eff_min_score = max(eff_min_score, dynamic_min)
-
-        if eff_min_score > args.min_score:
-            tui_log(f"ADAPTIVE FILTER: Effective Min Score: {eff_min_score} (Penalty: +{_entropy_penalty})", event_type="ADAPTIVE")
-
-        # ── Staleness filter ──────────────────────────────────────────
-        now_utc = datetime.datetime.now(datetime.timezone.utc)
-        def is_result_fresh(res, now):
-            ts = res.get("scan_timestamp")
-            if not ts:
-                return True
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=datetime.timezone.utc)
-            return (now - ts).total_seconds() < RESULT_STALENESS_SECONDS
-
-        fresh_long  = [res for res in long_results  if is_result_fresh(res, now_utc)]
-        fresh_short = [res for res in short_results if is_result_fresh(res, now_utc)]
-
-        # ── Pick candidates ──────────────────────────────────────
-        with _cache_lock:
-            in_pos_updated    = {p["symbol"] for p in _cached_positions}
-            available_updated = get_dynamic_max_positions(_cached_balance) - len(_cached_positions)
-
-        candidates = pick_candidates(
-            fresh_long, fresh_short,
-            min_score=eff_min_score,
-            min_score_gap=args.min_score_gap,
-            direction_filter=args.direction,
-            symbols_in_position=in_pos_updated,
-            available_slots=available_updated,
-        )
-
-        # ── Execute ──────────────────────────────────────────────
-        sleep_interval = args.interval
-        if candidates:
-            for result, direction in candidates:
-                with _cache_lock:
-                    # Recheck available slots before executing each candidate,
-                    # as a fast-track or manual action might have filled a slot
-                    if len(_cached_positions) >= get_dynamic_max_positions(_cached_balance):
-                        # REF: Tier 3: Temporal Inconsistency
-                        make_entity_request("signalevent", data={
-                            "signal_id": f"sig-{result['inst_id']}-{int(time.time())}",
-                            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                            "symbol": result["inst_id"],
-                            "direction": direction,
-                            "raw_score": result["score"],
-                            "effective_score": _effective_score(result),
-                            "passed_quality_gate": True,
-                            "executed": False,
-                            "skip_reason": "MAX_POSITIONS_AFTER_SCAN_CANDIDATE"
-                        })
-                        tui_log(f"SKIP: {result['inst_id']} - Max positions reached while processing candidates.", event_type="SKIP")
-                        continue # Skip this candidate
-
-                # Entity API Hook: Execute Candidate
-                # REF: Tier 3: Temporal Inconsistency
-                make_entity_request("signalevent", data={
-                    "signal_id": f"sig-{result['inst_id']}-{int(time.time())}",
-                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                    "symbol": result["inst_id"],
-                    "direction": direction,
-                    "raw_score": result["score"],
-                    "effective_score": _effective_score(result),
-                    "passed_quality_gate": True,
-                    "executed": True,
-                    "skip_reason": "SCAN_CANDIDATE"
-                })
-
-                # ── Wait & Verify ────────────────────────────────────
-                # scan -> select -> wait -> verify -> enter
-                verified_result = verify_candidate(result["inst_id"], direction, result["score"])
-                if not verified_result:
-                    continue # Verification failed, skip to next candidate
-
-                ok = execute_setup(verified_result, direction, dry_run=args.dry_run)
-                if ok:
-                    _subscribe_symbol(result["inst_id"])
-                    time.sleep(2)
-        else:
-            # If no candidates, scan more frequently
-            logger.info("No qualifying candidates found. Shortening scan interval.")
-            sleep_interval = 5 # Check every 5 seconds if nothing is found
-
-        # ── Sleep ────────────────────────────────────────────────────
-        _slot_available_event.wait(timeout=sleep_interval)
-        _slot_available_event.clear()
+    tui_log("Bot shutdown requested. Closing components...", event_type="HALT")
+    if _ws_app:
+        _ws_app.close()
 
 
 # ────────────────────────────────────────────────────────────────────
