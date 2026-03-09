@@ -1,11 +1,13 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 from unittest.mock import MagicMock, patch
-import sim_bot
-from sim_bot import SimBotState
+import core.sim_bot as sim_bot
+from core.sim_bot import SimBotState
 
 @pytest.fixture
 def mock_storage():
-    with patch("sim_bot.StorageManager") as mock:
+    with patch("core.sim_bot.StorageManager") as mock:
         yield mock.return_value
 
 def test_get_sim_free_margin():
@@ -60,10 +62,10 @@ def test_sim_bot_state_load_save(tmp_path):
     assert len(state2.positions) == 1
     assert state2.positions[0]["symbol"] == "BTCUSDT"
 
-@patch("sim_bot.state")
-@patch("sim_bot.hw.bridge.signal")
-@patch("sim_bot.send_telegram_message")
-@patch("sim_bot._log_closed_trade")
+@patch("core.sim_bot.state")
+@patch("core.sim_bot.hw.bridge.signal")
+@patch("core.sim_bot.send_telegram_message")
+@patch("core.sim_bot._log_closed_trade")
 def test_check_stops_live_tp_hit(mock_log, mock_tg, mock_hw, mock_state):
     # Mock position
     pos = {
@@ -90,8 +92,8 @@ def test_check_stops_live_tp_hit(mock_log, mock_tg, mock_hw, mock_state):
     # HW signal TP
     mock_hw.assert_called_with('TP')
 
-@patch("sim_bot.state")
-@patch("sim_bot.hw.bridge.signal")
+@patch("core.sim_bot.state")
+@patch("core.sim_bot.hw.bridge.signal")
 def test_check_stops_live_sl_hit(mock_hw, mock_state):
     # Mock position
     pos = {

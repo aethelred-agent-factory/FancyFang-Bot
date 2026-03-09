@@ -17,8 +17,8 @@ die()     { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 BOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # repo root = script location
 SERVICE_NAME="phemex_sim_bot"
 PYTHON_MIN="3.10"
-VENV_DIR="$BOT_DIR/venv"
-MAIN_SCRIPT="sim_bot.py"
+VENV_DIR="$BOT_DIR/.venv"
+MAIN_SCRIPT="core/sim_bot.py"
 ENV_FILE="$BOT_DIR/.env"
 
 echo -e "\n${CYAN}══════════════════════════════════════════════════════${NC}"
@@ -91,7 +91,7 @@ TG_CHAT_ID=
 MIN_VOLUME=1000000
 TIMEFRAME=15m
 TOP_N=20
-MIN_SCORE=130
+MIN_SCORE=25
 MAX_WORKERS=100
 RATE_LIMIT_RPS=100.0
 EOF

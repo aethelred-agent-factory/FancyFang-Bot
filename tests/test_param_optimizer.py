@@ -1,16 +1,18 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 import json
 import math
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-import param_optimizer
-from param_optimizer import ParamSet, BacktestResult
+import research.param_optimizer as param_optimizer
+from research.param_optimizer import ParamSet, BacktestResult
 
 @pytest.fixture
 def temp_results_file(tmp_path):
     """Fixture to provide a temporary optimizer results file path."""
     test_file = tmp_path / "test_optimizer_results.json"
-    with patch("param_optimizer._RESULTS_FILE", test_file):
+    with patch("research.param_optimizer._RESULTS_FILE", test_file):
         yield test_file
         if test_file.exists():
             test_file.unlink()

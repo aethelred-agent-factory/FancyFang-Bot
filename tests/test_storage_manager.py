@@ -1,6 +1,8 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
 from pathlib import Path
-from storage_manager import StorageManager
+from modules.storage_manager import StorageManager
 
 class TestStorageManager(unittest.TestCase):
     def setUp(self):

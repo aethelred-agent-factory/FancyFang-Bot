@@ -1,5 +1,7 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
-import ui
+import core.ui as ui
 from colorama import Fore, Style
 
 class TestUI(unittest.TestCase):

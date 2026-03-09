@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
 import time
 from unittest.mock import patch
@@ -8,7 +10,7 @@ import os
 # Add the root directory to sys.path to import project modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from drawdown_guard import DrawdownGuard
+from modules.drawdown_guard import DrawdownGuard
 
 class TestDrawdownGuardExhaustive(unittest.TestCase):
     def setUp(self):
@@ -67,7 +69,7 @@ class TestDrawdownGuardExhaustive(unittest.TestCase):
         ok, _ = self.guard.can_open_trade(90.0)
         self.assertFalse(ok, "Kill switch should persist even if PnL recovers slightly.")
 
-    @patch('drawdown_guard.DrawdownGuard._today')
+    @patch('modules.drawdown_guard.DrawdownGuard._today')
     def test_daily_reset_logic(self, mock_today):
         """Test that the drawdown state and kill switch reset on a new day."""
         # --- Day 1: Get killed ---

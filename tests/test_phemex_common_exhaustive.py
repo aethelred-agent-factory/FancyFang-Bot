@@ -1,3 +1,5 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
 import sys
 import os
@@ -8,7 +10,7 @@ from colorama import Fore
 # Add the root directory to sys.path to import project modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import phemex_common as pc
+import core.phemex_common as pc
 
 class TestPhemexCommonExhaustive(unittest.TestCase):
     
@@ -44,8 +46,8 @@ class TestPhemexCommonExhaustive(unittest.TestCase):
         # np.percentile([200, 210, 220], 90) = 218
         self.assertEqual(pc.calc_dynamic_threshold(scores_high, 150), 218)
 
-    @patch('phemex_common.time.sleep') # Mock sleep to speed up the test
-    @patch('phemex_common.get_thread_session')
+    @patch('core.phemex_common.time.sleep') # Mock sleep to speed up the test
+    @patch('core.phemex_common.get_thread_session')
     def test_exponential_backoff_in_safe_request(self, mock_session, mock_sleep):
         """Tests the exponential backoff logic inside safe_request."""
         # Mock the session to return a 429 status code consistently

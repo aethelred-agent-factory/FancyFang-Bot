@@ -1,5 +1,7 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
-from phemex_common import pct_change, calc_rsi, calc_bb, calc_ema_series
+from core.phemex_common import pct_change, calc_rsi, calc_bb, calc_ema_series
 
 class TestPhemexCommon(unittest.TestCase):
     def test_pct_change(self):

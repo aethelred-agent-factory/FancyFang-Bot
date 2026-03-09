@@ -1,7 +1,9 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 import threading
 import time
-import drawdown_guard
+import modules.drawdown_guard as drawdown_guard
 
 def test_drawdown_guard_singleton_wrappers():
     """Test the module-level singleton wrapper functions."""

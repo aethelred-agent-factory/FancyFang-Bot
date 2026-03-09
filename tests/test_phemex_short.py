@@ -1,6 +1,8 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
-import phemex_short as ps
-from phemex_common import TickerData
+import core.phemex_short as ps
+from core.phemex_common import TickerData
 
 class TestPhemexShort(unittest.TestCase):
     def setUp(self):

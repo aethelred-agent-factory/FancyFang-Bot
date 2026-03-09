@@ -1,7 +1,9 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 import time
 from unittest.mock import MagicMock, patch
-import hardware_bridge
+import modules.hardware_bridge as hardware_bridge
 
 @pytest.fixture
 def mock_serial():

@@ -1,9 +1,11 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 import json
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-import signal_analytics
+import modules.signal_analytics as signal_analytics
 
 @pytest.fixture
 def temp_analytics_file(tmp_path):
@@ -11,10 +13,13 @@ def temp_analytics_file(tmp_path):
     test_file = tmp_path / "test_signal_analytics.json"
     
     # Patch the global _ANALYTICS_FILE and reset cache
-    with patch("signal_analytics._ANALYTICS_FILE", test_file):
+    with patch("modules.signal_analytics._ANALYTICS_FILE", test_file):
+        old_storage = signal_analytics._storage
+        signal_analytics._storage = None
         signal_analytics._cache = None
         signal_analytics._dirty_count = 0
         yield test_file
+        signal_analytics._storage = old_storage
         # Cleanup if needed (tmp_path handles it mostly)
         if test_file.exists():
             test_file.unlink()
@@ -38,7 +43,8 @@ def test_record_trade_basic(temp_analytics_file):
         symbol="BTCUSDT"
     )
     
-    stats = signal_analytics.get_signal_stats()
+    full_stats = signal_analytics.get_signal_stats()
+    stats = full_stats["signals"]
     assert "RSI Recovery" in stats
     s = stats["RSI Recovery"]
     assert s["trade_count"] == 1
@@ -66,7 +72,8 @@ def test_record_trade_multiple_signals(temp_analytics_file):
         symbol="ETHUSDT"
     )
     
-    stats = signal_analytics.get_signal_stats()
+    full_stats = signal_analytics.get_signal_stats()
+    stats = full_stats["signals"]
     for sig in ["SigA", "SigB"]:
         assert stats[sig]["trade_count"] == 1
         assert stats[sig]["loss_count"] == 1
@@ -113,7 +120,7 @@ def test_manual_flush(temp_analytics_file):
 
 def test_get_signal_stats_empty(temp_analytics_file):
     """Test get_signal_stats with no data."""
-    assert signal_analytics.get_signal_stats() == {}
+    assert signal_analytics.get_signal_stats() == {"signals": {}, "hours": {}}
 
 def test_get_signal_stats_mixed(temp_analytics_file):
     """Test complex stats calculation."""
@@ -122,7 +129,7 @@ def test_get_signal_stats_mixed(temp_analytics_file):
     signal_analytics.record_trade(["Sig"], 100, 110, 10.0, "LONG", "BTC")
     signal_analytics.record_trade(["Sig"], 100, 95, -5.0, "LONG", "BTC")
     
-    stats = signal_analytics.get_signal_stats()["Sig"]
+    stats = signal_analytics.get_signal_stats()["signals"]["Sig"]
     assert stats["trade_count"] == 3
     assert stats["win_count"] == 2
     assert stats["loss_count"] == 1
@@ -154,7 +161,7 @@ def test_thread_safety(temp_analytics_file):
     for t in threads: t.start()
     for t in threads: t.join()
     
-    stats = signal_analytics.get_signal_stats()
+    stats = signal_analytics.get_signal_stats()["signals"]
     assert stats["Sig"]["trade_count"] == 250
 
 def test_print_report_no_data(temp_analytics_file, capsys):

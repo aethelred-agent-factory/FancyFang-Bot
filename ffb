@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+# FancyFangBot (ffb) CLI Dispatcher
+# -----------------------------------------------------------------------------
+# This script provides a unified interface for all FancyFangBot components.
+
+# Get the directory where this script is located
+BOT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+show_help() {
+    echo "FancyFangBot (ffb) CLI"
+    echo "Usage: ffb <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  run       - Run the live trading bot (core/p_bot.py run)"
+    echo "  sim       - Run the simulation/paper bot (core/sim_bot.py)"
+    echo "  scan      - Run the market scanner (core/phemex_scanner.py)"
+    echo "  backtest  - Run the backtester (research/backtest.py)"
+    echo "  overfit   - Run the overfit diagnostics (research/overfit_test.py)"
+    echo "  optimize  - Run the parameter optimizer (research/param_optimizer.py)"
+    echo "  test      - Run the test suite (pytest)"
+    echo "  -h, --help - Show this help message"
+}
+
+# Ensure we're running from the root for relative imports to work correctly
+cd "$BOT_ROOT"
+
+case "$1" in
+    run)
+        shift; python3 core/p_bot.py run "$@"
+        ;;
+    sim)
+        shift; python3 core/sim_bot.py "$@"
+        ;;
+    scan)
+        shift; python3 core/phemex_scanner.py "$@"
+        ;;
+    backtest)
+        shift; python3 research/backtest.py "$@"
+        ;;
+    overfit)
+        shift; python3 research/overfit_test.py "$@"
+        ;;
+    optimize)
+        shift; python3 research/param_optimizer.py "$@"
+        ;;
+    test)
+        shift; pytest tests/ "$@"
+        ;;
+    -h|--help|"")
+        show_help
+        ;;
+    *)
+        echo "Unknown command: $1"
+        show_help
+        exit 1
+        ;;
+esac

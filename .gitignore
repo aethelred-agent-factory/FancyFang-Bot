@@ -11,19 +11,22 @@ venv/
 .venv/
 env/
 .env/
+*.tar.gz
 
-# Logs & State (fresh reset)
+# Runtime state
+data/logs/
+data/state/
+*.db
+*.tmp
 *.log
-*.json
 *.jsonl
 !paper_account.json
 !paper_account.json.example
+
+# Backtest outputs
+data/backtest_results/
 
 # OS / IDE
 .DS_Store
 .vscode/
 .idea/
-
-# Archives
-*.zip
-*.tar.gz

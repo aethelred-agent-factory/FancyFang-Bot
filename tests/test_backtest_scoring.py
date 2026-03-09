@@ -1,11 +1,13 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
 import sys
 import os
 
-# Add the root directory to sys.path to import backtest
+# Add the root directory to sys.path to import research.backtest as backtest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from backtest import score_long_window, score_short_window
+from research.backtest import score_long_window, score_short_window
 
 class TestBacktestScoring(unittest.TestCase):
     def setUp(self):

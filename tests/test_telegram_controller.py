@@ -1,7 +1,9 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 import time
 from unittest.mock import patch, MagicMock
-import telegram_controller
+import modules.telegram_controller as telegram_controller
 
 @pytest.fixture
 def mock_requests():
@@ -10,8 +12,8 @@ def mock_requests():
 
 def test_telegram_controller_send(mock_requests):
     mock_get, mock_post = mock_requests
-    with (patch("telegram_controller.TG_BOT_TOKEN", "token"), 
-          patch("telegram_controller.TG_CHAT_ID", "chat_id")):
+    with (patch("modules.telegram_controller.TG_BOT_TOKEN", "token"), 
+          patch("modules.telegram_controller.TG_CHAT_ID", "chat_id")):
         telegram_controller._send("Hello World")
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
@@ -24,7 +26,7 @@ def test_telegram_controller_get_updates(mock_requests):
         "result": [{"update_id": 100, "message": {"text": "/status", "chat": {"id": "chat_id"}}}]
     }
     
-    with patch("telegram_controller.TG_BOT_TOKEN", "token"):
+    with patch("modules.telegram_controller.TG_BOT_TOKEN", "token"):
         updates = telegram_controller._get_updates()
         assert len(updates) == 1
         assert telegram_controller._offset == 101
@@ -41,7 +43,7 @@ def test_handle_status(mock_requests):
     telegram_controller._get_balance = lambda: 1000.0
     telegram_controller._get_positions = lambda: [{}, {}]
     
-    with patch("drawdown_guard.get_status", return_value={
+    with patch("modules.drawdown_guard.get_status", return_value={
         "daily_pnl": 10.0, "loss_pct": 0.01, "killed": False, "remaining": 90.0
     }):
         telegram_controller._handle_status("chat_id")
@@ -77,8 +79,8 @@ def test_poll_loop_iteration(mock_requests):
         "result": [{"update_id": 100, "message": {"text": "/start", "chat": {"id": "chat_id"}}}]
     }
     
-    with (patch("telegram_controller.TG_CHAT_ID", "chat_id"), 
-          patch("telegram_controller.TG_BOT_TOKEN", "token")):
+    with (patch("modules.telegram_controller.TG_CHAT_ID", "chat_id"), 
+          patch("modules.telegram_controller.TG_BOT_TOKEN", "token")):
         
         telegram_controller._running = True
         # We need to stop it after one iteration. 

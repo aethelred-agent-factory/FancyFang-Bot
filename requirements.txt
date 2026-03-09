@@ -1,0 +1,10 @@
+numpy
+requests
+colorama
+python-dotenv
+websocket-client
+blessed
+urllib3
+pytest
+pandas
+pyserial

@@ -1,8 +1,10 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 from unittest.mock import patch, MagicMock
-import phemex_common as pc
-import phemex_long
-import phemex_short
+import core.phemex_common as pc
+import core.phemex_long as phemex_long
+import core.phemex_short as phemex_short
 
 @pytest.fixture
 def mock_ticker():
@@ -32,9 +34,9 @@ def mock_cfg():
         "vol_min": 0.002
     }
 
-@patch("phemex_common.get_candles")
-@patch("phemex_common.get_order_book_with_volumes")
-@patch("phemex_common.safe_request")
+@patch("core.phemex_common.get_candles")
+@patch("core.phemex_common.get_order_book_with_volumes")
+@patch("core.phemex_common.safe_request")
 def test_unified_analyse_long(mock_safe, mock_ob, mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
     """Test unified_analyse for LONG direction."""
     mock_candles_fn.side_effect = lambda symbol, timeframe, limit, rps: mock_candles[:limit]
@@ -47,7 +49,7 @@ def test_unified_analyse_long(mock_safe, mock_ob, mock_candles_fn, mock_ticker, 
     # score_long uses indicators calculated from candles.
     # Our flat candles will likely produce a neutral score.
     # Let's mock score_long to return a high score.
-    with patch("phemex_long.score_long") as mock_score:
+    with patch("core.phemex_long.score_long") as mock_score:
         mock_score.return_value = (150, ["Signal A", "Signal B"])
         
         result = phemex_long.analyse(mock_ticker, mock_cfg)
@@ -59,14 +61,14 @@ def test_unified_analyse_long(mock_safe, mock_ob, mock_candles_fn, mock_ticker, 
         assert "Signal A" in result["signals"]
         assert result["confidence"] in ["LOW", "MEDIUM", "HIGH"]
 
-@patch("phemex_common.get_candles")
-@patch("phemex_common.get_order_book_with_volumes")
+@patch("core.phemex_common.get_candles")
+@patch("core.phemex_common.get_order_book_with_volumes")
 def test_unified_analyse_gate_failure(mock_ob, mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
     """Test that unified_analyse skips expensive calls if pre-score is too low."""
     mock_candles_fn.return_value = mock_candles
     
     # Ensure score_long returns a low score
-    with patch("phemex_long.score_long") as mock_score:
+    with patch("core.phemex_long.score_long") as mock_score:
         mock_score.return_value = (10, ["Weak Signal"])
         
         result = phemex_long.analyse(mock_ticker, mock_cfg)
@@ -75,7 +77,7 @@ def test_unified_analyse_gate_failure(mock_ob, mock_candles_fn, mock_ticker, moc
         # Verify that get_order_book_with_volumes was NOT called
         assert not mock_ob.called
 
-@patch("phemex_common.get_candles")
+@patch("core.phemex_common.get_candles")
 def test_unified_analyse_volatility_filter_fail(mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
     """Test volatility filter in unified_analyse."""
     mock_candles_fn.return_value = mock_candles
@@ -84,11 +86,11 @@ def test_unified_analyse_volatility_filter_fail(mock_candles_fn, mock_ticker, mo
     mock_cfg["vol_min"] = 1.0 # Impossible ATR/Price ratio
     
     # Mock ATR to be low
-    with patch("phemex_common.calc_atr", return_value=0.1):
+    with patch("core.phemex_common.calc_atr", return_value=0.1):
         result = phemex_long.analyse(mock_ticker, mock_cfg)
         assert result is None
 
-@patch("phemex_common.get_candles")
+@patch("core.phemex_common.get_candles")
 def test_unified_analyse_spread_filter_fail(mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
     """Test spread filter in unified_analyse."""
     mock_candles_fn.return_value = mock_candles

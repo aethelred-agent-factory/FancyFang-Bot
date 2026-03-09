@@ -1,6 +1,8 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import pytest
 import numpy as np
-import phemex_common as pc
+import core.phemex_common as pc
 from unittest.mock import MagicMock, patch
 
 def test_calc_atr():
