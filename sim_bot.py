@@ -48,6 +48,8 @@ import phemex_common as pc
 import phemex_long as scanner_long
 import phemex_short as scanner_short
 import animations
+import hardware_bridge as hw
+import hardware_bridge as hw
 
 # Safely import p_bot
 try:
@@ -477,6 +479,7 @@ def _close_all_positions() -> None:
 
     # --- Kill Cinematic ---
     play_animation(animations.kill)
+    hw.bridge.signal('EXIT')
 
     for pos in account["positions"]:
         symbol = pos["symbol"]
@@ -760,6 +763,11 @@ def _check_stops_live(symbol: str) -> None:
         pnl_emoji = "✅" if exit_to_process["pnl"] > 0 else "❌"
 
         # --- Exit Cinematic ---
+        if exit_to_process["pnl"] > 0:
+            hw.bridge.signal('TP')
+        else:
+            hw.bridge.signal('SL')
+
         if exit_to_process["pnl"] > 10.0:  # Big win threshold
             play_animation(animations.big_win)
         elif exit_to_process["pnl"] > 0:
@@ -1751,6 +1759,12 @@ def update_pnl_and_stops() -> None:
         state.slot_available_event.set()
 
         tui_log(f"{ex['exit_reason'].upper()} HIT: {symbol} closed at {ex['exit_price']}")
+        
+        if ex['pnl'] > 0:
+            hw.bridge.signal('TP')
+        else:
+            hw.bridge.signal('SL')
+
         pnl_emoji = "✅" if ex['pnl'] > 0 else "❌"
         # Duration
         hold_time = 0
@@ -2130,6 +2144,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     tui_log(f"ENTERED {arrow} {symbol} @ {entry_price:.6g} (Score: {score}) slippage={slippage_amt:.6g}")
 
     # --- Entry Cinematic ---
+    hw.bridge.signal('ENTRY')
     if direction == "LONG":
         play_animation(animations.long)
     else:
