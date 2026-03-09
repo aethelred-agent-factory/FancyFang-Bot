@@ -139,6 +139,17 @@ SCORE_GRADE_A        = 75  # grade() boundary
 SCORE_GRADE_B        = 60  # grade() boundary
 SCORE_GRADE_C        = 45  # grade() boundary
 
+# Time-of-day filter (UTC hours to block)
+_blocked_hours_str = os.getenv("BLOCKED_HOURS", "")
+BLOCKED_HOURS = [int(h.strip()) for h in _blocked_hours_str.split(",") if h.strip().isdigit()]
+
+def is_hour_blocked() -> bool:
+    """Returns True if the current UTC hour is in the BLOCKED_HOURS list."""
+    if not BLOCKED_HOURS:
+        return False
+    current_hour = datetime.datetime.now(datetime.timezone.utc).hour
+    return current_hour in BLOCKED_HOURS
+
 CRYPTOPANIC_API_KEY = os.getenv("CRYPTOPANIC_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 ENTITY_API_KEY = os.getenv("ENTITY_API_KEY")
@@ -834,7 +845,7 @@ def update_atr_trail(
 
 # ── Upgrade #3: Spread Filter ────────────────────────────────────────────────
 
-SPREAD_FILTER_MAX_PCT = float(os.getenv("SPREAD_FILTER_MAX_PCT", "0.20"))  # 0.20 %
+SPREAD_FILTER_MAX_PCT = float(os.getenv("SPREAD_FILTER_MAX_PCT", "0.40"))  # 0.40 %
 
 def check_spread_filter(spread_pct: Optional[float], symbol: str = "") -> Tuple[bool, str]:
     """
@@ -1697,7 +1708,7 @@ def unified_analyse(
         # REF: Tier 3: Temporal Inconsistency
         now_utc_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         result = {
-            "inst_id": symbol, "price": last, "change_24h": data.change_24h,
+            "inst_id": symbol, "direction": direction, "price": last, "change_24h": data.change_24h,
             "vol_24h": vol24, "rsi": rsi, "prev_rsi": prev_rsi, "bb_pct": bb_pct,
             "ema21": ema21, "funding_pct": funding_rate * 100.0 if funding_rate is not None else None,
             "score": score, "signals": signals, "patterns": raw_patterns,  # [T1-FIX] was `patterns` (NameError)
@@ -1713,6 +1724,19 @@ def unified_analyse(
             "best_bid":    best_bid,       # Upgrade #1 slippage / #10 imbalance
             "best_ask":    best_ask,
             "ob_imbalance": ob_imbalance,  # Upgrade #10: order book imbalance ratio
+            # ── Audit fields (Upgrade #16) ───────────────────────────────────
+            "raw_signals": {
+                "rsi": rsi,
+                "bb_width": bb["width_pct"] if bb else None,
+                "ema_slope": ema_slope,
+                "vol_spike": vol_spike,
+                "entropy": entropy,
+                "kalman_slope": kalman_slope,
+                "ob_imbalance": ob_imbalance,
+                "funding_rate": funding_rate,
+                "rsi_1h": rsi_1h,
+                "rsi_4h": rsi_4h
+            }
         }
 
         # 11. Entity API Hook

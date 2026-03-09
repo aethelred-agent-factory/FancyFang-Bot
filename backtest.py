@@ -888,9 +888,10 @@ def backtest_symbol(
                         active_position.exit_reason  = "take_profit"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
+                        pnl_for_cooldown = active_position.pnl_usdt
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
-                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
+                        current_cooldown = _calculate_dynamic_cooldown_candles(pnl_for_cooldown, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 # Hard stop check (fires before trailing stop)
@@ -906,9 +907,10 @@ def backtest_symbol(
                         active_position.exit_reason  = "hard_stop"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
+                        pnl_for_cooldown = active_position.pnl_usdt
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
-                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
+                        current_cooldown = _calculate_dynamic_cooldown_candles(pnl_for_cooldown, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 # Ratchet high-water on candle high
@@ -926,9 +928,10 @@ def backtest_symbol(
                     active_position.exit_reason  = "trail_stop"
                     active_position.hold_candles = candle_index - active_position.entry_idx
                     trades.append(active_position)
+                    pnl_for_cooldown = active_position.pnl_usdt
                     is_in_position = False; active_position = None
                     last_exit_index = candle_index
-                    current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
+                    current_cooldown = _calculate_dynamic_cooldown_candles(pnl_for_cooldown, base_win=1, base_loss=max(2, cooldown))
                     continue
 
             else:  # SHORT
@@ -945,9 +948,10 @@ def backtest_symbol(
                         active_position.exit_reason  = "take_profit"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
+                        pnl_for_cooldown = active_position.pnl_usdt
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
-                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
+                        current_cooldown = _calculate_dynamic_cooldown_candles(pnl_for_cooldown, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 # Hard stop check
@@ -963,9 +967,10 @@ def backtest_symbol(
                         active_position.exit_reason  = "hard_stop"
                         active_position.hold_candles = candle_index - active_position.entry_idx
                         trades.append(active_position)
+                        pnl_for_cooldown = active_position.pnl_usdt
                         is_in_position = False; active_position = None
                         last_exit_index = candle_index
-                        current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
+                        current_cooldown = _calculate_dynamic_cooldown_candles(pnl_for_cooldown, base_win=1, base_loss=max(2, cooldown))
                         continue
 
                 if current_close < low_water_mark:
@@ -981,9 +986,10 @@ def backtest_symbol(
                     active_position.exit_reason  = "trail_stop"
                     active_position.hold_candles = candle_index - active_position.entry_idx
                     trades.append(active_position)
+                    pnl_for_cooldown = active_position.pnl_usdt
                     is_in_position = False; active_position = None
                     last_exit_index = candle_index
-                    current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
+                    current_cooldown = _calculate_dynamic_cooldown_candles(pnl_for_cooldown, base_win=1, base_loss=max(2, cooldown))
                     continue
 
             # Max hold exit at candle close
@@ -1000,9 +1006,10 @@ def backtest_symbol(
                 active_position.exit_reason  = "max_hold"
                 active_position.hold_candles = candle_index - active_position.entry_idx
                 trades.append(active_position)
+                pnl_for_cooldown = active_position.pnl_usdt
                 is_in_position = False; active_position = None
                 last_exit_index = candle_index
-                current_cooldown = _calculate_dynamic_cooldown_candles(active_position.pnl_usdt, base_win=1, base_loss=max(2, cooldown))
+                current_cooldown = _calculate_dynamic_cooldown_candles(pnl_for_cooldown, base_win=1, base_loss=max(2, cooldown))
             continue
 
         # ── Cooldown guard ────────────────────────────────────────────
@@ -1037,7 +1044,7 @@ def backtest_symbol(
             direction_trade, entry_score, entry_signals = "SHORT", short_score, short_signals
 
         # ── Upgrade #3: Spread filter ─────────────────────────────────────────
-        if spread is not None and spread > 0.20:   # Synchronized with pc.SPREAD_FILTER_MAX_PCT
+        if spread is not None and spread > 0.40:   # Synchronized with pc.SPREAD_FILTER_MAX_PCT
             continue  # skip — too illiquid
 
         # ── Upgrade #6: Volatility filter on ATR / price ─────────────────────
@@ -1517,7 +1524,7 @@ def main():
     parser.add_argument("--min-score",  type=int,   default=120)
     parser.add_argument("--trail-pct",  type=float, default=0.02)
     parser.add_argument("--leverage",   type=int,   default=30)
-    parser.add_argument("--margin",     type=float, default=25.0,
+    parser.add_argument("--margin",     type=float, default=5.0,
                         help="USDT margin per trade")
     parser.add_argument("--max-margin", type=float, default=150.0,
                         help="Max total USDT margin for scaling in.")

@@ -4,7 +4,7 @@ import logging
 import datetime
 import threading
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("storage_manager")
 
@@ -40,7 +40,6 @@ class StorageManager:
                 """)
 
                 # Positions table (JSON blob for simplicity or structured)
-                # Let's go structured for better queryability
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS positions (
                         symbol TEXT PRIMARY KEY,
@@ -53,7 +52,7 @@ class StorageManager:
                         take_profit REAL,
                         entry_time TEXT NOT NULL,
                         entry_score REAL,
-                        data_json TEXT -- Full raw position data for compatibility
+                        data_json TEXT
                     )
                 """)
 
@@ -71,9 +70,83 @@ class StorageManager:
                         reason TEXT,
                         timestamp TEXT NOT NULL,
                         signals_json TEXT,
-                        slippage REAL
+                        slippage REAL,
+                        raw_signals_json TEXT
                     )
                 """)
+
+                # Drawdown state table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS drawdown_state (
+                        day TEXT PRIMARY KEY,
+                        start_balance REAL NOT NULL,
+                        daily_pnl REAL NOT NULL,
+                        killed INTEGER NOT NULL,
+                        kill_reason TEXT,
+                        kill_count_today INTEGER NOT NULL
+                    )
+                """)
+
+                # Signal stats table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS signal_stats (
+                        signal_name TEXT PRIMARY KEY,
+                        trade_count INTEGER NOT NULL,
+                        win_count INTEGER NOT NULL,
+                        loss_count INTEGER NOT NULL,
+                        gross_wins REAL NOT NULL,
+                        gross_losses REAL NOT NULL,
+                        pnl_list_json TEXT
+                    )
+                """)
+
+                # Hour stats table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS hour_stats (
+                        hour INTEGER PRIMARY KEY,
+                        trade_count INTEGER NOT NULL,
+                        win_count INTEGER NOT NULL,
+                        loss_count INTEGER NOT NULL,
+                        gross_wins REAL NOT NULL,
+                        gross_losses REAL NOT NULL,
+                        pnl_list_json TEXT
+                    )
+                """)
+
+                # Correlation matrix table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS correlation_matrix (
+                        symbol1 TEXT NOT NULL,
+                        symbol2 TEXT NOT NULL,
+                        correlation REAL NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        PRIMARY KEY (symbol1, symbol2)
+                    )
+                """)
+
+                # Events table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        time TEXT NOT NULL,
+                        buffer_before_mins INTEGER DEFAULT 90,
+                        buffer_after_mins INTEGER DEFAULT 30,
+                        impact TEXT,
+                        source TEXT
+                    )
+                """)
+
+                # Ensure columns exist in trade_history (Migration)
+                cursor.execute("PRAGMA table_info(trade_history)")
+                cols = [c[1] for c in cursor.fetchall()]
+                if 'signals_json' not in cols:
+                    cursor.execute("ALTER TABLE trade_history ADD COLUMN signals_json TEXT")
+                if 'raw_signals_json' not in cols:
+                    cursor.execute("ALTER TABLE trade_history ADD COLUMN raw_signals_json TEXT")
+                if 'slippage' not in cols:
+                    cursor.execute("ALTER TABLE trade_history ADD COLUMN slippage REAL DEFAULT 0.0")
+                
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to initialize database: {e}")
@@ -144,14 +217,21 @@ class StorageManager:
                 cursor.execute("""
                     INSERT INTO trade_history (
                         symbol, direction, entry, exit, pnl, hold_time_s,
-                        score, reason, timestamp, signals_json, slippage
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        score, reason, timestamp, signals_json, slippage, raw_signals_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    record['symbol'], record['direction'], record['entry'],
-                    record['exit'], record['pnl'], record.get('hold_time_s'),
-                    record.get('score'), record.get('reason'),
-                    record['timestamp'], json.dumps(record.get('signals', [])),
-                    record.get('slippage', 0.0)
+                    record.get('symbol', 'UNKNOWN'),
+                    record.get('direction', 'UNKNOWN'),
+                    record.get('entry', 0.0),
+                    record.get('exit', 0.0),
+                    record.get('pnl', 0.0),
+                    record.get('hold_time_s'),
+                    record.get('score'),
+                    record.get('reason'),
+                    record.get('timestamp', datetime.datetime.now(datetime.timezone.utc).isoformat()),
+                    json.dumps(record.get('signals', [])),
+                    record.get('slippage', 0.0),
+                    json.dumps(record.get('raw_signals', {}))
                 ))
                 conn.commit()
             except sqlite3.Error as e:
@@ -173,6 +253,8 @@ class StorageManager:
                 for r in rows:
                     item = dict(r)
                     item['signals'] = json.loads(item.pop('signals_json'))
+                    raw_sig = item.pop('raw_signals_json')
+                    item['raw_signals'] = json.loads(raw_sig) if raw_sig else {}
                     history.append(item)
                 return history
             finally:
@@ -185,5 +267,245 @@ class StorageManager:
             try:
                 conn.execute("DELETE FROM positions")
                 conn.commit()
+            finally:
+                conn.close()
+
+    # --- Drawdown Guard Methods ---
+
+    def load_drawdown_state(self, day: str) -> Optional[Dict[str, Any]]:
+        """Loads drawdown state for a specific day."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM drawdown_state WHERE day = ?", (day,))
+                row = cursor.fetchone()
+                if row:
+                    res = dict(row)
+                    res['killed'] = bool(res['killed'])
+                    return res
+                return None
+            finally:
+                conn.close()
+
+    def save_drawdown_state(self, state_dict: Dict[str, Any]):
+        """Saves drawdown state."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO drawdown_state (day, start_balance, daily_pnl, killed, kill_reason, kill_count_today)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(day) DO UPDATE SET
+                        start_balance=excluded.start_balance,
+                        daily_pnl=excluded.daily_pnl,
+                        killed=excluded.killed,
+                        kill_reason=excluded.kill_reason,
+                        kill_count_today=excluded.kill_count_today
+                """, (
+                    state_dict['day'], state_dict['start_balance'], state_dict['daily_pnl'],
+                    1 if state_dict['killed'] else 0, state_dict['kill_reason'],
+                    state_dict['kill_count_today']
+                ))
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Failed to save drawdown state: {e}")
+            finally:
+                conn.close()
+
+    # --- Signal Analytics Methods ---
+
+    def load_signal_stats(self) -> Dict[str, Any]:
+        """Loads all signal statistics."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM signal_stats")
+                rows = cursor.fetchall()
+                stats = {}
+                for r in rows:
+                    name = r['signal_name']
+                    stats[name] = {
+                        "trade_count": r['trade_count'],
+                        "win_count": r['win_count'],
+                        "loss_count": r['loss_count'],
+                        "gross_wins": r['gross_wins'],
+                        "gross_losses": r['gross_losses'],
+                        "pnl_list": json.loads(r['pnl_list_json'])
+                    }
+                return stats
+            finally:
+                conn.close()
+
+    def save_signal_stats(self, stats: Dict[str, Dict[str, Any]]):
+        """Saves all signal statistics."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                for name, b in stats.items():
+                    cursor.execute("""
+                        INSERT INTO signal_stats (
+                            signal_name, trade_count, win_count, loss_count,
+                            gross_wins, gross_losses, pnl_list_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(signal_name) DO UPDATE SET
+                            trade_count=excluded.trade_count,
+                            win_count=excluded.win_count,
+                            loss_count=excluded.loss_count,
+                            gross_wins=excluded.gross_wins,
+                            gross_losses=excluded.gross_losses,
+                            pnl_list_json=excluded.pnl_list_json
+                    """, (
+                        name, b['trade_count'], b['win_count'], b['loss_count'],
+                        b['gross_wins'], b['gross_losses'], json.dumps(b['pnl_list'])
+                    ))
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Failed to save signal stats: {e}")
+            finally:
+                conn.close()
+
+    def load_hour_stats(self) -> Dict[int, Any]:
+        """Loads all hour statistics."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM hour_stats")
+                rows = cursor.fetchall()
+                stats = {}
+                for r in rows:
+                    hour = r['hour']
+                    stats[hour] = {
+                        "trade_count": r['trade_count'],
+                        "win_count": r['win_count'],
+                        "loss_count": r['loss_count'],
+                        "gross_wins": r['gross_wins'],
+                        "gross_losses": r['gross_losses'],
+                        "pnl_list": json.loads(r['pnl_list_json'])
+                    }
+                return stats
+            finally:
+                conn.close()
+
+    def save_hour_stats(self, stats: Dict[int, Dict[str, Any]]):
+        """Saves all hour statistics."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                for hour, b in stats.items():
+                    cursor.execute("""
+                        INSERT INTO hour_stats (
+                            hour, trade_count, win_count, loss_count,
+                            gross_wins, gross_losses, pnl_list_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(hour) DO UPDATE SET
+                            trade_count=excluded.trade_count,
+                            win_count=excluded.win_count,
+                            loss_count=excluded.loss_count,
+                            gross_wins=excluded.gross_wins,
+                            gross_losses=excluded.gross_losses,
+                            pnl_list_json=excluded.pnl_list_json
+                    """, (
+                        hour, b['trade_count'], b['win_count'], b['loss_count'],
+                        b['gross_wins'], b['gross_losses'], json.dumps(b['pnl_list'])
+                    ))
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Failed to save hour stats: {e}")
+            finally:
+                conn.close()
+
+    def save_correlation_matrix(self, matrix: Dict[str, Dict[str, float]]):
+        """Saves a symmetric correlation matrix to the database."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                # Use a transaction for efficiency
+                cursor.execute("DELETE FROM correlation_matrix")
+                for s1, row in matrix.items():
+                    for s2, corr in row.items():
+                        cursor.execute("""
+                            INSERT INTO correlation_matrix (symbol1, symbol2, correlation, updated_at)
+                            VALUES (?, ?, ?, ?)
+                        """, (s1, s2, corr, now))
+                conn.commit()
+            except sqlite3.Error as e:
+                conn.rollback()
+                logger.error(f"Failed to save correlation matrix: {e}")
+            finally:
+                conn.close()
+
+    def load_correlation_matrix(self) -> Tuple[Dict[str, Dict[str, float]], Optional[str]]:
+        """Loads the most recent correlation matrix and its update timestamp."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM correlation_matrix")
+                rows = cursor.fetchall()
+                matrix = {}
+                updated_at = None
+                for r in rows:
+                    s1, s2, corr = r['symbol1'], r['symbol2'], r['correlation']
+                    updated_at = r['updated_at']
+                    if s1 not in matrix:
+                        matrix[s1] = {}
+                    matrix[s1][s2] = corr
+                return matrix, updated_at
+            finally:
+                conn.close()
+
+    def save_events(self, events: List[Dict[str, Any]]):
+        """Saves events to the database (replacing old ones)."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                # Simple strategy: clear and replace
+                cursor.execute("DELETE FROM events")
+                for e in events:
+                    cursor.execute("""
+                        INSERT INTO events (name, time, buffer_before_mins, buffer_after_mins, impact, source)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        e.get('name', 'Unknown'), e.get('time'),
+                        e.get('buffer_before', 90), e.get('buffer_after', 30),
+                        e.get('impact'), e.get('source')
+                    ))
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Failed to save events: {e}")
+            finally:
+                conn.close()
+
+    def get_upcoming_events(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Retrieves upcoming events."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                cursor.execute("""
+                    SELECT * FROM events WHERE time > ? ORDER BY time ASC LIMIT ?
+                """, (now, limit))
+                rows = cursor.fetchall()
+                events = []
+                for r in rows:
+                    events.append({
+                        "name": r['name'],
+                        "time": r['time'],
+                        "buffer_before": r['buffer_before_mins'],
+                        "buffer_after": r['buffer_after_mins'],
+                        "impact": r['impact'],
+                        "source": r['source']
+                    })
+                return events
             finally:
                 conn.close()

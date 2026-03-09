@@ -63,6 +63,7 @@ try:
     import phemex_common as pc
     import phemex_long as scanner_long
     import phemex_short as scanner_short
+    import event_filter
 except ImportError as e:
     print(Fore.RED + f"[ERROR] Could not import scanner modules: {e}")
     sys.exit(1)
@@ -445,6 +446,15 @@ def main():
     start = time.time()
 
     print(Fore.WHITE + "  Fetching USDT-M tickers from Phemex...")
+    if pc.is_hour_blocked():
+        print(Fore.YELLOW + f"  ⚠️  Current UTC hour {datetime.datetime.now(datetime.timezone.utc).hour} is in BLOCKED_HOURS. Skipping scan.")
+        sys.exit(0)
+
+    suppressed, reason = event_filter.filter.should_suppress()
+    if suppressed:
+        print(Fore.YELLOW + f"  ⚠️  ENTRY SUPPRESSED: {reason}. Skipping scan.")
+        sys.exit(0)
+
     raw_tickers = pc.get_tickers(rps=cfg["RATE_LIMIT_RPS"])
     filtered = [
         t for t in raw_tickers

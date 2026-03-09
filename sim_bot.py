@@ -85,6 +85,20 @@ try:
 except ImportError:
     _TG_OK = False
 
+try:
+    import event_filter
+    _EF_OK = True
+except ImportError:
+    event_filter = None
+    _EF_OK = False
+
+try:
+    import correlation_manager as corr_mgr
+    _CM_OK = True
+except ImportError:
+    corr_mgr = None
+    _CM_OK = False
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration & Constants
 # ─────────────────────────────────────────────────────────────────────────────
@@ -257,6 +271,38 @@ class SimBotState:
 
 # Instantiate global state
 state = SimBotState()
+
+# Initialize unified storage for upgrade modules
+if _ANALYTICS_OK:
+    analytics.init_storage(state.storage)
+if _DD_OK:
+    drawdown_guard.init_storage(state.storage)
+if _CM_OK:
+    corr_mgr.init(state.storage)
+if _EF_OK:
+    event_filter.init(state.storage)
+    # Check if we need to update the matrix (weekly)
+    with corr_mgr.correlation_mgr._lock:
+        updated_at = corr_mgr.correlation_mgr.updated_at
+        is_stale = True
+        if updated_at:
+            try:
+                dt = datetime.datetime.fromisoformat(updated_at)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                if (datetime.datetime.now(datetime.timezone.utc) - dt).days < 7:
+                    is_stale = False
+            except Exception:
+                is_stale = True
+        
+        if is_stale:
+            # Run initial update in a background thread to not block bot startup
+            def _initial_corr_update():
+                # We need a rate limit here to avoid 429 during large initial crawl
+                tickers = pc.get_tickers(rps=10.0)
+                symbols = [t["symbol"] for t in tickers if float(t.get("turnoverRv", 0)) >= INITIAL_BALANCE * 1000] # Use min volume threshold
+                corr_mgr.correlation_mgr.update_matrix(symbols, rps=10.0)
+            threading.Thread(target=_initial_corr_update, daemon=True).start()
 
 # Unicode Block Elements U+2581–U+2588 (8 chars; index math in sparkline() depends on count=8)
 _SPARK_CHARS = "▁▂▃▄▅▆▇█"
@@ -772,7 +818,8 @@ def _check_stops_live(symbol: str) -> None:
                 "size": size,
                 "entry_score": pos.get("entry_score", 0),
                 "entry_time": pos.get("entry_time"),
-                "stop_hit": stop_hit
+                "stop_hit": stop_hit,
+                "raw_signals": pos.get("raw_signals", {}),
             }
 
             # Update in-memory state
@@ -832,7 +879,8 @@ def _check_stops_live(symbol: str) -> None:
             symbol, exit_to_process["side"], exit_to_process["entry"],
             exit_to_process["exit_price"], exit_to_process["size"],
             exit_to_process["entry_score"], exit_to_process["entry_time"],
-            "stop" if exit_to_process["stop_hit"] else "tp"
+            "stop" if exit_to_process["stop_hit"] else "tp",
+            raw_signals=exit_to_process.get("raw_signals", {})
         )
 
 
@@ -847,6 +895,7 @@ def _log_closed_trade(
     reason: str,
     signals: Optional[List[str]] = None,
     slippage: float = 0.0,
+    raw_signals: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Appends a closed-trade record to storage."""
     pnl = (exit_price - entry) * size if direction == "Buy" else (entry - exit_price) * size
@@ -875,6 +924,7 @@ def _log_closed_trade(
         "timestamp":   now_utc.isoformat(),
         "signals":     signals or [],
         "slippage":    round(slippage, 8),
+        "raw_signals": raw_signals or {},
     }
 
     # REF: [Tier 1] Lock Hierarchy (file_io_lock only for storage)
@@ -894,6 +944,7 @@ def _log_closed_trade(
                 pnl          = pnl,
                 direction    = record["direction"],
                 symbol       = symbol,
+                timestamp    = entry_time,
             )
         except Exception as analytics_err:
             logger.debug(f"signal_analytics record error: {analytics_err}")
@@ -1062,6 +1113,7 @@ def _draw_positions_section(
 
             margin_s = term.cyan(f"M: ${pos.get('margin', 0.0):.1f}")
             lev_s    = term.yellow(f"L: {pos.get('leverage', '??')}x")
+            spread_s = term.white(f"S: {pos.get('spread', 0.0):.2f}%")
             # ── Row 1: direction · symbol · entry → now · pnl · score ──────
             score_badge = term.yellow(f"[{score}]")
             arrow       = term.white("──▶")
@@ -1089,7 +1141,7 @@ def _draw_positions_section(
                     pass
             dur_badge = term.white(f"({dur_str})")
 
-            line1 = f" {dir_badge} {sym_s} {entry_s} {arrow} {now_s}  {margin_s}  {lev_s}  {pnl_str}  {score_badge} {dur_badge}"
+            line1 = f" {dir_badge} {sym_s} {entry_s} {arrow} {now_s}  {margin_s}  {lev_s}  {spread_s}  {pnl_str}  {score_badge} {dur_badge}"
             print(term.move_xy(2, row) + _box_row(term, line1, w))
             row += 1
 
@@ -1355,7 +1407,7 @@ def _draw_consolidated_positions(
         dur_badge = term.white(f"({dur_str})")
 
         header = f" {dir_badge} {term.bold_white(sym)}  Entry: {term.white(f'{entry:.5g}')}  Now: {term.white(f'{now:.5g}' if now else '...')}  {dur_badge}"
-        stats  = f"    Margin: {term.yellow(f'${margin:.2f}')}  Lev: {term.yellow(f'{pos.get('leverage', '??')}x')}  PnL: {pnl_color(f'{upnl:+.4f}')} USDT"
+        stats  = f"    Margin: {term.yellow(f'${margin:.2f}')}  Lev: {term.yellow(f'{pos.get('leverage', '??')}x')}  Spread: {term.white(f'{pos.get('spread', 0.0):.2f}%')}  PnL: {pnl_color(f'{upnl:+.4f}')} USDT"
 
         print(term.move_xy(2, row) + term.cyan(_box_top("", max_width)))
         print(term.move_xy(4, row) + header)
@@ -1762,6 +1814,7 @@ def update_pnl_and_stops() -> None:
                     "entry_time": pos.get("entry_time"),
                     "signals": pos.get("signals", []),
                     "slippage": pos.get("slippage", 0.0),
+                    "raw_signals": pos.get("raw_signals", {}),
                 })
                 state.balance += (pos.get("margin", 0.0) + pnl)
                 state.last_exit_info[symbol] = (time.time(), pnl)
@@ -1823,6 +1876,7 @@ def update_pnl_and_stops() -> None:
             "stop" if "Stop" in ex['exit_reason'] else "tp",
             signals  = ex.get('signals', []),
             slippage = ex.get('slippage', 0.0),
+            raw_signals = ex.get('raw_signals', {}),
         )
 
 
@@ -2002,6 +2056,13 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
                     tui_log(f"COOLDOWN: {symbol} — {remaining_s/60:.1f}m remaining (PnL: {last_pnl:.2f}, Penalty: {state.entropy_penalty})", event_type="SKIP")
                     return False
 
+        # ── Correlation/Overlap Gate (Idea 3) ──────────────────
+        if _CM_OK:
+            blocked, reason = corr_mgr.correlation_mgr.should_block_entry(symbol, direction, state.positions)
+            if blocked:
+                tui_log(f"CORR GATE: {symbol} blocked — {reason}", event_type="SKIP")
+                return False
+
         signals       = result.get("signals", [])
         is_low_liq    = any("Low Liquidity" in s for s in signals)
         is_htf        = any("HTF Alignment" in s for s in signals)
@@ -2173,6 +2234,8 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
         "entry_time":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "entry_score":   score,
         "signals":       signals,
+        "spread":        result.get("spread"),
+        "raw_signals":   result.get("raw_signals", {}),
     }
 
     # Final state update: atomic append and balance deduction
@@ -2226,6 +2289,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
                 "entry_time":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "entry_score":   score,
                 "signals":       signals,
+                "raw_signals":   result.get("raw_signals", {}),
             }
             state.positions.append(new_pos)
         
@@ -2439,6 +2503,21 @@ def sim_bot_loop(args) -> None:
             threading.Thread(target=_display_wrapper, daemon=True).start()
 
     while True:
+        # ── Time-of-day Profitability Filter ──
+        if pc.is_hour_blocked():
+            curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
+            tui_log(f"HOUR FILTER: Skipping scan cycle — hour {curr_hour} UTC is blocked.", event_type="SKIP")
+            time.sleep(60)
+            continue
+
+        # ── Event/News Suppression Filter ──
+        if _EF_OK:
+            suppressed, reason = event_filter.filter.should_suppress()
+            if suppressed:
+                tui_log(f"EVENT FILTER: Skipping scan cycle — {reason}", event_type="SKIP")
+                time.sleep(60)
+                continue
+
         update_pnl_and_stops()
 
         # Recompute dynamic max positions and available slots

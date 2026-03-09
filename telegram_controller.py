@@ -201,12 +201,34 @@ def _handle_positions(chat_id: str) -> None:
     _send("\n".join(lines))
 
 
+def _handle_block(chat_id: str, text: str) -> None:
+    try:
+        import event_filter
+        parts = text.split()
+        mins = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 60
+        event_filter.filter.block_manual(mins)
+        _send(f"🛑 *Manual Block* — trading suppressed for {mins} minutes.")
+    except Exception as e:
+        _send(f"⚠️ Error: {e}")
+
+
+def _handle_unblock(chat_id: str) -> None:
+    try:
+        import event_filter
+        event_filter.filter.unblock()
+        _send("✅ *Manual Block CLEARED* — events/news filters still active.")
+    except Exception as e:
+        _send(f"⚠️ Error: {e}")
+
+
 _COMMAND_MAP: Dict[str, Callable] = {
     "/start":     _handle_start,
     "/stop":      _handle_stop,
     "/status":    _handle_status,
     "/profit":    _handle_profit,
     "/positions": _handle_positions,
+    "/block":     _handle_block,
+    "/unblock":   _handle_unblock,
 }
 
 
@@ -221,23 +243,31 @@ def _poll_loop() -> None:
         updates = _get_updates()
         for upd in updates:
             msg = upd.get("message", {})
-            text    = (msg.get("text") or "").strip().lower().split()[0] if msg.get("text") else ""
+            raw_text = (msg.get("text") or "").strip().lower()
+            if not raw_text:
+                continue
+            parts = raw_text.split()
+            cmd = parts[0]
             chat_id = str(msg.get("chat", {}).get("id", ""))
             # Only respond to the configured chat ID (security gate)
             if TG_CHAT_ID and chat_id != str(TG_CHAT_ID):
                 logger.warning(f"tg_controller: ignoring message from unknown chat {chat_id}")
                 continue
-            handler = _COMMAND_MAP.get(text)
+            
+            handler = _COMMAND_MAP.get(cmd)
             if handler:
-                logger.info(f"tg_controller: handling command '{text}'")
+                logger.info(f"tg_controller: handling command '{cmd}'")
                 try:
-                    handler(chat_id)
+                    if cmd == "/block":
+                        handler(chat_id, raw_text)
+                    else:
+                        handler(chat_id)
                 except Exception as e:
-                    logger.error(f"tg_controller: handler error for '{text}': {e}")
-            elif text:
+                    logger.error(f"tg_controller: handler error for '{cmd}': {e}")
+            elif cmd.startswith("/"):
                 _send(
-                    f"Unknown command: `{text}`\n"
-                    f"Available: /start /stop /status /profit /positions"
+                    f"Unknown command: `{cmd}`\n"
+                    f"Available: /start /stop /status /profit /positions /block /unblock"
                 )
         time.sleep(1)
     logger.info("tg_controller: poll loop stopped")

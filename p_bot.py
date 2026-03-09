@@ -71,6 +71,7 @@ from urllib3.util.retry import Retry
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
 import phemex_common as pc
+from storage_manager import StorageManager
 
 # ── New-module imports (graceful degradation) ────────────────────────
 try:
@@ -101,14 +102,66 @@ except ImportError:
     telegram = None  # type: ignore
     _TG_OK = False
 
+try:
+    import event_filter
+    _EF_OK = True
+except ImportError:
+    event_filter = None
+    _EF_OK = False
+
+try:
+    import correlation_manager as corr_mgr
+    _CM_OK = True
+except ImportError:
+    corr_mgr = None
+    _CM_OK = False
+
 # Telegram Configuration — load exclusively from environment; never hardcode credentials
 TG_CHAT_ID = os.getenv("TG_CHAT_ID", "")
 TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "")
+
+# ── Configuration (moved up to avoid NameError in _initial_corr_update) ─────
+MIN_VOLUME     = int(os.getenv("BOT_MIN_VOLUME", "1000000"))
+RATE_LIMIT_RPS = float(os.getenv("BOT_RATE_LIMIT_RPS", "20.0"))
 
 # ── Scanner imports ──────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
+
+# Initialize unified storage for upgrade modules
+p_bot_storage = StorageManager(Path(SCRIPT_DIR) / "fancybot.db")
+if _RM_OK:
+    risk_mgr.init(p_bot_storage)
+if _SA_OK:
+    analytics.init_storage(p_bot_storage)
+if _DD_OK:
+    drawdown_guard.init_storage(p_bot_storage)
+if _CM_OK:
+    corr_mgr.init(p_bot_storage)
+if _EF_OK:
+    event_filter.init(p_bot_storage)
+    # Check if we need to update the matrix (weekly)
+    with corr_mgr.correlation_mgr._lock:
+        updated_at = corr_mgr.correlation_mgr.updated_at
+        is_stale = True
+        if updated_at:
+            try:
+                dt = datetime.datetime.fromisoformat(updated_at)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                if (datetime.datetime.now(datetime.timezone.utc) - dt).days < 7:
+                    is_stale = False
+            except Exception:
+                is_stale = True
+        
+        if is_stale:
+            # Run initial update in a background thread to not block bot startup
+            def _initial_corr_update():
+                tickers = pc.get_tickers(rps=RATE_LIMIT_RPS)
+                symbols = [t["symbol"] for t in tickers if float(t.get("turnoverRv", 0)) >= MIN_VOLUME]
+                corr_mgr.correlation_mgr.update_matrix(symbols, rps=RATE_LIMIT_RPS)
+            threading.Thread(target=_initial_corr_update, daemon=True).start()
 
 try:
     import phemex_long as scanner_long
@@ -168,9 +221,7 @@ MIN_SCORE_GAP  = int(os.getenv("BOT_MIN_SCORE_GAP", "30"))     # minimum gap bet
 MAX_POSITIONS  = 999                                           # effectively unlimited, gated by margin/risk
 DIRECTION      = os.getenv("BOT_DIRECTION", "SHORT")           # default to SHORT to match sim_bot.py
 TIMEFRAME      = os.getenv("BOT_TIMEFRAME", "4H")              # match sim_bot.py default
-MIN_VOLUME     = int(os.getenv("BOT_MIN_VOLUME", "1000000"))
 MAX_WORKERS    = int(os.getenv("BOT_MAX_WORKERS", "30"))
-RATE_LIMIT_RPS = float(os.getenv("BOT_RATE_LIMIT_RPS", "20.0"))
 
 # Position Mode: OneWay (posSide="Merged") or Hedged (posSide="Long"/"Short")
 POSITION_MODE = os.getenv("BOT_POSITION_MODE", "OneWay")  # "OneWay" or "Hedged"
@@ -815,6 +866,8 @@ def _cache_refresher():
                                 "reason": "exchange_stop",
                                 "pnl": round(float(realized_pnl), 4),
                                 "hold_time_seconds": int(hold_secs),
+                                "signals": local_state.get("signals", []),
+                                "raw_signals": local_state.get("raw_signals", {}),
                             })
 
                             # ── Drawdown guard — record closed trade PnL ──────
@@ -829,8 +882,11 @@ def _cache_refresher():
                                 try:
                                     exit_price = old_p.get("mark_price", entry_price) if old_p else entry_price
                                     trade_signals = local_state.get("signals", [])
+                                    entry_ts = local_state.get("entry_time")
+                                    if entry_ts and isinstance(entry_ts, datetime.datetime):
+                                        entry_ts = entry_ts.isoformat()
                                     analytics.record_trade(trade_signals, entry_price, exit_price,
-                                                     float(realized_pnl), direction, sym)
+                                                     float(realized_pnl), direction, sym, timestamp=entry_ts)
                                 except Exception as e:
                                     logger.warning(f"[SA] record_trade failed: {e}")
 
@@ -1437,6 +1493,28 @@ def log_trade(entry: dict):
         except Exception as e:
             logger.error(f"Failed to append to trade log: {e}")
 
+    # ── SQLite History Integration (Upgrade #9) ──────────────────────
+    if entry.get("status") == "closed":
+        try:
+            # Map p_bot entry to StorageManager record
+            record = {
+                "symbol":      entry.get("symbol"),
+                "direction":   entry.get("direction"),
+                "entry":       entry.get("price", 0.0),
+                "exit":        entry.get("exit_price", entry.get("price", 0.0)),
+                "pnl":         entry.get("pnl", 0.0),
+                "hold_time_s": entry.get("hold_time_seconds"),
+                "score":       entry.get("score"),
+                "reason":      entry.get("reason"),
+                "timestamp":   entry.get("timestamp"),
+                "signals":     entry.get("signals", []),
+                "slippage":    entry.get("slippage", 0.0),
+                "raw_signals": entry.get("raw_signals", {}),
+            }
+            p_bot_storage.append_trade(record)
+        except Exception as e:
+            logger.error(f"Failed to append trade to SQLite: {e}")
+
 
 def _read_trade_log() -> list:
     """Read all trade entries from the JSON Lines log file. O(n) but called rarely."""
@@ -1545,6 +1623,14 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
         remaining = (SYMBOL_BLACKLIST.get(symbol, 0) - time.time()) / 60
         tui_log(f"SKIP: {symbol} is on cooldown ({remaining:.0f}m remaining)", event_type="SKIP")
         return False
+
+    # ── Correlation/Overlap Gate (Idea 3) ──────────────────
+    if _CM_OK:
+        with _cache_lock:
+            blocked, reason = corr_mgr.correlation_mgr.should_block_entry(symbol, direction, _cached_positions)
+        if blocked:
+            tui_log(f"CORR GATE: {symbol} blocked — {reason}", event_type="SKIP")
+            return False
 
     # ── Liquidity-Adjusted Parameters ──────────────────
     # Low-Liquidity assets: wider stop, lower leverage, smaller margin bet.
@@ -1805,6 +1891,8 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
 
     # If trailing stop was successfully placed, save local stop state for dashboard display
     offset = price * active_trail_pct
+    signals = result.get("signals", []) if result else []
+    raw_signals = result.get("raw_signals", {}) if result else {}
     if direction == "LONG":
         _local_stop_states[symbol] = {
             "stop_price": price - offset,
@@ -1812,6 +1900,8 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
             "entry_time": datetime.datetime.now(datetime.timezone.utc),
             "entry_score": score,
             "direction": direction,
+            "signals": signals,
+            "raw_signals": raw_signals,
         }
     else:
         _local_stop_states[symbol] = {
@@ -1820,6 +1910,8 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
             "entry_time": datetime.datetime.now(datetime.timezone.utc),
             "entry_score": score,
             "direction": direction,
+            "signals": signals,
+            "raw_signals": raw_signals,
         }
 
     print(dir_color + Style.BRIGHT + f" {'─'*70}\n")
@@ -2147,6 +2239,21 @@ def bot_loop(args):
 
     scan_number = 0
     while True:
+        # ── Time-of-day Profitability Filter ──
+        if pc.is_hour_blocked():
+            curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
+            tui_log(f"HOUR FILTER: Skipping scan cycle — hour {curr_hour} UTC is blocked.", event_type="SKIP")
+            time.sleep(60)
+            continue
+
+        # ── Event/News Suppression Filter ──
+        if _EF_OK:
+            suppressed, reason = event_filter.filter.should_suppress()
+            if suppressed:
+                tui_log(f"EVENT FILTER: Skipping scan cycle — {reason}", event_type="SKIP")
+                time.sleep(60)
+                continue
+
         if _account_trading_halted:
             time.sleep(30)
             continue

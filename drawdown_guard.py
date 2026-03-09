@@ -49,14 +49,43 @@ class DrawdownState:
 class DrawdownGuard:
     """Thread-safe Drawdown Guard with automatic UTC-midnight reset."""
 
-    def __init__(self, max_drawdown: float = MAX_DAILY_DRAWDOWN):
-        self._lock = threading.Lock()
+    def __init__(self, max_drawdown: float = MAX_DAILY_DRAWDOWN, storage: Any = None):
+        self._lock = threading.RLock()
         self._max_drawdown = max_drawdown
         self._state = DrawdownState()
+        self._storage = storage
+        if self._storage:
+            self._load_from_storage()
 
     def _today(self) -> str:
         # REF: Tier 3: Temporal Inconsistency
         return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+
+    def _load_from_storage(self) -> None:
+        """Load state from persistent storage if available."""
+        if not self._storage:
+            return
+        today = self._today()
+        saved = self._storage.load_drawdown_state(today)
+        if saved:
+            with self._lock:
+                self._state = DrawdownState(
+                    day=saved['day'],
+                    start_balance=saved['start_balance'],
+                    daily_pnl=saved['daily_pnl'],
+                    killed=saved['killed'],
+                    kill_reason=saved['kill_reason'],
+                    kill_count_today=saved['kill_count_today']
+                )
+                logger.info(f"drawdown_guard: restored state for {today} from storage")
+
+    def _save_to_storage(self) -> None:
+        """Persist current state to storage."""
+        if self._storage:
+            try:
+                self._storage.save_drawdown_state(self._state.__dict__)
+            except Exception as e:
+                logger.error(f"drawdown_guard: storage save error — {e}")
 
     def _maybe_reset(self, current_balance: float) -> None:
         """Reset state if we've crossed into a new UTC day."""
@@ -70,6 +99,7 @@ class DrawdownGuard:
                 day=today,
                 start_balance=current_balance
             )
+            self._save_to_storage()
             
             if prev_day is not None:
                 logger.info(
@@ -90,6 +120,7 @@ class DrawdownGuard:
                 f"Daily loss {loss_pct:.2%} ≥ threshold {self._max_drawdown:.2%} "
                 f"(start={self._state.start_balance:.2f}, pnl={self._state.daily_pnl:+.4f})"
             )
+            self._save_to_storage()
             logger.warning(f"drawdown_guard: KILL SWITCH ACTIVATED — {self._state.kill_reason}")
 
     def record_pnl(self, pnl: float, current_balance: float = 0.0) -> None:
@@ -98,6 +129,7 @@ class DrawdownGuard:
             self._maybe_reset(current_balance)
             self._state.daily_pnl += pnl
             self._check_kill()
+            self._save_to_storage()
             logger.debug(f"drawdown_guard: pnl={pnl:+.4f}, daily_pnl={self._state.daily_pnl:+.4f}")
 
     def set_start_balance(self, balance: float) -> None:
@@ -106,6 +138,7 @@ class DrawdownGuard:
             self._maybe_reset(balance)
             if self._state.start_balance <= 0:
                 self._state.start_balance = balance
+                self._save_to_storage()
                 logger.info(f"drawdown_guard: start_balance set to {balance:.4f}")
             self._check_kill()
 
@@ -133,6 +166,7 @@ class DrawdownGuard:
                 day=self._today(),
                 start_balance=new_balance
             )
+            self._save_to_storage()
         logger.info(f"drawdown_guard: manually reset. new balance={new_balance:.4f}")
 
 # Singleton for legacy module-level access
@@ -143,6 +177,13 @@ def set_start_balance(*args, **kwargs): return _instance.set_start_balance(*args
 def can_open_trade(*args, **kwargs): return _instance.can_open_trade(*args, **kwargs)
 def get_status(): return _instance.get_status()
 def force_reset(*args, **kwargs): return _instance.force_reset(*args, **kwargs)
+
+def init_storage(storage: Any):
+    """Initialize the singleton with a storage manager."""
+    global _instance
+    with _instance._lock:
+        _instance._storage = storage
+        _instance._load_from_storage()
 
 # Constant exposure
 MAX_DAILY_DRAWDOWN = _instance._max_drawdown
