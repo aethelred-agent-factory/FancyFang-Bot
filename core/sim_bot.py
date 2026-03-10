@@ -57,6 +57,7 @@ import core.phemex_short as scanner_short
 import core.ui as ui
 import modules.animations as animations
 import modules.hardware_bridge as hw
+from modules.banner import BANNER
 from modules.storage_manager import StorageManager
 
 # ── Global Control ───────────────────────────────────────────────────
@@ -349,94 +350,6 @@ def tui_log(msg: str, event_type: str = "SIM") -> None:
 def _get_tui_logs() -> str:
     """Returns the last 15 lines of system logs as a single string."""
     return "\n".join(list(_bot_logs)[-15:])
-
-def _get_session_chart() -> Optional[str]:
-    """Generates a PnL chart using matplotlib and returns the file path."""
-    try:
-        import matplotlib.pyplot as plt
-        import os
-
-        with state.lock:
-            data = list(state.equity_history)
-
-        if not data:
-            with state.lock:
-                balance = state.balance
-                locked_margin = sum(p.get("margin", 0.0) for p in state.positions)
-                current_upnl = sum(p.get("pnl", 0.0) for p in state.positions)
-                equity = balance + locked_margin + current_upnl
-            data = [equity]
-
-        plt.figure(figsize=(10, 5))
-        plt.plot(data, marker='o', linestyle='-', color='g')
-        plt.title(f"SIM Session Equity Curve ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')})")
-        plt.xlabel("Snapshot Count")
-        plt.ylabel("Equity (USDT)")
-        plt.grid(True)
-
-        logs_dir = Path(SCRIPT_DIR).parent / "data" / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        chart_path = logs_dir / f"sim_chart_{int(time.time())}.png"
-        plt.savefig(chart_path)
-        plt.close()
-
-        return str(chart_path)
-    except Exception as e:
-        logger.error(f"Failed to generate SIM chart: {e}")
-        return None
-
-def _run_manual_backtest(text: str, args) -> str:
-    """Parses backtest command and runs a mini backtest."""
-    import research.backtest as bt
-
-    parts = text.split()
-    # /backtest [symbol] [timeframe] [candles]
-    symbol = parts[1].upper() if len(parts) > 1 else "BTCUSDT"
-    tf = parts[2] if len(parts) > 2 else args.timeframe
-    candles = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 300
-
-    try:
-        # Fetch data for backtest
-        ohlc_rows = bt.get_candles(symbol, timeframe=tf, limit=candles)
-        spread = bt.get_spread_pct(symbol)
-        funding = bt.get_funding(symbol)
-        rsi_1h = bt.get_htf_rsi(symbol)
-
-        if not ohlc_rows or len(ohlc_rows) < 110:
-            return f"❌ Insufficient data for {symbol} ({len(ohlc_rows)} candles)"
-
-        trades = bt.backtest_symbol(
-            symbol, ohlc_rows, spread, funding, rsi_1h,
-            min_score=args.min_score, trail_pct=p_bot.TRAIL_PCT, leverage=p_bot.LEVERAGE,
-            margin=p_bot.MARGIN_USDT, max_margin=150.0,
-            direction=args.direction
-        )
-
-        if not trades:
-            return f"No trades triggered for {symbol} ({tf}, {candles} candles)."
-
-        # Format brief report
-        win_trades = [t for t in trades if t.pnl_usdt > 0]
-        total_pnl = sum(t.pnl_usdt for t in trades)
-
-        report = [
-            f"🧪 *Backtest Results: {symbol}*",
-            f"Period: `{candles}` candles (`{tf}`)",
-            f"Trades: `{len(trades)}`",
-            f"Win Rate: `{len(win_trades)/len(trades)*100:.1f}%`",
-            f"Total PnL: `{total_pnl:+.4f} USDT`",
-            "",
-            "Recent Trades:"
-        ]
-
-        for t in trades[-5:]:
-            emoji = "✅" if t.pnl_usdt > 0 else "❌"
-            report.append(f"{emoji} {t.direction} | PnL: `{t.pnl_usdt:+.2f}`")
-
-        return "\n".join(report)
-    except Exception as e:
-        logger.error(f"Backtest callback error: {e}")
-        return f"Error: {e}"
 
 def _manual_tg_scan(args) -> str:
     """Triggers a manual dual-direction scan and returns a formatted report for Telegram."""
@@ -997,6 +910,11 @@ def _live_pnl_display() -> None:
     """Full-screen TUI dashboard using blessed."""
     term = blessed.Terminal()
 
+    def draw_panel(x: int, y: int, panel_text: str):
+        """Helper to print multi-line panels at specific coordinates."""
+        for i, line in enumerate(panel_text.split("\n")):
+            print(term.move_xy(x, y + i) + line)
+
     with term.fullscreen(), term.hidden_cursor():
         while state.display_thread_running:
             if state.display_paused_event.is_set():
@@ -1015,13 +933,14 @@ def _live_pnl_display() -> None:
             
             # --- Header ---
             curr_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
-            banner_lines = pc.BANNER.split("\n")
+            pulse = "●" if int(time.time()) % 2 == 0 else " "
+            banner_lines = BANNER.split("\n")
             for i, line in enumerate(banner_lines):
-                print(term.move_xy(2, i+1) + term.cyan(line))
+                print(term.move_xy(2, i+1) + ui.gradient_text(line, (0, 255, 255), (255, 0, 255)))
             
             header_y = len(banner_lines) + 1
             print(term.move_xy(2, header_y) + ui.hr_double(Fore.MAGENTA))
-            print(term.move_xy(2, header_y + 1) + term.bold_white(f" 🤖 SIMULATION DASHBOARD | {curr_time} UTC"))
+            print(term.move_xy(2, header_y + 1) + term.bold_white(f" {Fore.MAGENTA}{pulse}{Style.RESET_ALL} SIMULATION DASHBOARD | {curr_time} UTC"))
 
             # --- Layout ---
             max_w = term.width - 4
@@ -1045,42 +964,117 @@ def _live_pnl_display() -> None:
             
             equity = balance + locked_margin + current_upnl
             summary_lines = [
-                f" Wallet: {Fore.GREEN}{balance:.1f}{Style.RESET_ALL} | Margin: {Fore.YELLOW}{locked_margin:.1f}{Style.RESET_ALL}",
-                f" uPnL:  {ui.pnl_color(current_upnl)}{current_upnl:+.4f}{Style.RESET_ALL}",
-                f" Equity: {Style.BRIGHT}${equity:.2f}{Style.RESET_ALL}",
+                ui.cyber_telemetry("Wallet", balance, INITIAL_BALANCE * 2, "$"),
+                ui.cyber_telemetry("uPnL", current_upnl, INITIAL_BALANCE * 0.2, "$"),
+                f" Equity: {Style.BRIGHT}${equity:.2f}{Style.RESET_ALL} | Margin: {Fore.YELLOW}${locked_margin:.1f}{Style.RESET_ALL}",
                 f" Entropy Penalty: {Fore.MAGENTA}{state.entropy_penalty:.2f}{Style.RESET_ALL}"
             ]
-            print(term.move_xy(2, y) + ui.modern_panel("ACCOUNT", summary_lines, width=left_w))
+            
+            draw_panel(2, y, ui.glow_panel("SYSTEM CORE", summary_lines, color_rgb=(0, 255, 255), width=left_w))
             y += len(summary_lines) + 3
 
             # 2. Positions
             if not positions:
-                print(term.move_xy(2, y) + ui.modern_panel("POSITIONS", [Fore.WHITE + " Idle..."], width=left_w))
+                draw_panel(2, y, ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (Monitoring for signals...)"], width=left_w))
                 y += 4
             else:
-                for pos in positions:
+                # Calculate how many positions we can show
+                remaining_h = (term.height - 2) - y - 10 # 10 lines for logs and footer
+                pos_h = 9 # Height of a position card + gap
+                max_show = max(1, remaining_h // pos_h)
+                
+                for pos in positions[:max_show]:
                     sym = pos["symbol"]
                     now = live_prices.get(sym)
                     if not now:
-                        print(term.move_xy(2, y) + ui.modern_panel(sym, ["Waiting for price..."], width=left_w))
+                        draw_panel(2, y, ui.modern_panel(sym, ["Waiting for price..."], width=left_w))
                         y += 4; continue
 
                     upnl = (now - pos['entry']) * pos['size'] if pos['side'] == "Buy" else (pos['entry'] - now) * pos['size']
                     hist = state.pnl_histories.get(sym, [0.0])
-                    chart = ui.render_pnl_chart(hist, width=left_w-20, height=3)
+                    chart = ui.render_pnl_chart(hist, width=left_w-24, height=2)
 
+                    # Calculate stop distance percentage
+                    stop_px = pos.get("stop_price", pos['entry'])
+                    total_range = abs(pos['entry'] - stop_px) or 1e-10
+                    dist_to_stop = abs(now - stop_px)
+                    stop_pct = (dist_to_stop / total_range) * 100
+                    stop_bar = ui.braille_progress_bar(stop_pct, width=15)
+
+                    # Price Line System
+                    price_line = ui.render_price_line(
+                        current_price=now,
+                        stop_price=stop_px,
+                        take_profit=pos.get("take_profit", pos['entry']*1.1),
+                        pnl_val=upnl,
+                        width=left_w-4
+                    )
+
+                    # Extract macro metrics from raw_signals if present
+                    raw = pos.get("raw_signals", {})
+                    rsi_val = raw.get("rsi")
+                    adx_val = raw.get("adx")
+                    poc_px  = raw.get("poc_price")
+                    spread  = pos.get("spread")
+                    
+                    rsi_str = f"RSI: {rsi_val:.1f}" if rsi_val is not None else "RSI: N/A"
+                    adx_str = f"ADX: {adx_val:.1f}" if adx_val is not None else "ADX: N/A"
+                    spr_str = f"Spr: {spread:.3f}%" if spread is not None else "Spr: N/A"
+                    
                     header = f"{'▲' if pos['side']=='Buy' else '▼'} {sym} {ui.pnl_color(upnl)}{upnl:+.4f}{Style.RESET_ALL}"
+                    
                     info = [
                         f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Lev: {pos.get('leverage','?')}x",
-                        f" {chart[0]}", f" {chart[1]}", f" {chart[2]}"
+                        f" {rsi_str} | {adx_str} | Stop Guard: [{stop_bar}]",
+                        f" {chart[0]}", f" {chart[1]}",
+                        f" {price_line}"
                     ]
-                    print(term.move_xy(2, y) + ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA))
+                    
+                    if poc_px:
+                        dist_poc = (now - poc_px) / poc_px * 100.0
+                        info.insert(2, f" POC: {poc_px:.5g} (Dist: {dist_poc:+.2f}%)")
+
+                    draw_panel(2, y, ui.glow_panel(header, info, width=left_w, color_rgb=(255, 0, 255)))
                     y += len(info) + 2
 
+                if len(positions) > max_show:
+                    print(term.move_xy(2, y) + term.italic_white(f"  ... and {len(positions) - max_show} more positions hidden"))
+                    y += 2
+
             # 3. Logs
+            logs_y = term.height - 8
             log_lines = list(_bot_logs)[-5:]
             while len(log_lines) < 5: log_lines.insert(0, "")
-            print(term.move_xy(2, y) + ui.modern_panel("LOGS", log_lines, width=left_w, color=Fore.WHITE))
+            draw_panel(2, logs_y, ui.modern_panel("LOGS", log_lines, width=left_w, color=Fore.WHITE))
+
+            # --- Right Column: History ---
+            hist_lines = []
+            if history:
+                wins = len([t for t in history if float(t["pnl"]) > 0])
+                wr = (wins / len(history) * 100) if history else 0
+                tot = sum(float(t["pnl"]) for t in history)
+                hist_lines.append(f"Trades: {len(history)} | WR: {wr:.0f}%")
+                hist_lines.append(f"PnL: {ui.pnl_color(tot)}{tot:+.2f}{Style.RESET_ALL}")
+                hist_lines.append(ui.hr_dash(width=right_w-4))
+                # Limit history lines to terminal height
+                avail_h = term.height - start_y - 10
+                for t in reversed(history[-avail_h:]):
+                    p = float(t['pnl'])
+                    ts = t['timestamp'][11:16]
+                    s = t['symbol'].replace('USDT','')
+                    hist_lines.append(f"{ts} {s:<6} {ui.pnl_color(p)}{p:+.2f}{Style.RESET_ALL}")
+
+            draw_panel(left_w + 4, start_y, ui.modern_panel("HISTORY", hist_lines, width=right_w))
+
+            # --- Footer ---
+            footer = f" [O] Scan  [S] Close All  [Q] Quit | Status: {'RUNNING' if _running else 'STOPPED'}"
+            print(term.move_xy(2, term.height-1) + ui.hr_thin(Fore.MAGENTA))
+            print(term.move_xy(2, term.height) + term.bold_white(footer))
+
+            key = term.inkey(timeout=0.8)
+            if key.lower() == 'o': state.force_scan_event.set()
+            elif key.lower() == 's': _close_all_positions()
+            elif key.lower() == 'q': break
 
             # --- Right Column: History ---
             hist_lines = []
@@ -2023,6 +2017,8 @@ def sim_bot_loop(args) -> None:
 
     while _running:
         try:
+            if not getattr(args, 'no_tui', False):
+                _process_animations()
             # ── Time-of-day Profitability Filter ──
             if pc.is_hour_blocked():
                 curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
@@ -2209,9 +2205,13 @@ def main() -> None:
             get_positions_fn   = get_sim_positions,
             get_session_pnl_fn = _session_pnl_fn,
             get_logs_fn        = _get_tui_logs,
+<<<<<<< telegram-remote-control-13797062970821155509
             run_scan_fn        = lambda: _manual_tg_scan(args),
             get_chart_fn       = _get_session_chart,
             run_backtest_fn    = lambda txt: _run_manual_backtest(txt, args)
+=======
+            run_scan_fn        = lambda: _manual_tg_scan(args)
+>>>>>>> main
         )
         logger.info("telegram_controller: started")
 

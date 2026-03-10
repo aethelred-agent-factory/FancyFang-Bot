@@ -71,8 +71,6 @@ _get_positions:   Optional[Callable[[], List[dict]]]  = None
 _get_session_pnl: Optional[Callable[[], dict]]      = None    # optional
 _get_logs:        Optional[Callable[[], str]]         = None    # optional
 _run_scan:        Optional[Callable[[], str]]        = None    # optional
-_get_chart:       Optional[Callable[[], Optional[str]]] = None # optional
-_run_backtest:    Optional[Callable[[str], str]]     = None    # optional
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -259,40 +257,11 @@ def _handle_scan(chat_id: str) -> None:
         _send("_Scan callback not registered._")
 
 
-def _handle_chart(chat_id: str) -> None:
-    if _get_chart:
-        _send("📊 *Generating PnL chart...*")
-        try:
-            path = _get_chart()
-            if path and os.path.exists(path):
-                _send_photo(path, caption="📈 *Session Equity Curve*")
-            else:
-                _send("⚠️ Failed to generate chart (no data or error).")
-        except Exception as e:
-            _send(f"❌ *Chart Failed:* {e}")
-    else:
-        _send("_Chart callback not registered._")
-
-
-def _handle_backtest(chat_id: str, text: str) -> None:
-    if _run_backtest:
-        _send("🧪 *Starting manual backtest...* (This may take a minute)")
-        try:
-            report = _run_backtest(text)
-            _send(f"🧬 *Backtest Results*\n\n{strip_ansi(report)}")
-        except Exception as e:
-            _send(f"❌ *Backtest Failed:* {e}")
-    else:
-        _send("_Backtest callback not registered._")
-
-
 def _handle_snapshot(chat_id: str) -> None:
     """Aggregates status, profit, and positions into one message."""
     _handle_status(chat_id)
     _handle_profit(chat_id)
     _handle_positions(chat_id)
-    if _get_chart:
-        _handle_chart(chat_id)
 
 
 def _handle_help(chat_id: str) -> None:
@@ -306,8 +275,6 @@ def _handle_help(chat_id: str) -> None:
         "• /positions — List open positions\n"
         "• /snapshot — Complete state overview\n"
         "• /scan — Run a fresh manual market scan\n"
-        "• /chart — Send session equity curve graph\n"
-        "• /backtest [args] — Run manual backtest\n"
         "• /logs — Show recent system log lines\n"
         "• /block [mins] — Manually suppress trading\n"
         "• /unblock — Clear manual block\n"
@@ -344,8 +311,6 @@ _COMMAND_MAP: Dict[str, Callable] = {
     "/positions": _handle_positions,
     "/snapshot":  _handle_snapshot,
     "/scan":      _handle_scan,
-    "/chart":     _handle_chart,
-    "/backtest":  _handle_backtest,
     "/logs":      _handle_logs,
     "/help":      _handle_help,
     "/block":     _handle_block,
@@ -381,7 +346,7 @@ def _poll_loop() -> None:
                 # Run handler in a separate thread to keep poll loop responsive
                 def _wrap(h=handler, c_id=chat_id, txt=raw_text, c=cmd):
                     try:
-                        if c in ["/block", "/backtest"]:
+                        if c == "/block":
                             h(c_id, txt)
                         else:
                             h(c_id)
@@ -410,8 +375,6 @@ def start(
     get_session_pnl_fn: Optional[Callable[[], dict]] = None,
     get_logs_fn:        Optional[Callable[[], str]] = None,
     run_scan_fn:        Optional[Callable[[], str]] = None,
-    get_chart_fn:       Optional[Callable[[], Optional[str]]] = None,
-    run_backtest_fn:    Optional[Callable[[str], str]] = None,
 ) -> None:
     """
     Start the Telegram control interface in a daemon thread.
@@ -423,10 +386,8 @@ def start(
                               with keys: wins, losses, total_pnl
         get_logs_fn         : optional callable returning recent log lines (str)
         run_scan_fn         : optional callable executing manual scan (returns str)
-        get_chart_fn        : optional callable generating a PnL chart (returns path)
-        run_backtest_fn     : optional callable executing a backtest (returns report)
     """
-    global _running, _thread, _get_balance, _get_positions, _get_session_pnl, _get_logs, _run_scan, _get_chart, _run_backtest
+    global _running, _thread, _get_balance, _get_positions, _get_session_pnl, _get_logs, _run_scan
 
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
         logger.warning("tg_controller: TG_BOT_TOKEN or TG_CHAT_ID not set — Telegram control disabled")
@@ -437,8 +398,6 @@ def start(
     _get_session_pnl = get_session_pnl_fn
     _get_logs        = get_logs_fn
     _run_scan        = run_scan_fn
-    _get_chart       = get_chart_fn
-    _run_backtest    = run_backtest_fn
 
     with _lock:
         if _running:

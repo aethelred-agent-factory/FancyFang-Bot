@@ -1,0 +1,22 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "direction": "SHORT",
+    "score": 57,
+    "entry": 70569.76055867688,
+    "exit": 70564.4,
+    "pnl_usdt": 0.03798056444038438,
+    "pnl_pct": 0.007596112888076877,
+    "hold_candles": 7,
+    "exit_reason": "end_of_data",
+    "signals": [
+      "Overbought RSI (69.9)",
+      "Price at/above BB Upper",
+      "Price Above POC (4.1%) \u2014 Gravitational pull down",
+      "Regime: Volatile \u2014 High Risk Penalty",
+      "PREDICTIVE_SCORE_RAW:0.3500"
+    ],
+    "slippage_pct": 0.06007098451260317,
+    "is_low_liq": false
+  }
+]

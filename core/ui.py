@@ -44,21 +44,21 @@ except ImportError:
 W = 96  # standard terminal width
 
 # ── Horizontal rules ──────────────────────────────────────────────────────────
-def hr_double(color=Fore.CYAN):
+def hr_double(color=Fore.CYAN, width: int = W):
     """Return a double-line horizontal rule string."""
-    return color + "═" * W + Style.RESET_ALL
+    return color + "═" * width + Style.RESET_ALL
 
-def hr_thin(color=Fore.CYAN):
+def hr_thin(color=Fore.CYAN, width: int = W):
     """Return a thin horizontal rule string."""
-    return color + "─" * W + Style.RESET_ALL
+    return color + "─" * width + Style.RESET_ALL
 
-def hr_dash(color=""):
+def hr_dash(color="", width: int = W):
     """Return a dashed horizontal rule string."""
-    return color + "┄" * W + Style.RESET_ALL
+    return color + "┄" * width + Style.RESET_ALL
 
-def hr_heavy():
+def hr_heavy(width: int = W):
     """Return a heavy horizontal rule string."""
-    return Fore.WHITE + Style.BRIGHT + "━" * W + Style.RESET_ALL
+    return Fore.WHITE + Style.BRIGHT + "━" * width + Style.RESET_ALL
 
 # ── Score gauge ───────────────────────────────────────────────────────────────
 def score_gauge(score: int, width: int = 24) -> str:
@@ -276,3 +276,127 @@ def render_pnl_chart(
 
     return lines
 
+def render_price_line(
+    current_price: float,
+    stop_price: float,
+    take_profit: float,
+    pnl_val: float,
+    width: int = 40,
+) -> str:
+    """
+    Renders a line showing current price position relative to SL and TP.
+    Shows the PnL amount moving across the line.
+    [X] -------- $0.45 -------- [$]
+    """
+    # Range is from stop_price to take_profit
+    total_range = abs(take_profit - stop_price) or 1e-10
+    
+    # Calculate progress (0.0 at SL, 1.0 at TP)
+    if stop_price < take_profit: # LONG
+        progress = (current_price - stop_price) / total_range
+    else: # SHORT
+        progress = (stop_price - current_price) / total_range
+        
+    progress = max(0.0, min(1.0, progress))
+    
+    # Inner width for the line (excluding ends and spaces)
+    # [X] (3) + space (1) + line + space (1) + [$] (3) = 8 chars overhead
+    inner_w = max(10, width - 8)
+    pos = int(progress * inner_w)
+    
+    pnl_str = f"${abs(pnl_val):.2f}"
+    pnl_len = len(pnl_str)
+    
+    # Ensure PnL string fits
+    if pnl_len + 2 > inner_w:
+        pnl_str = f"{abs(pnl_val):.1f}"
+        pnl_len = len(pnl_str)
+
+    # Determine position for the PnL string label
+    # We want to center the label at 'pos', but keep it within [0, inner_w - pnl_len]
+    start_label = pos - (pnl_len // 2)
+    start_label = max(0, min(inner_w - pnl_len, start_label))
+    
+    # Construct the line with the PnL label embedded
+    line_chars = list("─" * inner_w)
+    # We can't easily embed colored text into a list of chars without breaking index math
+    # So we'll slice strings
+    
+    left_dash  = "─" * start_label
+    mid_label  = f" {pnl_color(pnl_val)}{pnl_str}{Style.RESET_ALL} "
+    right_dash = "─" * max(0, inner_w - (start_label + pnl_len))
+    
+    full_line = f"{Fore.RED}[X]{Style.RESET_ALL} {Fore.CYAN}{left_dash}{Style.RESET_ALL}{mid_label}{Fore.CYAN}{right_dash}{Style.RESET_ALL} {Fore.GREEN}[$]{Style.RESET_ALL}"
+    return full_line
+
+# ── Advanced Visual Primitives ────────────────────────────────────────────────
+
+def braille_progress_bar(pct: float, width: int = 20) -> str:
+    """High-resolution progress bar using braille characters (2 dots per cell)."""
+    pct = max(0, min(100, pct))
+    total_steps = width * 2
+    filled_steps = int((pct / 100) * total_steps)
+
+    out = ""
+    for i in range(width):
+        left_idx = i * 2
+        right_idx = i * 2 + 1
+
+        left_filled = left_idx < filled_steps
+        right_filled = right_idx < filled_steps
+
+        bits = 0
+        if left_filled:
+            bits |= (0x01 | 0x02 | 0x04 | 0x40)
+        if right_filled:
+            bits |= (0x08 | 0x10 | 0x20 | 0x80)
+
+        out += chr(0x2800 + bits)
+
+    # Dynamic RGB color: Red (0%) -> Yellow (50%) -> Green (100%)
+    if pct < 50:
+        r, g, b = 255, int(255 * (pct / 50)), 0
+    else:
+        r, g, b = int(255 * (1 - (pct - 50) / 50)), 255, 0
+
+    return f"\033[38;2;{r};{g};{b}m{out}{Style.RESET_ALL}"
+
+def glow_panel(title: str, lines: list, color_rgb: tuple = (0, 255, 255), width: int = W) -> str:
+    """Stylized panel with a truecolor 'glowing' border."""
+    r, g, b = color_rgb
+    def get_rgb(r, g, b): return f"\033[38;2;{r};{g};{b}m"
+
+    out = []
+    inner_w = width - 4
+    border_color = get_rgb(r, g, b)
+
+    # Top border with title
+    title_str = f" {title} " if title else ""
+    side_bars = (width - 4 - len(strip_ansi(title_str))) // 2
+    top = border_color + "💠" + "━" * side_bars + Style.BRIGHT + title_str + Style.NORMAL + "━" * (width - 4 - side_bars - len(strip_ansi(title_str))) + "💠" + Style.RESET_ALL
+    out.append(top)
+
+    for line in lines:
+        visible_len = len(strip_ansi(line))
+        padding = " " * max(0, inner_w - visible_len)
+        out.append(border_color + "┃ " + Style.RESET_ALL + line + padding + border_color + " ┃" + Style.RESET_ALL)
+
+    # Bottom border
+    bottom = border_color + "┗" + "━" * (width - 2) + "┛" + Style.RESET_ALL
+    out.append(bottom)
+
+    return "\n".join(out)
+
+def cyber_telemetry(label: str, value: float, target: float, unit: str = "") -> str:
+    """Compact stylized telemetry indicator with label, bar and value."""
+    pct = (value / target * 100) if target != 0 else 0
+    bar = braille_progress_bar(pct, width=10)
+
+    color = pnl_color(value)
+    if unit == "$":
+        val_display = f"${abs(value):.2f}"
+        if value < 0: val_display = "-" + val_display
+    else:
+        val_display = f"{value:.2f}{unit}"
+
+    return f"{Fore.CYAN}{label.upper():<10}{Style.RESET_ALL} [{bar}] {color}{val_display:>10}{Style.RESET_ALL}"

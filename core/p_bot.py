@@ -97,8 +97,11 @@ _shutdown_requested = False
 _session_wins = 0
 _session_losses = 0
 _session_total_pnl = 0.0
+<<<<<<< telegram-remote-control-13797062970821155509
 _session_equity_history = []
 _equity_lock = threading.Lock()
+=======
+>>>>>>> main
 
 def handle_exit(signum, frame):
     """Force an immediate exit on signal, ensuring loops are terminated."""
@@ -923,11 +926,14 @@ def _cache_refresher():
                                 _session_losses += 1
                             _session_total_pnl += realized_pnl
 
+<<<<<<< telegram-remote-control-13797062970821155509
                             with _equity_lock:
                                 with _cache_lock:
                                     current_equity = _cached_balance + sum(p.get("pnl", 0.0) for p in _cached_positions)
                                 _session_equity_history.append(current_equity)
 
+=======
+>>>>>>> main
                             log_trade({
                                 "timestamp": now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
                                 "symbol": sym,
@@ -1048,6 +1054,7 @@ def _get_tui_logs() -> str:
     """Returns the last 15 lines of system logs as a single string."""
     return "\n".join(list(_bot_logs)[-15:])
 
+<<<<<<< telegram-remote-control-13797062970821155509
 def _get_session_chart() -> Optional[str]:
     """Generates a PnL chart using matplotlib and returns the file path."""
     try:
@@ -1133,6 +1140,8 @@ def _run_manual_backtest(text: str) -> str:
         return f"Error: {e}"
 
 
+=======
+>>>>>>> main
 def _manual_tg_scan() -> str:
     """Triggers a manual dual-direction scan and returns a formatted report for Telegram."""
     # Use current bot config
@@ -1195,14 +1204,15 @@ def _live_pnl_display():
             print(term.clear)
 
             # --- Header ---
+            curr_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
+            pulse = "●" if int(time.time()) % 2 == 0 else " "
             banner_lines = pc.BANNER.split("\n")
             for i, line in enumerate(banner_lines):
-                print(term.move_xy(2, i+1) + term.cyan(line))
+                print(term.move_xy(2, i+1) + ui.gradient_text(line, (0, 255, 255), (255, 0, 255)))
 
             header_y = len(banner_lines) + 1
             print(term.move_xy(2, header_y) + ui.hr_double(Fore.MAGENTA))
-            curr_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
-            print(term.move_xy(2, header_y + 1) + term.bold_white(f" 📊 LIVE PRODUCTION DASHBOARD | {curr_time} UTC"))
+            print(term.move_xy(2, header_y + 1) + term.bold_white(f" {Fore.MAGENTA}{pulse}{Style.RESET_ALL} LIVE PRODUCTION DASHBOARD | {curr_time} UTC"))
 
             # --- Layout Constants ---
             max_w = term.width - 4
@@ -1227,7 +1237,8 @@ def _live_pnl_display():
             equity = balance + total_upnl
             halt_status = f" {Fore.RED}[HALTED]{Style.RESET_ALL}" if _account_trading_halted else ""
             summary_lines = [
-                f" Wallet: {Fore.GREEN}{balance:.2f} USDT{Style.RESET_ALL} | uPnL: {ui.pnl_color(total_upnl)}{total_upnl:+.4f} USDT{Style.RESET_ALL}",
+                ui.cyber_telemetry("Wallet", balance, 1000.0, "$"), # Target is arbitrary for viz
+                ui.cyber_telemetry("uPnL", total_upnl, 100.0, "$"),
                 f" Equity: {Style.BRIGHT}{equity:.2f} USDT{Style.RESET_ALL}{halt_status}",
                 f" Peak:   ${_account_high_water:.2f} | Stop: ${_account_trail_stop:.2f}",
                 f" Max Positions: {get_dynamic_max_positions(balance)}"
@@ -1240,13 +1251,13 @@ def _live_pnl_display():
                     bl_str = ", ".join(f"{s}({int((e-time.time())/60)}m)" for s, e in bl_active.items())
                     summary_lines.append(f" {Fore.YELLOW}🚫 COOLDOWN: {bl_str[:left_w-15]}{Style.RESET_ALL}")
 
-            print(term.move_xy(2, y) + ui.modern_panel("ACCOUNT SUMMARY", summary_lines, color=Fore.CYAN, width=left_w))
+            print(term.move_xy(2, y) + ui.glow_panel("SYSTEM CORE", summary_lines, color_rgb=(0, 255, 255), width=left_w))
             y += len(summary_lines) + 3
 
             # 2. Active Positions Panel
             pos_y = y
             if not positions:
-                print(term.move_xy(2, pos_y) + ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (No active positions)"], width=left_w))
+                print(term.move_xy(2, pos_y) + ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (Awaiting entry signals...)"], width=left_w))
                 y += 4
             else:
                 for pos in positions:
@@ -1279,14 +1290,23 @@ def _live_pnl_display():
                         tot = int(diff.total_seconds())
                         dur_str = f"({tot//60}m {tot%60}s)"
 
+                    # Calculate stop distance percentage
+                    with _stop_states_lock:
+                        ls = _local_stop_states.get(sym, {})
+                    stop_px = ls.get("stop_price", pos['entry'])
+                    total_range = abs(pos['entry'] - stop_px) or 1e-10
+                    dist_to_stop = abs(now - stop_px)
+                    stop_pct = (dist_to_stop / total_range) * 100
+                    stop_bar = ui.braille_progress_bar(stop_pct, width=15)
+
                     pos_header = f"{dir_badge} {term.bold_white(sym)} {pnl_str} {dur_str}"
                     pos_info = [
-                        f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Size: {pos['size']}",
+                        f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Stop Guard: [{stop_bar}]",
                         f" {chart_lines[0]}",
                         f" {chart_lines[1]}",
                         f" {chart_lines[2]}"
                     ]
-                    print(term.move_xy(2, y) + ui.modern_panel(pos_header, pos_info, width=left_w, color=Fore.MAGENTA))
+                    print(term.move_xy(2, y) + ui.glow_panel(pos_header, pos_info, width=left_w, color_rgb=(255, 0, 255)))
                     y += len(pos_info) + 2
 
             # 3. System Logs
@@ -2526,9 +2546,13 @@ def bot_loop(args):
             get_positions_fn   = _get_live_positions,
             get_session_pnl_fn = _get_live_stats,
             get_logs_fn        = _get_tui_logs,
+<<<<<<< telegram-remote-control-13797062970821155509
             run_scan_fn        = _manual_tg_scan,
             get_chart_fn       = _get_session_chart,
             run_backtest_fn    = _run_manual_backtest
+=======
+            run_scan_fn        = _manual_tg_scan
+>>>>>>> main
         )
         logger.info("[TG] Telegram controller started")
 
