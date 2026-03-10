@@ -55,6 +55,7 @@ import core.phemex_short as scanner_short
 import core.ui as ui
 import modules.animations as animations
 import modules.hardware_bridge as hw
+from modules.banner import BANNER
 from modules.storage_manager import StorageManager
 
 # ── Global Control ───────────────────────────────────────────────────
@@ -861,10 +862,9 @@ def _log_closed_trade(
 def _live_pnl_display() -> None:
     """Full-screen TUI dashboard using blessed."""
     term = blessed.Terminal()
-    global _display_thread_running
 
     with term.fullscreen(), term.hidden_cursor():
-        while _display_thread_running:
+        while state.display_thread_running:
             if state.display_paused_event.is_set():
                 time.sleep(0.5)
                 continue
@@ -881,7 +881,7 @@ def _live_pnl_display() -> None:
             
             # --- Header ---
             curr_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
-            banner_lines = pc.BANNER.split("\n")
+            banner_lines = BANNER.split("\n")
             for i, line in enumerate(banner_lines):
                 print(term.move_xy(2, i+1) + term.cyan(line))
             
@@ -933,13 +933,31 @@ def _live_pnl_display() -> None:
 
                     upnl = (now - pos['entry']) * pos['size'] if pos['side'] == "Buy" else (pos['entry'] - now) * pos['size']
                     hist = state.pnl_histories.get(sym, [0.0])
-                    chart = ui.render_pnl_chart(hist, width=left_w-20, height=3)
+                    chart = ui.render_pnl_chart(hist, width=left_w-20, height=2)
 
+                    # Extract macro metrics from raw_signals if present
+                    raw = pos.get("raw_signals", {})
+                    rsi_val = raw.get("rsi")
+                    adx_val = raw.get("adx")
+                    poc_px  = raw.get("poc_price")
+                    spread  = pos.get("spread")
+                    
+                    rsi_str = f"RSI: {rsi_val:.1f}" if rsi_val is not None else "RSI: N/A"
+                    adx_str = f"ADX: {adx_val:.1f}" if adx_val is not None else "ADX: N/A"
+                    spr_str = f"Spr: {spread:.3f}%" if spread is not None else "Spr: N/A"
+                    
                     header = f"{'▲' if pos['side']=='Buy' else '▼'} {sym} {ui.pnl_color(upnl)}{upnl:+.4f}{Style.RESET_ALL}"
+                    
                     info = [
                         f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Lev: {pos.get('leverage','?')}x",
-                        f" {chart[0]}", f" {chart[1]}", f" {chart[2]}"
+                        f" {rsi_str} | {adx_str} | {spr_str}",
+                        f" {chart[0]}", f" {chart[1]}"
                     ]
+                    
+                    if poc_px:
+                        dist_poc = (now - poc_px) / poc_px * 100.0
+                        info.insert(2, f" POC: {poc_px:.5g} (Dist: {dist_poc:+.2f}%)")
+
                     print(term.move_xy(2, y) + ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA))
                     y += len(info) + 2
 
