@@ -7,7 +7,6 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide-react"></script>
     <style>
         :root {
             --bg-deep: #000b1e;
@@ -112,11 +111,14 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div style="padding: 50px; text-align: center; color: #00ffff; font-family: monospace;">
+            LOADING_CYBER_INTERFACE...
+        </div>
+    </div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const { Activity, BarChart3, Terminal, TrendingUp, Wallet, ShieldAlert } = lucide;
 
         const Dashboard = () => {
             const [summary, setSummary] = useState(null);
@@ -145,6 +147,7 @@
             };
 
             useEffect(() => {
+                fetchData();
                 const interval = setInterval(fetchData, 1000);
                 return () => clearInterval(interval);
             }, []);
@@ -152,7 +155,7 @@
             return (
                 <React.Fragment>
                     <header>
-                        <div className="header-title">FANCYBOT // CORE_INTERFACE v4.1</div>
+                        <div className="header-title">FANCYBOT // CORE_INTERFACE v4.2</div>
                         <div className="header-status">
                             {connected ? (
                                 <React.Fragment>
@@ -169,7 +172,7 @@
                         {/* Account Summary */}
                         <section className="panel">
                             <div className="panel-header">
-                                <span><Wallet size={14} style={{verticalAlign: 'middle', marginRight: '6px'}}/> ACCOUNT_SUMMARY</span>
+                                <span>💳 ACCOUNT_SUMMARY</span>
                             </div>
                             <div className="panel-content">
                                 <div className="stat-block">
@@ -195,23 +198,23 @@
 
                                 <div style={{marginTop: '30px'}}>
                                     <div className="panel-header" style={{background: 'none', padding: '0', marginBottom: '10px'}}>
-                                        <span><Activity size={14} /> SESSION_PERFORMANCE</span>
+                                        <span>📉 SESSION_PERFORMANCE</span>
                                     </div>
                                     <div className="stat-row">
                                         <span className="stat-label">Win Rate</span>
-                                        <span className="text-green">{summary?.stats.win_rate}%</span>
+                                        <span className="text-green">{summary?.stats?.win_rate || 0}%</span>
                                     </div>
                                     <div className="progress-container">
-                                        <div className="progress-bar" style={{width: `${summary?.stats.win_rate}%`, backgroundColor: 'var(--green)'}}></div>
+                                        <div className="progress-bar" style={{width: `${summary?.stats?.win_rate || 0}%`, backgroundColor: 'var(--green)'}}></div>
                                     </div>
                                     <div className="stat-row" style={{marginTop: '15px'}}>
                                         <span className="stat-label">Profit Factor</span>
-                                        <span className="text-yellow">{summary?.stats.profit_factor}</span>
+                                        <span className="text-yellow">{summary?.stats?.profit_factor || 0}</span>
                                     </div>
                                     <div className="stat-row">
                                         <span className="stat-label">Net PnL</span>
-                                        <span className={summary?.stats.total_pnl >= 0 ? "text-green" : "text-red"}>
-                                            ${summary?.stats.total_pnl || "0.00"}
+                                        <span className={(summary?.stats?.total_pnl || 0) >= 0 ? "text-green" : "text-red"}>
+                                            ${summary?.stats?.total_pnl || "0.00"}
                                         </span>
                                     </div>
                                 </div>
@@ -221,7 +224,7 @@
                         {/* Active Positions */}
                         <section className="panel">
                             <div className="panel-header">
-                                <span><TrendingUp size={14} style={{verticalAlign: 'middle', marginRight: '6px'}}/> ACTIVE_POSITIONS ({positions.length})</span>
+                                <span>🚀 ACTIVE_POSITIONS ({positions.length})</span>
                             </div>
                             <div className="panel-content">
                                 {positions.length === 0 ? (
@@ -260,7 +263,7 @@
                         {/* System Audit Logs */}
                         <section className="panel" style={{gridColumn: 'span 2'}}>
                             <div className="panel-header">
-                                <span><Terminal size={14} style={{verticalAlign: 'middle', marginRight: '6px'}}/> SYSTEM_AUDIT_LOG</span>
+                                <span>📋 SYSTEM_AUDIT_LOG</span>
                             </div>
                             <div className="panel-content" style={{padding: '5px 15px'}}>
                                 {logs.map((log, i) => {
@@ -278,8 +281,12 @@
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<Dashboard />);
+        try {
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<Dashboard />);
+        } catch (err) {
+            document.getElementById('root').innerHTML = `<div style="color:red; padding:20px;">Render Error: ${err.message}</div>`;
+        }
     </script>
 </body>
 </html>
