@@ -1630,7 +1630,7 @@ def check_opposite_signal(symbol: str, side: str, ticker: Optional[dict] = None)
             "TIMEFRAME": "15m",
             "MIN_VOLUME": 0,
             "RATE_LIMIT_RPS": 100.0,
-            "CANDLES": 100
+            "CANDLES": 500
         }
 
         res = scanner.analyse(ticker, cfg, enable_ai=False, enable_entity=False)
@@ -1898,7 +1898,7 @@ def verify_sim_candidate(symbol: str, direction: str, original_score: int, wait_
             "TIMEFRAME": p_bot.TIMEFRAME,
             "MIN_VOLUME": p_bot.MIN_VOLUME,
             "RATE_LIMIT_RPS": p_bot.RATE_LIMIT_RPS,
-            "CANDLES": 100
+            "CANDLES": 500
         }
 
         fresh_result = scanner.analyse(ticker, cfg, enable_ai=False, enable_entity=False)
@@ -2448,6 +2448,7 @@ def sim_bot_loop(args) -> None:
         "MIN_SCORE":      0,
         "MAX_WORKERS":    args.workers,
         "RATE_LIMIT_RPS": args.rate,
+        "CANDLES":        500,
     }
 
     _ensure_ws_started()
@@ -2622,7 +2623,7 @@ def main() -> None:
     """Parses arguments and starts the simulation bot."""
     parser = argparse.ArgumentParser(description="Phemex Sim Bot (Paper Trading)")
     parser.add_argument("--interval",       type=int,   default=300)
-    parser.add_argument("--min-score",      type=int,   default=5)
+    parser.add_argument("--min-score",      type=int,   default=120)
     parser.add_argument("--min-score-gap",  type=int,   default=0)
     parser.add_argument("--direction",      default="SHORT", choices=["LONG", "SHORT", "BOTH"])
     parser.add_argument("--timeframe",      default="4H")
