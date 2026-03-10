@@ -863,6 +863,11 @@ def _live_pnl_display() -> None:
     """Full-screen TUI dashboard using blessed."""
     term = blessed.Terminal()
 
+    def draw_panel(x: int, y: int, panel_text: str):
+        """Helper to print multi-line panels at specific coordinates."""
+        for i, line in enumerate(panel_text.split("\n")):
+            print(term.move_xy(x, y + i) + line)
+
     with term.fullscreen(), term.hidden_cursor():
         while state.display_thread_running:
             if state.display_paused_event.is_set():
@@ -917,30 +922,29 @@ def _live_pnl_display() -> None:
                 f" Entropy Penalty: {Fore.MAGENTA}{state.entropy_penalty:.2f}{Style.RESET_ALL}"
             ]
             
-            account_panel = ui.modern_panel("ACCOUNT", summary_lines, width=left_w)
-            print(term.move_xy(2, y) + account_panel)
+            draw_panel(2, y, ui.modern_panel("ACCOUNT", summary_lines, width=left_w))
             y += len(summary_lines) + 3
 
             # 2. Positions
             if not positions:
-                print(term.move_xy(2, y) + ui.modern_panel("POSITIONS", [Fore.WHITE + " Idle..."], width=left_w))
+                draw_panel(2, y, ui.modern_panel("POSITIONS", [Fore.WHITE + " Idle..."], width=left_w))
                 y += 4
             else:
                 # Calculate how many positions we can show
                 remaining_h = (term.height - 2) - y - 10 # 10 lines for logs and footer
-                pos_h = 7 # Entry, RSI/ADX, POC, Chart(2), PriceLine, Spacing
+                pos_h = 8 # Height of a position card + gap
                 max_show = max(1, remaining_h // pos_h)
                 
                 for pos in positions[:max_show]:
                     sym = pos["symbol"]
                     now = live_prices.get(sym)
                     if not now:
-                        print(term.move_xy(2, y) + ui.modern_panel(sym, ["Waiting for price..."], width=left_w))
+                        draw_panel(2, y, ui.modern_panel(sym, ["Waiting for price..."], width=left_w))
                         y += 4; continue
 
                     upnl = (now - pos['entry']) * pos['size'] if pos['side'] == "Buy" else (pos['entry'] - now) * pos['size']
                     hist = state.pnl_histories.get(sym, [0.0])
-                    chart = ui.render_pnl_chart(hist, width=left_w-20, height=2)
+                    chart = ui.render_pnl_chart(hist, width=left_w-24, height=2)
 
                     # Price Line System
                     price_line = ui.render_price_line(
@@ -975,8 +979,7 @@ def _live_pnl_display() -> None:
                         dist_poc = (now - poc_px) / poc_px * 100.0
                         info.insert(2, f" POC: {poc_px:.5g} (Dist: {dist_poc:+.2f}%)")
 
-                    panel = ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA)
-                    print(term.move_xy(2, y) + panel)
+                    draw_panel(2, y, ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA))
                     y += len(info) + 2
 
                 if len(positions) > max_show:
@@ -984,13 +987,39 @@ def _live_pnl_display() -> None:
                     y += 2
 
             # 3. Logs
-            # Dynamically size logs to fill remaining space
             logs_y = term.height - 8
-            if y > logs_y: y = logs_y # Force if we overflowed
-            
             log_lines = list(_bot_logs)[-5:]
             while len(log_lines) < 5: log_lines.insert(0, "")
-            print(term.move_xy(2, logs_y) + ui.modern_panel("LOGS", log_lines, width=left_w, color=Fore.WHITE))
+            draw_panel(2, logs_y, ui.modern_panel("LOGS", log_lines, width=left_w, color=Fore.WHITE))
+
+            # --- Right Column: History ---
+            hist_lines = []
+            if history:
+                wins = len([t for t in history if float(t["pnl"]) > 0])
+                wr = (wins / len(history) * 100) if history else 0
+                tot = sum(float(t["pnl"]) for t in history)
+                hist_lines.append(f"Trades: {len(history)} | WR: {wr:.0f}%")
+                hist_lines.append(f"PnL: {ui.pnl_color(tot)}{tot:+.2f}{Style.RESET_ALL}")
+                hist_lines.append(ui.hr_dash())
+                # Limit history lines to terminal height
+                avail_h = term.height - start_y - 10
+                for t in reversed(history[-avail_h:]):
+                    p = float(t['pnl'])
+                    ts = t['timestamp'][11:16]
+                    s = t['symbol'].replace('USDT','')
+                    hist_lines.append(f"{ts} {s:<6} {ui.pnl_color(p)}{p:+.2f}{Style.RESET_ALL}")
+
+            draw_panel(left_w + 4, start_y, ui.modern_panel("HISTORY", hist_lines, width=right_w))
+
+            # --- Footer ---
+            footer = f" [O] Scan  [S] Close All  [Q] Quit | Status: {'RUNNING' if _running else 'STOPPED'}"
+            print(term.move_xy(2, term.height-1) + ui.hr_thin(Fore.MAGENTA))
+            print(term.move_xy(2, term.height) + term.bold_white(footer))
+
+            key = term.inkey(timeout=0.8)
+            if key.lower() == 'o': state.force_scan_event.set()
+            elif key.lower() == 's': _close_all_positions()
+            elif key.lower() == 'q': break
 
             # --- Right Column: History ---
             hist_lines = []

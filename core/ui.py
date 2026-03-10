@@ -288,7 +288,6 @@ def render_price_line(
     Shows the PnL amount moving across the line.
     [X] -------- $0.45 -------- [$]
     """
-    # X = Stop Loss, $ = Take Profit
     # Range is from stop_price to take_profit
     total_range = abs(take_profit - stop_price) or 1e-10
     
@@ -300,23 +299,33 @@ def render_price_line(
         
     progress = max(0.0, min(1.0, progress))
     
-    # Inner width for the line (excluding ends)
-    inner_w = width - 6
+    # Inner width for the line (excluding ends and spaces)
+    # [X] (3) + space (1) + line + space (1) + [$] (3) = 8 chars overhead
+    inner_w = max(10, width - 8)
     pos = int(progress * inner_w)
     
-    pnl_str = f" {pnl_color(pnl_val)}${abs(pnl_val):.2f}{Style.RESET_ALL} "
-    pnl_len = len(strip_ansi(pnl_str))
+    pnl_str = f"${abs(pnl_val):.2f}"
+    pnl_len = len(pnl_str)
     
-    # Center the PnL string around the progress position
-    start_pnl = pos - (pnl_len // 2)
-    start_pnl = max(0, min(inner_w - pnl_len, start_pnl))
+    # Ensure PnL string fits
+    if pnl_len + 2 > inner_w:
+        pnl_str = f"{abs(pnl_val):.1f}"
+        pnl_len = len(pnl_str)
+
+    # Determine position for the PnL string label
+    # We want to center the label at 'pos', but keep it within [0, inner_w - pnl_len]
+    start_label = pos - (pnl_len // 2)
+    start_label = max(0, min(inner_w - pnl_len, start_label))
     
-    line = list("─" * inner_w)
-    # We don't actually put the string in the list, we'll slice it in
+    # Construct the line with the PnL label embedded
+    line_chars = list("─" * inner_w)
+    # We can't easily embed colored text into a list of chars without breaking index math
+    # So we'll slice strings
     
-    left_part = "─" * start_pnl
-    right_part = "─" * (inner_w - start_pnl - pnl_len)
+    left_dash  = "─" * start_label
+    mid_label  = f" {pnl_color(pnl_val)}{pnl_str}{Style.RESET_ALL} "
+    right_dash = "─" * max(0, inner_w - (start_label + pnl_len))
     
-    full_line = f"{Fore.RED}[X]{Style.RESET_ALL} {Fore.CYAN}{left_part}{Style.RESET_ALL}{pnl_str}{Fore.CYAN}{right_part}{Style.RESET_ALL} {Fore.GREEN}[$]{Style.RESET_ALL}"
+    full_line = f"{Fore.RED}[X]{Style.RESET_ALL} {Fore.CYAN}{left_dash}{Style.RESET_ALL}{mid_label}{Fore.CYAN}{right_dash}{Style.RESET_ALL} {Fore.GREEN}[$]{Style.RESET_ALL}"
     return full_line
 
