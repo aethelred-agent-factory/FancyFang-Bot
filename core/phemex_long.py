@@ -142,14 +142,14 @@ def detect_bullish_divergence(closes: List[float], rsi_values: List[Optional[flo
     if abs(price_troughs[-1] - rsi_troughs[-1]) > 5 or abs(price_troughs[-2] - rsi_troughs[-2]) > 5:
         return False
 
-    p1 = price_window[price_troughs[-2]]
-    p2 = price_window[price_troughs[-1]]
-    r1 = rsi_window[rsi_troughs[-2]]
-    r2 = rsi_window[rsi_troughs[-1]]
+    price1 = price_window[price_troughs[-2]]
+    price2 = price_window[price_troughs[-1]]
+    rsi1 = rsi_window[rsi_troughs[-2]]
+    rsi2 = rsi_window[rsi_troughs[-1]]
 
-    # p2 meaningfully lower, r2 meaningfully higher → bullish divergence
+    # price2 meaningfully lower, rsi2 meaningfully higher → bullish divergence
     # Apply stricter thresholds and ensure second RSI trough is in oversold zone
-    return (p2 < p1 * DIV_PRICE_THRESHOLD) and (r2 > r1 + DIV_RSI_THRESHOLD) and (r2 < RSI_OVERSOLD_ZONE + 10)
+    return (price2 < price1 * DIV_PRICE_THRESHOLD) and (rsi2 > rsi1 + DIV_RSI_THRESHOLD) and (rsi2 < RSI_OVERSOLD_ZONE + 10)
 
 def detect_patterns(ohlc: List[Tuple[float, float, float, float]]) -> List:
     """Detect bullish reversal / continuation candle patterns."""
@@ -157,67 +157,67 @@ def detect_patterns(ohlc: List[Tuple[float, float, float, float]]) -> List:
     if len(ohlc) < 3:
         return patterns
 
-    def body(c): return abs(c[3] - c[0])
-    def upper_wick(c): return c[1] - max(c[0], c[3])
-    def lower_wick(c): return min(c[0], c[3]) - c[2]
-    def is_bear(c): return c[3] < c[0]
-    def is_bull(c): return c[3] > c[0]
+    def body(candle): return abs(candle[3] - candle[0])
+    def upper_wick(candle): return candle[1] - max(candle[0], candle[3])
+    def lower_wick(candle): return min(candle[0], candle[3]) - candle[2]
+    def is_bear(candle): return candle[3] < candle[0]
+    def is_bull(candle): return candle[3] > candle[0]
 
-    c0, c1, c2 = ohlc[-3], ohlc[-2], ohlc[-1]
+    candle_prev2, candle_prev1, candle_curr = ohlc[-3], ohlc[-2], ohlc[-1]
 
     # Hammer — long lower wick, small body, at low area (bullish reversal)
-    if (lower_wick(c2) > 2 * body(c2)
-            and upper_wick(c2) < body(c2) * 0.4
-            and body(c2) > 0):
+    if (lower_wick(candle_curr) > 2 * body(candle_curr)
+            and upper_wick(candle_curr) < body(candle_curr) * 0.4
+            and body(candle_curr) > 0):
         patterns.append(("Hammer 🔨", 15, 1.0))
 
     # Inverted Hammer / Dragonfly Doji at low (demand spike)
-    if (lower_wick(c2) > 2.5 * body(c2)
-            and body(c2) < (c2[1] - c2[2]) * 0.2
-            and c2[2] < c1[2]):
+    if (lower_wick(candle_curr) > 2.5 * body(candle_curr)
+            and body(candle_curr) < (candle_curr[1] - candle_curr[2]) * 0.2
+            and candle_curr[2] < candle_prev1[2]):
         patterns.append(("Dragonfly Doji / Inv Hammer 🐉", 14, 1.0))
 
     # Bullish Engulfing — bear candle followed by larger bull candle
-    if (is_bear(c1) and is_bull(c2)
-            and c2[0] <= c1[3] and c2[3] >= c1[0]
-            and body(c2) > body(c1)):
+    if (is_bear(candle_prev1) and is_bull(candle_curr)
+            and candle_curr[0] <= candle_prev1[3] and candle_curr[3] >= candle_prev1[0]
+            and body(candle_curr) > body(candle_prev1)):
         patterns.append(("Bullish Engulfing 🟢", 18, 1.0))
 
     # Morning Star — bear, small body (indecision), bull (3-candle reversal)
-    if (is_bear(c0)
-            and body(c1) < body(c0) * 0.5
-            and is_bull(c2)
-            and c2[3] > (c0[0] + c0[3]) / 2):
+    if (is_bear(candle_prev2)
+            and body(candle_prev1) < body(candle_prev2) * 0.5
+            and is_bull(candle_curr)
+            and candle_curr[3] > (candle_prev2[0] + candle_prev2[3]) / 2):
         patterns.append(("Morning Star ⭐", 20, 1.0))
 
     # Piercing Line — bear candle, bull opens below low, closes above midpoint
-    if (is_bear(c1) and is_bull(c2)
-            and c2[0] < c1[2]
-            and c2[3] > (c1[0] + c1[3]) / 2
-            and c2[3] < c1[0]):
+    if (is_bear(candle_prev1) and is_bull(candle_curr)
+            and candle_curr[0] < candle_prev1[2]
+            and candle_curr[3] > (candle_prev1[0] + candle_prev1[3]) / 2
+            and candle_curr[3] < candle_prev1[0]):
         patterns.append(("Piercing Line 💉", 16, 1.0))
 
     # Bullish Harami — bear followed by smaller bull inside it
-    if (is_bear(c1) and is_bull(c2)
-            and c2[0] > c1[3] and c2[3] < c1[0]
-            and body(c2) < body(c1)):
+    if (is_bear(candle_prev1) and is_bull(candle_curr)
+            and candle_curr[0] > candle_prev1[3] and candle_curr[3] < candle_prev1[0]
+            and body(candle_curr) < body(candle_prev1)):
         patterns.append(("Bullish Harami 🟩", 12, 1.0))
 
     # Doji at Low — indecision after downtrend (reversal warning)
-    if body(c2) < (c2[1] - c2[2]) * 0.15 and c2[2] < c1[2]:
+    if body(candle_curr) < (candle_curr[1] - candle_curr[2]) * 0.15 and candle_curr[2] < candle_prev1[2]:
         patterns.append(("Doji at Low — Reversal Watch 🔄", 10, 1.0))
 
     # Three White Soldiers (gate applied later — RSI must not be overbought)
-    if (is_bull(c0) and is_bull(c1) and is_bull(c2)
-            and c1[3] > c0[3] and c2[3] > c1[3]
-            and body(c0) > 0 and body(c1) > 0 and body(c2) > 0):
+    if (is_bull(candle_prev2) and is_bull(candle_prev1) and is_bull(candle_curr)
+            and candle_prev1[3] > candle_prev2[3] and candle_curr[3] > candle_prev1[3]
+            and body(candle_prev2) > 0 and body(candle_prev1) > 0 and body(candle_curr) > 0):
         patterns.append(("Three White Soldiers 🪖", 18, 1.0))
 
     # Bullish Marubozu — strong bull with almost no wicks (momentum)
-    if (is_bull(c2)
-            and upper_wick(c2) < body(c2) * 0.1
-            and lower_wick(c2) < body(c2) * 0.1
-            and body(c2) > (c2[1] - c2[2]) * 0.85):
+    if (is_bull(candle_curr)
+            and upper_wick(candle_curr) < body(candle_curr) * 0.1
+            and lower_wick(candle_curr) < body(candle_curr) * 0.1
+            and body(candle_curr) > (candle_curr[1] - candle_curr[2]) * 0.85):
         patterns.append(("Bullish Marubozu 💪", 14, 1.0))
 
     return patterns

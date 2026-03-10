@@ -408,7 +408,7 @@ def _get_session_chart() -> Optional[str]:
 
         plt.figure(figsize=(10, 5))
         plt.plot(data, marker='o', linestyle='-', color='g')
-        plt.title(f"Sim Session Equity ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')})")
+        plt.title(f"Sim Session Equity ({datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC)")
         plt.xlabel("Points")
         plt.ylabel("Equity (USDT)")
         plt.grid(True)
@@ -686,6 +686,7 @@ def _ws_on_open(ws: websocket.WebSocketApp) -> None:
 
 def _ws_heartbeat(ws: websocket.WebSocketApp, stop_event: threading.Event) -> None:
     """Keeps the WebSocket alive by sending periodic pings."""
+    import traceback
     while not stop_event.is_set():
         time.sleep(5)
         # Check if this heartbeat instance is still the active one
@@ -701,8 +702,8 @@ def _ws_heartbeat(ws: websocket.WebSocketApp, stop_event: threading.Event) -> No
         except (websocket.WebSocketConnectionClosedException, BrokenPipeError):
             logger.debug("WebSocket closed during heartbeat — exiting heartbeat thread.")
             break
-        except Exception as e:
-            logger.debug(f"Heartbeat error: {e}")
+        except Exception as error:
+            logger.error(f"Heartbeat error: {error}\n{traceback.format_exc()}")
             break
 
 
@@ -737,6 +738,7 @@ def _ensure_ws_started() -> None:
     if state.ws_thread is None or not state.ws_thread.is_alive():
         # REF: [Tier 1] Critical Thread Error Handling
         def _ws_wrapper():
+            import traceback
             try:
                 _ws_run_loop()
             except Exception as error:
@@ -756,8 +758,8 @@ def _subscribe_symbol(symbol: str) -> None:
                 with state.lock:
                     symbols = [p["symbol"] for p in state.positions]
                 state.ws_app.send(json.dumps({"id": 1, "method": "market24h_p.subscribe", "params": symbols}))
-        except Exception as e:
-            logger.error(f"Subscription thread failed for {symbol}: {e}\n{traceback.format_exc()}")
+        except Exception as error:
+            logger.error(f"Subscription thread failed for {symbol}: {error}\n{traceback.format_exc()}")
 
     threading.Thread(target=_do_sub, daemon=True).start()
 
@@ -2281,6 +2283,8 @@ def main() -> None:
     # ── Web Bridge ────────────────────────────────────────────────────────────
     if args.web:
         web_bridge.start_bridge_thread(state, _bot_logs, port=args.web_port)
+        # sim_bot doesn't have _thesis_log like p_bot, but we can still inject empty if needed
+        # or leave as is if we only want neural link in live bot.
         logger.info(f"web_bridge: started on port {args.web_port}")
 
     try:

@@ -88,6 +88,7 @@ from colorama import init, Fore, Style
 from dotenv import load_dotenv
 import core.phemex_common as pc
 import core.ui as ui
+import core.web_bridge as web_bridge
 import modules.animations as animations
 from modules.storage_manager import StorageManager
 
@@ -782,6 +783,7 @@ def _ws_on_close(ws, close_status_code, close_msg):
     # For now, _ws_run_loop will handle reconnection after a short delay
 
 def _ws_heartbeat(ws, stop_event):
+    import traceback
     while not stop_event.is_set():
         time.sleep(15)
         try:
@@ -790,8 +792,8 @@ def _ws_heartbeat(ws, stop_event):
                 logger.debug(f"WS Heartbeat sent. Connected: {_ws_connected}")
             else:
                 logger.debug(f"WS Heartbeat skipped. Connected: {_ws_connected}")
-        except Exception as e:
-            logger.debug(f"WS Heartbeat error: {e}")
+        except Exception as error:
+            logger.error(f"WS Heartbeat error: {error}\n{traceback.format_exc()}")
             break
 
 
@@ -843,6 +845,7 @@ def _ensure_ws_started():
     if _ws_thread is None or not _ws_thread.is_alive():
         # REF: [Tier 1] Critical Thread Error Handling
         def _target_wrapper():
+            import traceback
             try:
                 _ws_run_loop()
             except Exception as error:
@@ -1031,8 +1034,8 @@ def _subscribe_symbol(symbol):
             if _ws_app and _ws_app.sock and _ws_app.sock.connected:
                 sub = {"id": 1, "method": "market24h_p.subscribe", "params": [symbol]}
                 _ws_app.send(json.dumps(sub))
-        except Exception as e:
-            logger.error(f"Subscription thread failed for {symbol}: {e}\n{traceback.format_exc()}")
+        except Exception as error:
+            logger.error(f"Subscription thread failed for {symbol}: {error}\n{traceback.format_exc()}")
     threading.Thread(target=_do_sub, daemon=True).start()
 
 
@@ -1063,7 +1066,7 @@ def _get_session_chart() -> Optional[str]:
 
         plt.figure(figsize=(10, 5))
         plt.plot(data, marker='o', linestyle='-', color='b')
-        plt.title(f"Session Equity Curve ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')})")
+        plt.title(f"Session Equity Curve ({datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC)")
         plt.xlabel("Trade Count")
         plt.ylabel("Equity (USDT)")
         plt.grid(True)
@@ -2314,6 +2317,7 @@ def _scan_one(module, direction: str, cfg: dict, args, on_result=None) -> List[d
                     if on_result:
                         # REF: [Tier 1] Critical Thread Error Handling
                         def _result_wrapper(res, dr):
+                            import traceback
                             try:
                                 on_result(res, dr)
                             except Exception as error:
@@ -2539,6 +2543,12 @@ def bot_loop(args):
             threading.Thread(target=_display_wrapper, daemon=True).start()
         threading.Thread(target=_cache_wrapper, daemon=True).start()
 
+    # ── Web Bridge ────────────────────────────────────────────────────────────
+    if getattr(args, 'web', False):
+        web_bridge.start_bridge_thread(None, _bot_logs, port=args.web_port)
+        web_bridge.inject_thesis(_thesis_log)
+        logger.info(f"web_bridge: started on port {args.web_port}")
+
     # ── Drawdown guard initialisation ────────────────────────────────
     if _DD_OK:
         drawdown_guard.set_start_balance(_cached_balance)
@@ -2671,14 +2681,18 @@ def bot_loop(args):
                     # ── AI Thesis Generation (Machine Intelligence Upgrade) ──
                     if scan_res["score"] > 130:
                         def _fetch_thesis(res, dr):
-                            prompt = f"Analyze {dr} signal for {res['inst_id']} (Score: {res['score']}). Signals: {', '.join(res['signals'])}. Sector: {res.get('sector', 'Unknown')}. Liquidity Spectre: {res.get('spectre_score', 0)}. Provide a 1-sentence aggressive trading thesis."
+                            import traceback
+                            try:
+                                prompt = f"Analyze {dr} signal for {res['inst_id']} (Score: {res['score']}). Signals: {', '.join(res['signals'])}. Sector: {res.get('sector', 'Unknown')}. Liquidity Spectre: {res.get('spectre_score', 0)}. Provide a 1-sentence aggressive trading thesis."
 
-                            def _token_cb(token):
-                                if not _thesis_log or res['inst_id'] not in _thesis_log[-1]:
-                                    _thesis_log.append(f"[{res['inst_id']}] ")
-                                _thesis_log[-1] += token
+                                def _token_cb(token):
+                                    if not _thesis_log or res['inst_id'] not in _thesis_log[-1]:
+                                        _thesis_log.append(f"[{res['inst_id']}] ")
+                                    _thesis_log[-1] += token
 
-                            pc.call_deepseek(prompt, output_callback=_token_cb)
+                                pc.call_deepseek(prompt, output_callback=_token_cb)
+                            except Exception as error:
+                                logger.error(f"AI Thesis thread crashed for {res['inst_id']}: {error}\n{traceback.format_exc()}")
 
                         threading.Thread(target=_fetch_thesis, args=(scan_res, direction), daemon=True).start()
 
@@ -3164,6 +3178,8 @@ def main():
     run_p.add_argument("--no-entity", action="store_true", help="Disable Entity API")
     run_p.add_argument("--no-dynamic", action="store_true", help="Disable adaptive score filtering")
     run_p.add_argument("--no-tui",     action="store_true", help="Run without the full-screen TUI dashboard")
+    run_p.add_argument("--web",        action="store_true", help="Enable web dashboard backend")
+    run_p.add_argument("--web-port",   type=int, default=8080, help="Port for web dashboard backend")
 
     # ── deploy: single scan + exit ───────────────────────────────────
     deploy_p = sub.add_parser("deploy", help="Run one scan and optionally execute, then exit")

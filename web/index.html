@@ -50,7 +50,7 @@
         main {
             display: grid;
             grid-template-columns: 350px 1fr;
-            grid-template-rows: 1fr 200px;
+            grid-template-rows: 1fr 250px 200px;
             gap: 15px;
             padding: 15px;
             height: calc(100vh - 50px);
@@ -103,6 +103,9 @@
         .log-error { color: var(--red); }
         .log-success { color: var(--green); }
 
+        /* Thesis */
+        .thesis-line { font-size: 0.85rem; padding: 5px 0; border-bottom: 1px solid rgba(255,255,0,0.1); color: var(--yellow); font-style: italic; }
+
         /* Utility */
         .text-green { color: var(--green); }
         .text-red { color: var(--red); }
@@ -124,21 +127,24 @@
             const [summary, setSummary] = useState(null);
             const [positions, setPositions] = useState([]);
             const [logs, setLogs] = useState([]);
+            const [thesis, setThesis] = useState([]);
             const [connected, setConnected] = useState(false);
 
             const API_BASE = "/api";
 
             const fetchData = async () => {
                 try {
-                    const [sumRes, posRes, logRes] = await Promise.all([
+                    const [sumRes, posRes, logRes, thesisRes] = await Promise.all([
                         fetch(`${API_BASE}/summary`),
                         fetch(`${API_BASE}/positions`),
-                        fetch(`${API_BASE}/logs`)
+                        fetch(`${API_BASE}/logs`),
+                        fetch(`${API_BASE}/thesis`)
                     ]);
                     
                     if (sumRes.ok) setSummary(await sumRes.json());
                     if (posRes.ok) setPositions(await posRes.json());
                     if (logRes.ok) setLogs(await logRes.json());
+                    if (thesisRes.ok) setThesis(await thesisRes.json());
                     setConnected(true);
                 } catch (e) {
                     console.error("API connection failed", e);
@@ -256,6 +262,20 @@
                                             </div>
                                         </div>
                                     ))
+                                )}
+                            </div>
+                        </section>
+
+                        {/* Machine Thesis */}
+                        <section className="panel" style={{gridColumn: 'span 2'}}>
+                            <div className="panel-header">
+                                <span>🧠 NEURAL_LINK // MACHINE_THESIS</span>
+                            </div>
+                            <div className="panel-content" style={{padding: '5px 15px'}}>
+                                {thesis.length === 0 ? (
+                                    <div style={{color: 'var(--dim)', textAlign: 'center', marginTop: '20px'}}>AWAITING_ALPHA_SIGNALS...</div>
+                                ) : (
+                                    thesis.map((t, i) => <div key={i} className="thesis-line">⚡ {t}</div>)
                                 )}
                             </div>
                         </section>

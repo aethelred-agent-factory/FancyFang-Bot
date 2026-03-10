@@ -27,11 +27,16 @@ app.add_middleware(
 # Global bot state and logs (to be injected)
 _bot_state = None
 _bot_logs = []
+_bot_thesis = []
 
 def inject_state(state, logs):
     global _bot_state, _bot_logs
     _bot_state = state
     _bot_logs = logs
+
+def inject_thesis(thesis_log):
+    global _bot_thesis
+    _bot_thesis = thesis_log
 
 @app.get("/")
 async def get_index():
@@ -104,6 +109,10 @@ async def get_positions():
 @app.get("/api/logs")
 async def get_logs():
     return list(_bot_logs)[-50:]
+
+@app.get("/api/thesis")
+async def get_thesis():
+    return list(_bot_thesis)[-20:]
 
 def run_bridge(host="0.0.0.0", port=8080):
     print(f"\n  🚀 FANCYBOT WEB SERVER ACTIVE")
