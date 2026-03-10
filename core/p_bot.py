@@ -220,24 +220,21 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
         return None
     return pc.make_entity_request(entity_name, method=method, data=data, entity_id=entity_id)
 
-# Strategy parameters
-MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "25.0"))   # $ margin per trade
-LEVERAGE       = int(os.getenv("BOT_LEVERAGE", "50"))          # leverage multiplier
-TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.025"))    # 2.5% trailing stop
-TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.10")) # 10% take profit
+TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.05"))     # 5% trailing stop
+TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.50")) # 50% take profit
 SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "300"))    # seconds between scans
 # Base gating thresholds — if score < MIN_SCORE, candidate is discarded.
-MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "25"))
-MIN_SCORE_GAP  = int(os.getenv("BOT_MIN_SCORE_GAP", "30"))
-MIN_SCORE_HTF_BYPASS = int(os.getenv("BOT_MIN_SCORE_HTF", "120"))
-MIN_SCORE_LOW_LIQ = int(os.getenv("BOT_MIN_SCORE_LOW_LIQ", "145"))
+MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "5"))
+MIN_SCORE_GAP  = int(os.getenv("BOT_MIN_SCORE_GAP", "0"))
+MIN_SCORE_HTF_BYPASS = int(os.getenv("BOT_MIN_SCORE_HTF", "5"))
+MIN_SCORE_LOW_LIQ = int(os.getenv("BOT_MIN_SCORE_LOW_LIQ", "5"))
 
 # New predictive score thresholds (float values for the new prediction engine)
-MIN_PREDICTIVE_SCORE = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE", "0.8")) # Default threshold for predictive score
-MIN_PREDICTIVE_SCORE_HTF_BYPASS = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_HTF", "0.5")) # Lower bar if HTF aligned
-MIN_PREDICTIVE_SCORE_LOW_LIQ = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_LOW_LIQ", "1.2")) # Higher bar for low-liq assets
-MIN_PREDICTIVE_SCORE_GAP = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_GAP", "0.3")) # minimum gap between long/short predictive scores
-FAST_TRACK_PREDICTIVE_SCORE = float(os.getenv("BOT_FAST_TRACK_PREDICTIVE_SCORE", "1.5")) # immediate-entry threshold
+MIN_PREDICTIVE_SCORE = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE", "0.1")) # Default threshold for predictive score
+MIN_PREDICTIVE_SCORE_HTF_BYPASS = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_HTF", "0.1")) # Lower bar if HTF aligned
+MIN_PREDICTIVE_SCORE_LOW_LIQ = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_LOW_LIQ", "0.1")) # Higher bar for low-liq assets
+MIN_PREDICTIVE_SCORE_GAP = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_GAP", "0.0")) # minimum gap between long/short predictive scores
+FAST_TRACK_PREDICTIVE_SCORE = float(os.getenv("BOT_FAST_TRACK_PREDICTIVE_SCORE", "0.5")) # immediate-entry threshold
 
 MAX_POSITIONS  = 999                                           # effectively unlimited, gated by margin/risk
 DIRECTION      = os.getenv("BOT_DIRECTION", "SHORT")           # default to SHORT to match sim_bot.py

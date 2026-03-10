@@ -59,6 +59,8 @@ class InitializationError(Exception):
 # CONFIG & CONSTANTS
 # ----------------------------
 BASE_URL = os.getenv("PHEMEX_BASE_URL", "https://api.phemex.com")
+FUNDING_FILTER_ENABLED = os.getenv("BOT_FUNDING_FILTER", "true").lower() == "true"
+WEEKEND_GUARD_ENABLED = os.getenv("BOT_WEEKEND_GUARD", "true").lower() == "true"
 
 TIMEFRAME_MAP = {
     "1m":  60,    "3m":  180,   "5m":  300,   "15m": 900,
@@ -258,7 +260,7 @@ class TickerData:
     slope_change: Optional[float] = None
     news_count: int = 0
     news_titles: List[str] = field(default_factory=list)
-    raw_ohlc: List[Tuple[float, float, float, float]] = field(default_factory=list)
+    raw_ohlc: List[Tuple[float, float, float, float, float]] = field(default_factory=list)
     vol_24h: float = 0.0
     regime: str = "UNKNOWN"
     entropy: float = 0.0
@@ -469,7 +471,16 @@ def calc_dynamic_threshold(scores: List[int], default_min: int, percentile: int 
 
     # Use numpy to get the percentile, then floor to int
     dynamic_min = int(np.percentile(scores, percentile))
-    return max(dynamic_min, default_min)
+    final_min = max(dynamic_min, default_min)
+
+    # Weekend Guard: increase threshold by 25% during Saturday/Sunday UTC
+    if WEEKEND_GUARD_ENABLED:
+        # 5 = Saturday, 6 = Sunday
+        if datetime.datetime.now(datetime.timezone.utc).weekday() >= 5:
+            final_min = int(final_min * 1.25)
+            logger.info("Weekend Guard active: threshold increased to %d", final_min)
+
+    return final_min
 
 # ----------------------------
 # Indicator calculations
@@ -1597,6 +1608,11 @@ def unified_analyse(
             funding_rate = float(fr_raw) if fr_raw is not None else 0.0
             funding_rate_change = 0.0
 
+        # Hard Funding Filter: only allow SHORT if funding is positive (Longs pay Shorts)
+        if FUNDING_FILTER_ENABLED and direction == "SHORT" and funding_rate < 0.0:
+            logger.debug("  %s: funding is negative (%.4f%%), skipping SHORT entry.", symbol, funding_rate * 100)
+            return None
+
         # 2. Fetch klines
         candles = get_candles(symbol, timeframe=cfg["TIMEFRAME"], limit=cfg.get("CANDLES", 100), rps=cfg.get("RATE_LIMIT_RPS"))
         if not candles:
@@ -1609,7 +1625,7 @@ def unified_analyse(
                 # REF: [Tier 3] Descriptive Naming
                 open_px, high_px, low_px, close_px = float(candle[3]), float(candle[4]), float(candle[5]), float(candle[6])
                 volume = float(candle[7]) if len(candle) > 7 else 0.0
-                ohlc.append((open_px, high_px, low_px, close_px))
+                ohlc.append((open_px, high_px, low_px, close_px, volume))
                 highs.append(high_px)
                 lows.append(low_px)
                 closes.append(close_px)

@@ -1,0 +1,3 @@
+symbol,direction,score,entry_price,exit_price,pnl_usdt,pnl_pct,hold_candles,exit_reason,slippage_pct,leverage,margin,trail_pct,is_low_liq
+TRUMPUSDT,LONG,82,2.927144199626532,2.917492704478101,-1.8134816632246296,-0.32972393876811446,10,trail_stop,0.07724137931034293,5,110.0,0.008,False
+TRUMPUSDT,SHORT,107,2.952815345531306,2.941,3.601244823611605,0.4001383137346228,15,max_hold,0.07724137931034293,15,60.0,0.008,False

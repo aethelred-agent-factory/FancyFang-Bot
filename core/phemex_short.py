@@ -359,6 +359,19 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
         score += p_score
         signals.append(f"Pattern: {name}")
 
+    # 7. Volume-Price Divergence (VPD) — Hollow Pump detection
+    if len(data.raw_ohlc) >= 5:
+        recent_window = data.raw_ohlc[-5:]
+        prices = [c[3] for c in recent_window] # Closes
+        vols   = [c[4] for c in recent_window] # Volumes
+        
+        price_increasing = all(prices[i] >= prices[i-1] for i in range(1, len(prices)))
+        volume_decreasing = all(vols[i] <= vols[i-1] for i in range(1, len(vols)))
+        
+        if price_increasing and volume_decreasing:
+            score += 20
+            signals.append("Volume-Price Divergence (Hollow Pump)")
+
     # ── New Predictive Engine Integration ────────────────────────────────────
     features = feature_builder_short.build_features(data)
     predictive_score = prediction_engine_short.get_prediction_score(features, "SHORT")

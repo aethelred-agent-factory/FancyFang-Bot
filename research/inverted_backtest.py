@@ -1050,11 +1050,11 @@ def backtest_symbol(
         if long_score >= short_score:
             if len(long_signals) < min_signals:
                 continue
-            direction_trade, entry_score, entry_signals = "LONG",  long_score, long_signals
+            direction_trade, entry_score, entry_signals = "SHORT", long_score, long_signals
         else:
             if len(short_signals) < min_signals:
                 continue
-            direction_trade, entry_score, entry_signals = "SHORT", short_score, short_signals
+            direction_trade, entry_score, entry_signals = "LONG",  short_score, short_signals
 
         # ── Upgrade #3: Spread filter ─────────────────────────────────────────
         if spread is not None and spread > 0.40:   # Synchronized with pc.SPREAD_FILTER_MAX_PCT

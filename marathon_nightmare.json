@@ -1,0 +1,42 @@
+[
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 85,
+    "entry": 2.928430987409549,
+    "exit": 2.9172562979206735,
+    "pnl_usdt": -0.5723895937920151,
+    "pnl_pct": -0.3815930625280102,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 21.3 (extremely oversold)",
+      "Price at/below BB lower (-55%) \u2014 extreme oversold",
+      "Volume spike 19.5x (capitulation/demand)",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.09454231433505664,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 102,
+    "entry": 2.9523040859630334,
+    "exit": 2.9403197862592507,
+    "pnl_usdt": 1.8266867875647854,
+    "pnl_pct": 0.40593039723661895,
+    "hold_candles": 18,
+    "exit_reason": "take_profit",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 73.8 (rollover zone \u2713 rolling over)",
+      "Near BB upper (87%) \u2014 overbought",
+      "Volume spike 2.0x (exhaustion/distribution)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.09454231433505664,
+    "is_low_liq": false
+  }
+]

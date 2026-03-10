@@ -1,0 +1,632 @@
+[
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 33,
+    "entry": 0.9300384909614708,
+    "exit": 0.9273582721043317,
+    "pnl_usdt": -8.645509459619113,
+    "pnl_pct": -0.28818364865397045,
+    "hold_candles": 57,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 31.4 (oversold)",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.07060445387063038,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 33,
+    "entry": 0.9311848474961274,
+    "exit": 0.927968483212649,
+    "pnl_usdt": -1.6579467118917466,
+    "pnl_pct": -0.34540556497744723,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 32.6 (oversold)",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.07060445387063038,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 33,
+    "entry": 0.965429278859171,
+    "exit": 0.9595870032907644,
+    "pnl_usdt": -2.541621424233484,
+    "pnl_pct": -0.6051479581508296,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 31.0 (oversold)",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.07060445387063038,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 33,
+    "entry": 0.971648322188077,
+    "exit": 0.9691100324720656,
+    "pnl_usdt": -5.015720341869141,
+    "pnl_pct": -0.2612354344723511,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 28.9 (oversold)",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.07060445387063038,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 0.968383239300106,
+    "exit": 0.9647123424571908,
+    "pnl_usdt": -0.45488976189652697,
+    "pnl_pct": -0.3790748015804391,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 75.3 (overbought \u2014 risky long)",
+      "Near 24h low (0.9% above)"
+    ],
+    "slippage_pct": 0.07060445387063038,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 0.9568864680843736,
+    "exit": 0.9527418860311764,
+    "pnl_usdt": -2.598792348789982,
+    "pnl_pct": -0.43313205813166367,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 82.9 (overbought \u2014 risky long)",
+      "Near 24h low (1.2% above)"
+    ],
+    "slippage_pct": 0.07060445387063038,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 0.9520555995166035,
+    "exit": 0.9485675382498093,
+    "pnl_usdt": -3.0775213817288947,
+    "pnl_pct": -0.36637159306296363,
+    "hold_candles": 13,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 71.6 (overbought \u2014 risky long)",
+      "Near 24h low (1.2% above)"
+    ],
+    "slippage_pct": 0.07060445387063038,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "LONG",
+    "score": 33,
+    "entry": 85.26980621148786,
+    "exit": 85.02953268452687,
+    "pnl_usdt": -8.453409394354413,
+    "pnl_pct": -0.2817803131451471,
+    "hold_candles": 58,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "RSI 31.9 (oversold)",
+      "Near 24h low (0.0% above)"
+    ],
+    "slippage_pct": 0.06580181016476612,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 86.70681519562024,
+    "exit": 86.26644151005715,
+    "pnl_usdt": -3.6567950614963816,
+    "pnl_pct": -0.5078882029856086,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "RSI 70.0 (overbought \u2014 risky long)",
+      "Near 24h low (1.1% above)"
+    ],
+    "slippage_pct": 0.06580181016476612,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "LONG",
+    "score": 33,
+    "entry": 86.27167502438435,
+    "exit": 85.95150870675849,
+    "pnl_usdt": -2.004015935347249,
+    "pnl_pct": -0.3711140621013424,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "RSI 32.9 (oversold)",
+      "Near 24h low (0.0% above)"
+    ],
+    "slippage_pct": 0.06580181016476612,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 86.70293631985729,
+    "exit": 86.40390069553315,
+    "pnl_usdt": -2.2763186626786327,
+    "pnl_pct": -0.34489676707252015,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "RSI 77.7 (overbought \u2014 risky long)",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.06580181016476612,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 2.9275605467978196,
+    "exit": 2.915590659088989,
+    "pnl_usdt": -2.698535439845768,
+    "pnl_pct": -0.4088690060372375,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 20.8 (extremely oversold)",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.09442340791738767,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 2.9212549758404407,
+    "exit": 2.9122882093643594,
+    "pnl_usdt": -0.9208473635720459,
+    "pnl_pct": -0.30694912119068196,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 18.9 (extremely oversold)",
+      "Near 24h low (0.3% above)"
+    ],
+    "slippage_pct": 0.09442340791738767,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 18,
+    "entry": 2.9567892674698797,
+    "exit": 2.9429720722904014,
+    "pnl_usdt": -0.5607648268272434,
+    "pnl_pct": -0.4673040223560362,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 70.4 (overbought \u2014 risky long)",
+      "Near 24h low (1.5% above)"
+    ],
+    "slippage_pct": 0.09442340791738767,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 2.9456525351103786,
+    "exit": 2.935913439802945,
+    "pnl_usdt": -1.7853807953683551,
+    "pnl_pct": -0.33062607321636206,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 31.8 (oversold)",
+      "Near 24h low (0.0% above)"
+    ],
+    "slippage_pct": 0.09442340791738767,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.178459606918536,
+    "exit": 0.17737925338037452,
+    "pnl_usdt": -0.7264524831019921,
+    "pnl_pct": -0.60537706925166,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 34.5 (oversold)",
+      "Near 24h low (0.6% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.1783577978284309,
+    "exit": 0.17752374340421184,
+    "pnl_usdt": -2.2446236077115724,
+    "pnl_pct": -0.4676299182732442,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 27.3 (oversold)",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.17709170429884163,
+    "exit": 0.1763979442615005,
+    "pnl_usdt": -0.9402044529477378,
+    "pnl_pct": -0.39175185539489077,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 33.3 (oversold)",
+      "Near 24h low (0.3% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.1744893575484692,
+    "exit": 0.1738728598892935,
+    "pnl_usdt": -1.483924409440688,
+    "pnl_pct": -0.3533153355811162,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 30.0 (oversold)",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 18,
+    "entry": 0.1761906712868411,
+    "exit": 0.17544419434405348,
+    "pnl_usdt": -1.7794376608077351,
+    "pnl_pct": -0.42367563352565124,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 77.1 (overbought \u2014 risky long)",
+      "Near 24h low (1.1% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.17708825543680634,
+    "exit": 0.17629815623425862,
+    "pnl_usdt": -2.944664356172267,
+    "pnl_pct": -0.44616126608670714,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 29.7 (oversold)",
+      "Near 24h low (0.3% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 0.17097769961207418,
+    "exit": 0.1701609562467645,
+    "pnl_usdt": -1.433069986020568,
+    "pnl_pct": -0.4776899953401893,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 23.7 (extremely oversold)",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 0.17247076102323686,
+    "exit": 0.17184536563496652,
+    "pnl_usdt": -10.87828541881498,
+    "pnl_pct": -0.3626095139604993,
+    "hold_candles": 81,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 16.1 (extremely oversold)",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 18,
+    "entry": 0.17398028825482972,
+    "exit": 0.17315015239939308,
+    "pnl_usdt": -2.5765755789483564,
+    "pnl_pct": -0.47714362573117713,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 74.4 (overbought \u2014 risky long)",
+      "Near 24h low (1.2% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.1739860830251822,
+    "exit": 0.17349849221357014,
+    "pnl_usdt": -5.548890981424968,
+    "pnl_pct": -0.2802470192638873,
+    "hold_candles": 32,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 33.3 (oversold)",
+      "Near 24h low (0.0% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 0.17174084377030047,
+    "exit": 0.1709876454376598,
+    "pnl_usdt": -2.3682607508901796,
+    "pnl_pct": -0.4385668057204035,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 14.3 (extremely oversold)",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.1709528932231405,
+    "exit": 0.17028603778959478,
+    "pnl_usdt": -0.23404883800660506,
+    "pnl_pct": -0.3900813966776751,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 27.6 (oversold)",
+      "Near 24h low (0.1% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 36,
+    "entry": 0.17093853735054093,
+    "exit": 0.17032521824139363,
+    "pnl_usdt": -1.7222165168466268,
+    "pnl_pct": -0.35879510767638056,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 31.0 (oversold)",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 0.1691236506213813,
+    "exit": 0.1693,
+    "pnl_usdt": 2.1897215069485747,
+    "pnl_pct": 0.10427245271183688,
+    "hold_candles": 34,
+    "exit_reason": "end_of_data",
+    "signals": [
+      "HTF Alignment (1H RSI 36.6) \u2014 oversold territory",
+      "RSI 18.7 (extremely oversold)",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.08951593860685263,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 0.0033169233846193392,
+    "exit": 0.003303897295094225,
+    "pnl_usdt": -1.6494072868601313,
+    "pnl_pct": -0.39271602068098366,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 72.6 (overbought \u2014 risky long)",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.07218991893703937,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 0.0033555206001718773,
+    "exit": 0.003339897075088917,
+    "pnl_usdt": -0.279363954710815,
+    "pnl_pct": -0.46560659118469166,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 71.6 (overbought \u2014 risky long)",
+      "Near 24h low (1.3% above)"
+    ],
+    "slippage_pct": 0.07218991893703937,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 33,
+    "entry": 0.0033422109989126587,
+    "exit": 0.0033287276856850006,
+    "pnl_usdt": -0.48410994633353993,
+    "pnl_pct": -0.40342495527794997,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 29.3 (oversold)",
+      "Near 24h low (0.3% above)"
+    ],
+    "slippage_pct": 0.07218991893703937,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 37,
+    "entry": 0.00332700002604498,
+    "exit": 0.003313613346014946,
+    "pnl_usdt": -0.48283786926017597,
+    "pnl_pct": -0.4023648910501466,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 19.1 (extremely oversold)",
+      "Near 24h low (0.0% above)"
+    ],
+    "slippage_pct": 0.07218991893703937,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 37,
+    "entry": 0.003314899622883605,
+    "exit": 0.0033066287029900185,
+    "pnl_usdt": -2.544975489821791,
+    "pnl_pct": -0.2495074009629207,
+    "hold_candles": 16,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 17.6 (extremely oversold)",
+      "Near 24h low (0.0% above)"
+    ],
+    "slippage_pct": 0.07218991893703937,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 15,
+    "entry": 0.003330932076118512,
+    "exit": 0.003319116420553494,
+    "pnl_usdt": -0.8513404869272584,
+    "pnl_pct": -0.35472520288635767,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 73.3 (overbought \u2014 risky long)",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.07218991893703937,
+    "is_low_liq": false
+  }
+]

@@ -1,0 +1,4554 @@
+[
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 15,
+    "entry": 6.221882668607896,
+    "exit": 5.878161042097275,
+    "pnl_usdt": 16.573197124634596,
+    "pnl_pct": 5.524399041544865,
+    "hold_candles": 25,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "Above BB mid (67%)",
+      "Price 2.4% above EMA21"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 5.938021869167466,
+    "exit": 6.1017432014822335,
+    "pnl_usdt": -19.300187022787995,
+    "pnl_pct": -2.7571695746839993,
+    "hold_candles": 18,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0027) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (44%)",
+      "-21.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 5.938068465870145,
+    "exit": 6.06430194779869,
+    "pnl_usdt": -20.72688208088825,
+    "pnl_pct": -2.125834059578282,
+    "hold_candles": 15,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0034) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (34%)",
+      "-26.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 88,
+    "entry": 6.23902059592963,
+    "exit": 6.382735148771306,
+    "pnl_usdt": -4.606958756809869,
+    "pnl_pct": -2.3034793784049343,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "RSI 74.5 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (103%) \u2014 extreme overbought",
+      "Price 3.8% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 115,
+    "entry": 6.873311034356674,
+    "exit": 7.245403351443964,
+    "pnl_usdt": -2.7067909136321884,
+    "pnl_pct": -5.413581827264377,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 60.9 (rollover zone \u2713 rolling over)",
+      "Near BB upper (75%) \u2014 overbought",
+      "Price 5.0% above EMA21 (mean-reversion opportunity)",
+      "+15.2% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 147,
+    "entry": 7.846789533721696,
+    "exit": 7.426539299430839,
+    "pnl_usdt": 40.16772392882708,
+    "pnl_pct": 5.355696523843611,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 74.7 (rollover zone)",
+      "Price at/above BB upper (108%) \u2014 extreme overbought",
+      "Price 17.6% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Volume spike 3.0x (exhaustion/distribution)",
+      "+29.1% pump (overbought fade)",
+      "Near 24h High (0.5% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 7.185247935987503,
+    "exit": 7.687011544728886,
+    "pnl_usdt": -19.203929166143155,
+    "pnl_pct": -6.983246969506602,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0319) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (11%)",
+      "Price 4.2% below EMA21 (extended)",
+      "+25.6% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 35,
+    "entry": 7.624276718135076,
+    "exit": 8.008423639239355,
+    "pnl_usdt": -27.71158687155228,
+    "pnl_pct": -5.038470340282233,
+    "hold_candles": 21,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "Above BB mid (70%)",
+      "Price 2.2% above EMA21",
+      "+30.0% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 115,
+    "entry": 7.5511897523743245,
+    "exit": 7.297244984663678,
+    "pnl_usdt": 14.292651862322689,
+    "pnl_pct": 3.362976908781809,
+    "hold_candles": 19,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 61.0 (rollover zone \u2713 rolling over)",
+      "Near BB upper (81%) \u2014 overbought",
+      "Price 6.7% above EMA21 (mean-reversion opportunity)",
+      "+45.9% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 6.184082054018627,
+    "exit": 6.436334059506728,
+    "pnl_usdt": -1.0197633346576436,
+    "pnl_pct": -4.079053338630574,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0597) \u2014 Downtrend confirmed",
+      "RSI 24.0 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-18%)",
+      "Price 8.8% below EMA21 (extended)",
+      "Volume spike 2.1x (exhaustion/distribution)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 6.070130622848501,
+    "exit": 5.795118352124872,
+    "pnl_usdt": 101.93810439581509,
+    "pnl_pct": 4.5305824175917815,
+    "hold_candles": 87,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0024) \u2014 Downtrend confirmed",
+      "Above BB mid (73%)",
+      "-18.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 80,
+    "entry": 5.3201760739605115,
+    "exit": 4.908979267988962,
+    "pnl_usdt": 115.9351119930438,
+    "pnl_pct": 7.729007466202921,
+    "hold_candles": 138,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "RSI 58.2 (rollover zone)",
+      "Price at/above BB upper (133%) \u2014 extreme overbought",
+      "Price 1.9% above EMA21",
+      "Volume spike 2.0x (exhaustion/distribution)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 42,
+    "entry": 5.036358138255532,
+    "exit": 5.154579141065885,
+    "pnl_usdt": -16.431456956695147,
+    "pnl_pct": -2.3473509938135924,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 56.3 (rollover zone)",
+      "Above BB mid (69%)",
+      "Price 1.3% above EMA21",
+      "Elevated volume 1.9x"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 119,
+    "entry": 5.477356027244021,
+    "exit": 5.664265120267027,
+    "pnl_usdt": -20.474377647901534,
+    "pnl_pct": -3.4123962746502556,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 72.4 (rollover zone)",
+      "Price at/above BB upper (98%) \u2014 extreme overbought",
+      "Price 6.8% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.8x",
+      "+8.9% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 60,
+    "entry": 5.395467887329526,
+    "exit": 5.5315779477798435,
+    "pnl_usdt": -52.976152006557015,
+    "pnl_pct": -2.5226739050741434,
+    "hold_candles": 27,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "RSI 61.4 (rollover zone \u2713 rolling over)",
+      "Above BB mid (65%)",
+      "Price 2.1% above EMA21",
+      "+8.1% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 5.3859523224711365,
+    "exit": 5.524681882991922,
+    "pnl_usdt": -11.590949658780275,
+    "pnl_pct": -2.575766590840061,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0056) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (24%)",
+      "Price 1.0% below EMA21 (extended)",
+      "+9.7% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 114,
+    "entry": 5.35922685345766,
+    "exit": 4.818578364981028,
+    "pnl_usdt": 211.85179445583927,
+    "pnl_pct": 10.088180688373297,
+    "hold_candles": 28,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "RSI 67.3 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (97%) \u2014 extreme overbought",
+      "Price 3.4% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+15.9% pump (overbought fade)",
+      "Close to 24h High (1.5% distance)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 4.746037015650468,
+    "exit": 4.230972495429459,
+    "pnl_usdt": 86.82014379955982,
+    "pnl_pct": 10.852517974944977,
+    "hold_candles": 45,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0184) \u2014 Downtrend confirmed",
+      "RSI 25.2 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-37%)",
+      "Price 3.8% below EMA21 (extended)",
+      "Volume spike 2.4x (exhaustion/distribution)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 34,
+    "entry": 4.169423227673826,
+    "exit": 3.6696459581476373,
+    "pnl_usdt": 26.970129800454345,
+    "pnl_pct": 11.986724355757488,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Near BB upper (79%) \u2014 overbought",
+      "-17.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 3.3035181782065743,
+    "exit": 3.5362240830027245,
+    "pnl_usdt": -5.2831381328091185,
+    "pnl_pct": -7.044184177078824,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0541) \u2014 Downtrend confirmed",
+      "RSI 13.9 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-34%)",
+      "Price 13.2% below EMA21 (extended)",
+      "Volume spike 3.0x (exhaustion/distribution)",
+      "-28.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 3.3702298255950325,
+    "exit": 3.4142108484856855,
+    "pnl_usdt": -0.65249293322137,
+    "pnl_pct": -1.30498586644274,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0064) \u2014 Downtrend confirmed",
+      "Above BB mid (60%)",
+      "Price 1.8% below EMA21 (extended)",
+      "-29.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 3.290055109840231,
+    "exit": 3.415870454167477,
+    "pnl_usdt": -8.604248721841335,
+    "pnl_pct": -3.824110543040594,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0170) \u2014 Downtrend confirmed",
+      "RSI 30.2 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (2%)",
+      "Price 5.2% below EMA21 (extended)",
+      "Volume spike 2.6x (exhaustion/distribution)",
+      "-34.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 75,
+    "entry": 3.4768075095460658,
+    "exit": 3.6071823180776716,
+    "pnl_usdt": -70.30954843648418,
+    "pnl_pct": -3.7498425832791558,
+    "hold_candles": 34,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "RSI 62.5 (rollover zone)",
+      "Price at/above BB upper (97%) \u2014 extreme overbought",
+      "Price 4.0% above EMA21 (mean-reversion opportunity)",
+      "-26.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 35,
+    "entry": 3.406433576713703,
+    "exit": 3.5465823375844208,
+    "pnl_usdt": -8.228474603395847,
+    "pnl_pct": -4.114237301697924,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 55.7 (rollover zone)",
+      "Above BB mid (72%)",
+      "Price 2.4% above EMA21"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 32,
+    "entry": 3.3888290780071952,
+    "exit": 3.5246991551786686,
+    "pnl_usdt": -24.05611036329491,
+    "pnl_pct": -4.009351727215818,
+    "hold_candles": 15,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Near BB upper (76%) \u2014 overbought",
+      "Price 1.6% above EMA21",
+      "+2.5% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 3.442548779954672,
+    "exit": 3.080988915305278,
+    "pnl_usdt": 78.77009617583866,
+    "pnl_pct": 10.502679490111822,
+    "hold_candles": 39,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0030) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (44%)",
+      "+4.1% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.11174197999310304,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 5,
+    "entry": 181.30749436227993,
+    "exit": 193.4647200197575,
+    "pnl_usdt": -15.086942669158265,
+    "pnl_pct": -6.705307852959229,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-3.0420) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 19.4 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-23%)",
+      "Price 14.2% below EMA21 (extended)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 15,
+    "entry": 196.2008046936027,
+    "exit": 208.2398740776772,
+    "pnl_usdt": -1.5340239560784856,
+    "pnl_pct": -6.1360958243139425,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.3065) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Price 1.6% below EMA21 (extended)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 20,
+    "entry": 189.14217840484625,
+    "exit": 197.00841314151756,
+    "pnl_usdt": -62.38350538477593,
+    "pnl_pct": -4.158900358985062,
+    "hold_candles": 41,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.2656) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Above BB mid (62%)",
+      "Price 1.3% below EMA21 (extended)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 184.32755744567814,
+    "exit": 192.04437394926276,
+    "pnl_usdt": -10.466173113939831,
+    "pnl_pct": -4.186469245575932,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.3749) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (16%)",
+      "Price 2.0% below EMA21 (extended)",
+      "-20.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 70,
+    "entry": 191.92362115523045,
+    "exit": 198.84539583238336,
+    "pnl_usdt": -2.704894257734885,
+    "pnl_pct": -3.6065256769798464,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 58.1 (rollover zone)",
+      "Near BB upper (78%) \u2014 overbought",
+      "Price 2.0% above EMA21"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 70,
+    "entry": 193.91034871515777,
+    "exit": 199.49444959794926,
+    "pnl_usdt": -15.11859982146671,
+    "pnl_pct": -2.8797332993269924,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 59.8 (rollover zone)",
+      "Near BB upper (82%) \u2014 overbought",
+      "Price 2.0% above EMA21",
+      "-15.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 101,
+    "entry": 193.1947526786951,
+    "exit": 163.70815760059213,
+    "pnl_usdt": 343.40911440835407,
+    "pnl_pct": 15.26262730703796,
+    "hold_candles": 48,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 67.5 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (99%) \u2014 extreme overbought",
+      "Price 3.5% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 158.55385213130893,
+    "exit": 164.94040747520455,
+    "pnl_usdt": -60.42005846637987,
+    "pnl_pct": -4.028003897758658,
+    "hold_candles": 29,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-1.2844) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 28.8 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (11%)",
+      "Price 7.4% below EMA21 (extended)",
+      "Elevated volume 1.8x"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 90,
+    "entry": 150.6137613902014,
+    "exit": 141.09728826252177,
+    "pnl_usdt": 142.16539272135986,
+    "pnl_pct": 6.318461898727105,
+    "hold_candles": 37,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 57.7 (rollover zone)",
+      "Near BB upper (82%) \u2014 overbought",
+      "Price 2.5% above EMA21"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 134.61407354464666,
+    "exit": 141.22060569626393,
+    "pnl_usdt": -17.177150889049823,
+    "pnl_pct": -4.907757396871379,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.1127) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "-25.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 23,
+    "entry": 134.2699414646246,
+    "exit": 140.48757109381748,
+    "pnl_usdt": -9.261387264149528,
+    "pnl_pct": -4.630693632074764,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Above BB mid (66%)",
+      "-23.6% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 129.2153141711934,
+    "exit": 135.02075421839152,
+    "pnl_usdt": -51.66768426095896,
+    "pnl_pct": -4.492842109648605,
+    "hold_candles": 22,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.5007) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (25%)",
+      "Price 3.6% below EMA21 (extended)",
+      "Elevated volume 1.7x"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 70,
+    "entry": 137.7004314333021,
+    "exit": 143.06227206610242,
+    "pnl_usdt": -9.734611171856486,
+    "pnl_pct": -3.8938444687425946,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 56.7 (rollover zone)",
+      "Near BB upper (80%) \u2014 overbought",
+      "Price 2.2% above EMA21"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 98,
+    "entry": 134.5028579044419,
+    "exit": 138.65602791050304,
+    "pnl_usdt": -69.47534542557088,
+    "pnl_pct": -3.0877931300253727,
+    "hold_candles": 29,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 59.5 (rollover zone \u2713 rolling over)",
+      "Near BB upper (78%) \u2014 overbought",
+      "Price 2.8% above EMA21",
+      "-15.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 108,
+    "entry": 136.0081654148331,
+    "exit": 140.64742825884616,
+    "pnl_usdt": -76.74790235712575,
+    "pnl_pct": -3.4110178825389226,
+    "hold_candles": 35,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 62.3 (rollover zone \u2713 rolling over)",
+      "Near BB upper (80%) \u2014 overbought",
+      "Price 3.9% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 44,
+    "entry": 131.57152195214263,
+    "exit": 136.94471364697014,
+    "pnl_usdt": -10.209640382479456,
+    "pnl_pct": -4.083856152991783,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0199) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Elevated volume 1.7x",
+      "+5.1% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 129.98446089696014,
+    "exit": 127.40678512706374,
+    "pnl_usdt": 29.745968311624747,
+    "pnl_pct": 1.9830645541083165,
+    "hold_candles": 34,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.1838) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (34%)",
+      "Price 1.4% below EMA21 (extended)",
+      "Elevated volume 1.8x"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 125.26143645123307,
+    "exit": 128.73776732418403,
+    "pnl_usdt": -41.62890397202626,
+    "pnl_pct": -2.7752602648017506,
+    "hold_candles": 61,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Elevated volume 1.7x"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 20,
+    "entry": 125.09526484453694,
+    "exit": 127.52847464985594,
+    "pnl_usdt": -26.258653684956773,
+    "pnl_pct": -1.9450854581449462,
+    "hold_candles": 17,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0955) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (39%)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 104,
+    "entry": 130.87276839415284,
+    "exit": 133.8361555603423,
+    "pnl_usdt": -11.321633990596656,
+    "pnl_pct": -2.2643267981193307,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 74.4 (rollover zone)",
+      "Price at/above BB upper (117%) \u2014 extreme overbought",
+      "Price 4.1% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+3.7% small rally (fade entry)",
+      "Close to 24h High (1.4% distance)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 129,
+    "entry": 133.9418013196331,
+    "exit": 136.80120561055182,
+    "pnl_usdt": -4.269621974241119,
+    "pnl_pct": -2.1348109871205594,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 70.8 (rollover zone)",
+      "Near BB upper (86%) \u2014 overbought",
+      "Price 3.1% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+11.0% rally (fade opportunity)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 152,
+    "entry": 138.33110319042177,
+    "exit": 141.71703557626662,
+    "pnl_usdt": -4.895402852652591,
+    "pnl_pct": -2.4477014263262955,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 72.0 (rollover zone)",
+      "Price at/above BB upper (100%) \u2014 extreme overbought",
+      "Price 3.7% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Volume spike 2.2x (exhaustion/distribution)",
+      "+9.6% rally (fade opportunity)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 90,
+    "entry": 136.2487611378068,
+    "exit": 140.5580799566679,
+    "pnl_usdt": -23.72123670817732,
+    "pnl_pct": -3.162831561090309,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 60.1 (rollover zone \u2713 rolling over)",
+      "Near BB upper (76%) \u2014 overbought",
+      "Price 1.9% above EMA21",
+      "+10.9% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 29,
+    "entry": 136.11890303343012,
+    "exit": 139.19504343668405,
+    "pnl_usdt": -16.949191119133793,
+    "pnl_pct": -2.259892149217839,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.1567) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (21%)",
+      "Price 1.1% below EMA21 (extended)",
+      "Elevated volume 1.5x",
+      "+12.0% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 106,
+    "entry": 141.184094308654,
+    "exit": 145.16893644775885,
+    "pnl_usdt": -19.051497670944766,
+    "pnl_pct": -2.822444099399225,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 64.3 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (94%) \u2014 extreme overbought",
+      "Price 2.4% above EMA21",
+      "+15.8% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 146,
+    "entry": 141.79722894261224,
+    "exit": 130.81102381922673,
+    "pnl_usdt": 174.3261254958767,
+    "pnl_pct": 7.747827799816742,
+    "hold_candles": 40,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 66.3 (rollover zone)",
+      "Price at/above BB upper (96%) \u2014 extreme overbought",
+      "Price 3.5% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.4x",
+      "+14.4% pump (overbought fade)",
+      "Close to 24h High (1.2% distance)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 126.45255546616421,
+    "exit": 117.5933316132358,
+    "pnl_usdt": 105.08949961828489,
+    "pnl_pct": 7.0059666412189925,
+    "hold_candles": 52,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.1999) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (37%)",
+      "Price 1.5% below EMA21 (extended)",
+      "Volume spike 2.3x (exhaustion/distribution)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 104.15646807008906,
+    "exit": 94.47813061706724,
+    "pnl_usdt": 209.0725585534007,
+    "pnl_pct": 9.292113713484476,
+    "hold_candles": 30,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.4119) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 34.8 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (18%)",
+      "Price 3.4% below EMA21 (extended)",
+      "Elevated volume 1.7x",
+      "-20.2% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 5,
+    "entry": 85.73592432347795,
+    "exit": 90.46726682238723,
+    "pnl_usdt": -41.38879824510436,
+    "pnl_pct": -5.5185064326805815,
+    "hold_candles": 60,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.8353) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 26.2 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-4%)",
+      "Price 8.3% below EMA21 (extended)",
+      "-31.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 83.53458343772084,
+    "exit": 86.32707670350017,
+    "pnl_usdt": -75.21567223337932,
+    "pnl_pct": -3.34291876592797,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0499) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "-27.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 15,
+    "entry": 77.96646492169218,
+    "exit": 80.57816382051523,
+    "pnl_usdt": -7.536987252473117,
+    "pnl_pct": -3.3497721122102737,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.1079) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (38%)",
+      "Price 1.3% below EMA21 (extended)",
+      "+4.8% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 77.74155134750305,
+    "exit": 80.42852785378561,
+    "pnl_usdt": -12.961102169828568,
+    "pnl_pct": -3.456293911954285,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.4502) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 29.6 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (4%)",
+      "Price 5.5% below EMA21 (extended)",
+      "Elevated volume 1.9x"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 119,
+    "entry": 83.79454172510425,
+    "exit": 87.31021299195454,
+    "pnl_usdt": -19.92902899609253,
+    "pnl_pct": -4.195585051808954,
+    "hold_candles": 18,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "RSI 73.7 (rollover zone)",
+      "Price at/above BB upper (114%) \u2014 extreme overbought",
+      "Price 9.3% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Volume spike 2.1x (exhaustion/distribution)",
+      "+4.7% small rally (fade entry)",
+      "Close to 24h High (2.0% distance)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 32,
+    "entry": 83.7480377960649,
+    "exit": 87.59505873877607,
+    "pnl_usdt": -9.187130932139713,
+    "pnl_pct": -4.593565466069856,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0647) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (42%)",
+      "+5.4% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 23,
+    "entry": 85.96452926615916,
+    "exit": 90.0599595471537,
+    "pnl_usdt": -14.29227955747119,
+    "pnl_pct": -4.76409318582373,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Above BB mid (63%)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SOLUSDT",
+    "direction": "SHORT",
+    "score": 110,
+    "entry": 84.49704026826699,
+    "exit": 85.51,
+    "pnl_usdt": -17.382758098386144,
+    "pnl_pct": -1.1988109033369756,
+    "hold_candles": 28,
+    "exit_reason": "end_of_data",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 62.1) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 57.8 (rollover zone \u2713 rolling over)",
+      "Near BB upper (76%) \u2014 overbought",
+      "Price 2.7% above EMA21",
+      "+8.2% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.06580517821897429,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 5,
+    "entry": 2.6836775035747067,
+    "exit": 2.9496766487512507,
+    "pnl_usdt": -37.16902619943552,
+    "pnl_pct": -9.911740319849473,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0593) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 22.3 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-18%)",
+      "Price 18.0% below EMA21 (extended)",
+      "-20.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 20,
+    "entry": 2.5615887389553373,
+    "exit": 2.7013077502890117,
+    "pnl_usdt": -40.90791660139432,
+    "pnl_pct": -5.454388880185909,
+    "hold_candles": 73,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0033) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Above BB mid (64%)",
+      "Price 1.2% below EMA21 (extended)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 56,
+    "entry": 2.44309924042505,
+    "exit": 2.0753250619749015,
+    "pnl_usdt": 338.7058076973029,
+    "pnl_pct": 15.05359145321346,
+    "hold_candles": 39,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 55.8 (rollover zone \u2713 rolling over)",
+      "Above BB mid (64%)",
+      "Price 1.0% above EMA21"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 5,
+    "entry": 2.0074219607599635,
+    "exit": 2.116238602919537,
+    "pnl_usdt": -62.3382332811258,
+    "pnl_pct": -5.4207159374892,
+    "hold_candles": 22,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0201) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 28.0 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-5%)",
+      "Price 8.8% below EMA21 (extended)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 18,
+    "entry": 2.126827287712609,
+    "exit": 2.225963190790163,
+    "pnl_usdt": -20.975448567278058,
+    "pnl_pct": -4.661210792728458,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Above BB mid (69%)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 85,
+    "entry": 1.8964486901108148,
+    "exit": 1.7239383780638096,
+    "pnl_usdt": 136.44738685515796,
+    "pnl_pct": 9.096492457010532,
+    "hold_candles": 35,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 58.3 (rollover zone)",
+      "Near BB upper (86%) \u2014 overbought",
+      "Price 2.7% above EMA21"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 1.5702018984488737,
+    "exit": 1.3768599639016272,
+    "pnl_usdt": 184.69784179178447,
+    "pnl_pct": 12.31318945278563,
+    "hold_candles": 33,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0055) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (31%)",
+      "Price 3.1% below EMA21 (extended)",
+      "-27.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 1.3827186137618974,
+    "exit": 1.4607366533470647,
+    "pnl_usdt": -12.695322628878293,
+    "pnl_pct": -5.642365612834797,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0050) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (36%)",
+      "Price 3.5% below EMA21 (extended)",
+      "-28.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 103,
+    "entry": 1.482273322756567,
+    "exit": 1.5689430102150819,
+    "pnl_usdt": -5.847078681638569,
+    "pnl_pct": -5.847078681638569,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 61.9 (rollover zone)",
+      "Price at/above BB upper (93%) \u2014 extreme overbought",
+      "Price 5.2% above EMA21 (mean-reversion opportunity)",
+      "-28.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 30,
+    "entry": 1.5028033400396394,
+    "exit": 1.5676207687460426,
+    "pnl_usdt": -64.69651781386128,
+    "pnl_pct": -4.3131011875907515,
+    "hold_candles": 34,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Above BB mid (58%)",
+      "-32.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 113,
+    "entry": 1.6042598886500843,
+    "exit": 1.68613256206647,
+    "pnl_usdt": -76.55181744144777,
+    "pnl_pct": -5.103454496096518,
+    "hold_candles": 35,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 67.4 (rollover zone \u2713 rolling over)",
+      "Near BB upper (85%) \u2014 overbought",
+      "Price 9.7% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 40,
+    "entry": 1.5467416910774485,
+    "exit": 1.6255378559829208,
+    "pnl_usdt": -12.735831289739053,
+    "pnl_pct": -5.094332515895621,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0007) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (42%)",
+      "+16.8% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 15,
+    "entry": 1.5377799356196693,
+    "exit": 1.461344082880251,
+    "pnl_usdt": 74.55798872998432,
+    "pnl_pct": 4.970532581998955,
+    "hold_candles": 34,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0039) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (24%)",
+      "Price 2.4% below EMA21 (extended)",
+      "+2.9% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 22,
+    "entry": 1.3608776506278715,
+    "exit": 1.4330447137626965,
+    "pnl_usdt": -7.954469283281541,
+    "pnl_pct": -5.302979522187694,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0036) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (30%)",
+      "Price 2.4% below EMA21 (extended)",
+      "+6.2% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 23,
+    "entry": 1.4399313975476997,
+    "exit": 1.4219391766402212,
+    "pnl_usdt": 18.742789696218,
+    "pnl_pct": 1.2495193130812,
+    "hold_candles": 44,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Above BB mid (69%)",
+      "Price 2.4% above EMA21"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 40,
+    "entry": 1.4480887530230855,
+    "exit": 1.4848455338191835,
+    "pnl_usdt": -15.229776787933673,
+    "pnl_pct": -2.538296131322279,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Near BB upper (89%) \u2014 overbought",
+      "Price 1.1% above EMA21"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 1.4268225666359688,
+    "exit": 1.4621947255161494,
+    "pnl_usdt": -33.46766136509178,
+    "pnl_pct": -2.4790860270438357,
+    "hold_candles": 17,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 114,
+    "entry": 1.6058793696926512,
+    "exit": 1.6508663729316049,
+    "pnl_usdt": -2.101045263173957,
+    "pnl_pct": -2.8013936842319427,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 77.7 (extremely overbought)",
+      "Price at/above BB upper (122%) \u2014 extreme overbought",
+      "Price 8.1% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+7.0% rally (fade opportunity)",
+      "Near 24h High (0.2% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 125,
+    "entry": 1.6962693905578554,
+    "exit": 1.7554531461111156,
+    "pnl_usdt": -28.784695758367683,
+    "pnl_pct": -3.489054031317295,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 73.9 (rollover zone)",
+      "Near BB upper (87%) \u2014 overbought",
+      "Price 7.0% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+18.2% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 130,
+    "entry": 1.8217512519195054,
+    "exit": 1.8858165866277823,
+    "pnl_usdt": -52.75034226608095,
+    "pnl_pct": -3.516689484405396,
+    "hold_candles": 42,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 82.3 (extremely overbought)",
+      "Price at/above BB upper (94%) \u2014 extreme overbought",
+      "Price 10.5% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+35.4% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 85,
+    "entry": 1.736788585694871,
+    "exit": 1.5178769883659469,
+    "pnl_usdt": 189.0658418059616,
+    "pnl_pct": 12.604389453730775,
+    "hold_candles": 35,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 56.5 (rollover zone)",
+      "Near BB upper (77%) \u2014 overbought",
+      "Price 1.4% above EMA21",
+      "+27.1% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 5,
+    "entry": 1.4707820572774646,
+    "exit": 1.531524393271599,
+    "pnl_usdt": -4.129934526572435,
+    "pnl_pct": -4.129934526572435,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0095) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 27.8 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (24%)",
+      "Price 5.9% below EMA21 (extended)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 1.4637098118102474,
+    "exit": 1.0837925412257792,
+    "pnl_usdt": 389.33667129819037,
+    "pnl_pct": 25.955778086546022,
+    "hold_candles": 56,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0038) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (41%)",
+      "Price 2.4% below EMA21 (extended)",
+      "-17.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 1.099331157803585,
+    "exit": 0.8290792272902265,
+    "pnl_usdt": 184.37478683855588,
+    "pnl_pct": 24.58330491180745,
+    "hold_candles": 30,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0122) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 26.7 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (7%)",
+      "Price 9.6% below EMA21 (extended)",
+      "Elevated volume 1.5x",
+      "-37.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 5,
+    "entry": 0.9616368255335144,
+    "exit": 0.9281694315151547,
+    "pnl_usdt": 26.101897147963303,
+    "pnl_pct": 3.4802529530617736,
+    "hold_candles": 30,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0120) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 26.1 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (10%)",
+      "Price 11.6% below EMA21 (extended)",
+      "-38.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 5,
+    "entry": 0.9122128042623734,
+    "exit": 0.9569072340170413,
+    "pnl_usdt": -9.799123525964609,
+    "pnl_pct": -4.899561762982304,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0058) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 29.1 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (1%)",
+      "Price 6.2% below EMA21 (extended)",
+      "-38.2% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.9369758302974971,
+    "exit": 0.9791113751396544,
+    "pnl_usdt": -6.745458657473419,
+    "pnl_pct": -4.496972438315613,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0014) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (40%)",
+      "Price 1.5% below EMA21 (extended)",
+      "-36.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 88,
+    "entry": 0.9981413119196001,
+    "exit": 1.0402770569689772,
+    "pnl_usdt": -2.1107104047393213,
+    "pnl_pct": -4.221420809478642,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 65.3 (rollover zone)",
+      "Price at/above BB upper (110%) \u2014 extreme overbought",
+      "Price 6.2% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "-28.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 76,
+    "entry": 0.9516612595678791,
+    "exit": 0.9051569662709774,
+    "pnl_usdt": 73.29965283763549,
+    "pnl_pct": 4.886643522509034,
+    "hold_candles": 46,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 57.5 (rollover zone \u2713 rolling over)",
+      "Above BB mid (74%)",
+      "Price 2.7% above EMA21",
+      "-23.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.8637588602115365,
+    "exit": 0.8974032055909162,
+    "pnl_usdt": -26.291982840580797,
+    "pnl_pct": -3.895108568974933,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0025) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (14%)",
+      "Price 2.7% below EMA21 (extended)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 96,
+    "entry": 0.904774838406058,
+    "exit": 0.9533514433353099,
+    "pnl_usdt": -72.48037176853805,
+    "pnl_pct": -5.368916427299115,
+    "hold_candles": 26,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 62.6 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (98%) \u2014 extreme overbought",
+      "Price 6.3% above EMA21 (mean-reversion opportunity)",
+      "+3.1% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 0.9076480860393958,
+    "exit": 0.9528747774215401,
+    "pnl_usdt": -9.965688701993532,
+    "pnl_pct": -4.982844350996766,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0006) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 93,
+    "entry": 0.9121484631494706,
+    "exit": 0.9479117889795879,
+    "pnl_usdt": -52.93051714844234,
+    "pnl_pct": -3.920779048032766,
+    "hold_candles": 26,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 56.4 (rollover zone \u2713 rolling over)",
+      "Near BB upper (76%) \u2014 overbought",
+      "Price 2.3% above EMA21"
+    ],
+    "slippage_pct": 0.07595235563117977,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.5708977792778319,
+    "exit": 0.5469092282551683,
+    "pnl_usdt": 12.605698547124353,
+    "pnl_pct": 4.201899515708118,
+    "hold_candles": 16,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (59%)",
+      "Price 1.6% above EMA21",
+      "-23.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.5423695100408236,
+    "exit": 0.541654527753101,
+    "pnl_usdt": 0.593215554191002,
+    "pnl_pct": 0.13182567870911158,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (72%)",
+      "Price 1.5% above EMA21",
+      "-31.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 70,
+    "entry": 0.5256289649261665,
+    "exit": 0.49762013754577666,
+    "pnl_usdt": 5.3286308878210615,
+    "pnl_pct": 5.3286308878210615,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 62.4 (rollover zone)",
+      "Price at/above BB upper (109%) \u2014 extreme overbought",
+      "Price 6.1% above EMA21 (mean-reversion opportunity)",
+      "-26.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.5375324720837207,
+    "exit": 0.5594286577834858,
+    "pnl_usdt": -28.514240135893356,
+    "pnl_pct": -4.073462876556193,
+    "hold_candles": 15,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (40%)",
+      "-35.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 70,
+    "entry": 0.5441570331156016,
+    "exit": 0.546804134245127,
+    "pnl_usdt": -4.37813144292618,
+    "pnl_pct": -0.48645904921402006,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 62.8 (rollover zone)",
+      "Price at/above BB upper (92%) \u2014 extreme overbought",
+      "Price 3.8% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 42,
+    "entry": 0.5298239348093146,
+    "exit": 0.45495196946898997,
+    "pnl_usdt": 63.59166166260886,
+    "pnl_pct": 14.131480369468635,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 55.1 (rollover zone)",
+      "Above BB mid (69%)",
+      "Price 2.4% above EMA21",
+      "Elevated volume 1.5x"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 34,
+    "entry": 0.44348407775346044,
+    "exit": 0.47025038580011624,
+    "pnl_usdt": -9.053191328393849,
+    "pnl_pct": -6.035460885595898,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "Near BB upper (75%) \u2014 overbought",
+      "-23.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 82,
+    "entry": 0.4820575683256609,
+    "exit": 0.5082958875353732,
+    "pnl_usdt": -19.050446101896576,
+    "pnl_pct": -5.4429846005418785,
+    "hold_candles": 13,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 58.5 (rollover zone)",
+      "Near BB upper (90%) \u2014 overbought",
+      "Price 5.3% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.4497969207560543,
+    "exit": 0.4666174045835794,
+    "pnl_usdt": -1.869786458214509,
+    "pnl_pct": -3.739572916429018,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (35%)",
+      "-16.2% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.4062878043955909,
+    "exit": 0.3930515975546367,
+    "pnl_usdt": 8.144600144129912,
+    "pnl_pct": 3.2578400576519653,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (63%)",
+      "Price 1.3% above EMA21",
+      "-22.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.3468891401299468,
+    "exit": 0.3690711145558591,
+    "pnl_usdt": -3.197271384397159,
+    "pnl_pct": -6.3945427687943175,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "Above BB mid (62%)",
+      "-29.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 27,
+    "entry": 0.360320570839871,
+    "exit": 0.38084063356291326,
+    "pnl_usdt": -19.93231176428316,
+    "pnl_pct": -5.694946218366617,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Near BB upper (75%) \u2014 overbought",
+      "Price 1.2% above EMA21",
+      "-24.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 63,
+    "entry": 0.3843584371887528,
+    "exit": 0.4029505742474506,
+    "pnl_usdt": -14.51156154761409,
+    "pnl_pct": -4.837187182538029,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 56.0 (rollover zone \u2713 rolling over)",
+      "Above BB mid (74%)",
+      "Price 2.9% above EMA21",
+      "-24.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.37454898904460754,
+    "exit": 0.34470835293561725,
+    "pnl_usdt": 11.950627413962813,
+    "pnl_pct": 7.967084942641875,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (43%)",
+      "-16.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 82,
+    "entry": 0.3999794861907294,
+    "exit": 0.41933119897919147,
+    "pnl_usdt": -29.029057924086953,
+    "pnl_pct": -4.838176320681159,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 65.7 (rollover zone)",
+      "Price at/above BB upper (94%) \u2014 extreme overbought",
+      "Price 9.7% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.4x"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.3864072722245203,
+    "exit": 0.40534063920388225,
+    "pnl_usdt": -22.049313646877614,
+    "pnl_pct": -4.899847477083914,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0010) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (22%)",
+      "Price 2.6% below EMA21 (extended)",
+      "+10.1% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 110,
+    "entry": 0.3923486936495258,
+    "exit": 0.3861153928919078,
+    "pnl_usdt": 10.326644533372399,
+    "pnl_pct": 1.5887145435957535,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 63.2 (rollover zone \u2713 rolling over)",
+      "Near BB upper (86%) \u2014 overbought",
+      "Price 5.9% above EMA21 (mean-reversion opportunity)",
+      "+24.1% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 19,
+    "entry": 0.39481141384992685,
+    "exit": 0.39221084547430596,
+    "pnl_usdt": 3.293431096965961,
+    "pnl_pct": 0.6586862193931922,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0003) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (36%)",
+      "+9.1% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 16,
+    "entry": 0.35108537972829296,
+    "exit": 0.36194377058239807,
+    "pnl_usdt": -1.5464031658778399,
+    "pnl_pct": -3.0928063317556798,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0019) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (-0%)",
+      "Price 5.0% below EMA21 (extended)",
+      "Elevated volume 1.7x",
+      "+5.7% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.31631653734199644,
+    "exit": 0.31528203012404016,
+    "pnl_usdt": 0.16352404882925695,
+    "pnl_pct": 0.3270480976585139,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (44%)",
+      "-15.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.3150465837607025,
+    "exit": 0.3229538928570585,
+    "pnl_usdt": -7.52965704496777,
+    "pnl_pct": -2.5098856816559234,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0003) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (39%)",
+      "-19.2% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.2892408008860011,
+    "exit": 0.284909861222091,
+    "pnl_usdt": 0.3743368545035497,
+    "pnl_pct": 1.4973474180141988,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0021) \u2014 Downtrend confirmed",
+      "RSI 31.0 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-24%)",
+      "Price 6.7% below EMA21 (extended)",
+      "Volume spike 2.1x (exhaustion/distribution)",
+      "-26.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.2954801232763493,
+    "exit": 0.30822755177123345,
+    "pnl_usdt": -12.942422339822201,
+    "pnl_pct": -4.314140779940734,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (70%)",
+      "Price 2.0% above EMA21",
+      "-20.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 90,
+    "entry": 0.32440928513880685,
+    "exit": 0.34166335042131973,
+    "pnl_usdt": -5.3186101856271755,
+    "pnl_pct": -5.3186101856271755,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 61.5 (rollover zone \u2713 rolling over)",
+      "Near BB upper (83%) \u2014 overbought",
+      "Price 5.5% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 104,
+    "entry": 0.4004431394381144,
+    "exit": 0.4262747031227307,
+    "pnl_usdt": -29.028350128280263,
+    "pnl_pct": -6.45074447295117,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 80.1 (extremely overbought)",
+      "Price at/above BB upper (101%) \u2014 extreme overbought",
+      "Price 14.9% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+12.5% pump (overbought fade)",
+      "Near 24h High (0.2% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 73,
+    "entry": 0.383961227101877,
+    "exit": 0.3842237007111636,
+    "pnl_usdt": -0.5126955355642754,
+    "pnl_pct": -0.06835940474190338,
+    "hold_candles": 38,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 64.0 (rollover zone \u2713 rolling over)",
+      "Above BB mid (72%)",
+      "Price 7.1% above EMA21 (mean-reversion opportunity)",
+      "+21.5% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 103,
+    "entry": 0.3809037793767908,
+    "exit": 0.3251608670679268,
+    "pnl_usdt": 219.5157228423941,
+    "pnl_pct": 14.634381522826272,
+    "hold_candles": 69,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 66.0 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (99%) \u2014 extreme overbought",
+      "Price 6.4% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+34.2% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.32487995750287146,
+    "exit": 0.3011994327784997,
+    "pnl_usdt": 43.73404547277275,
+    "pnl_pct": 7.289007578795459,
+    "hold_candles": 18,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0003) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (35%)",
+      "-15.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.250075897968104,
+    "exit": 0.22532155752864738,
+    "pnl_usdt": 9.898731001503352,
+    "pnl_pct": 9.898731001503352,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Above BB mid (60%)",
+      "-30.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.2262918695304728,
+    "exit": 0.2285794718399291,
+    "pnl_usdt": -1.5163617991685567,
+    "pnl_pct": -1.0109078661123712,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Above BB mid (60%)",
+      "-32.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.22338569563917277,
+    "exit": 0.23247811944268365,
+    "pnl_usdt": -8.140560457548334,
+    "pnl_pct": -4.070280228774167,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "Above BB mid (58%)",
+      "-33.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 110,
+    "entry": 0.2309392031959891,
+    "exit": 0.22458589945835794,
+    "pnl_usdt": 13.755359959909782,
+    "pnl_pct": 2.751071991981956,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 69.8 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (93%) \u2014 extreme overbought",
+      "Price 7.8% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.4x",
+      "-16.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 69,
+    "entry": 0.2104969489728023,
+    "exit": 0.19043034619492027,
+    "pnl_usdt": 57.19779657369221,
+    "pnl_pct": 9.532966095615368,
+    "hold_candles": 18,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 58.2 (rollover zone)",
+      "Near BB upper (82%) \u2014 overbought",
+      "Price 4.2% above EMA21 (mean-reversion opportunity)",
+      "Elevated volume 1.6x"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 62,
+    "entry": 0.20106103856168114,
+    "exit": 0.20398747349025398,
+    "pnl_usdt": -1.8193697231867405,
+    "pnl_pct": -1.4554957785493925,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 56.9 (rollover zone)",
+      "Near BB upper (80%) \u2014 overbought",
+      "Price 4.5% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "WIFUSDT",
+    "direction": "SHORT",
+    "score": 72,
+    "entry": 0.21325219476246207,
+    "exit": 0.1713,
+    "pnl_usdt": 118.0354410209711,
+    "pnl_pct": 19.672573503495187,
+    "hold_candles": 32,
+    "exit_reason": "end_of_data",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 56.7 (rollover zone)",
+      "Near BB upper (84%) \u2014 overbought",
+      "Price 2.8% above EMA21"
+    ],
+    "slippage_pct": 0.08953337271116035,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.007472497284828035,
+    "exit": 0.00707738067982046,
+    "pnl_usdt": 19.828542083070232,
+    "pnl_pct": 5.287611222152062,
+    "hold_candles": 18,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "-18.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.007080933902856592,
+    "exit": 0.007372129037829869,
+    "pnl_usdt": -24.6742990940054,
+    "pnl_pct": -4.112383182334233,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Above BB mid (58%)",
+      "-32.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.007086100311891487,
+    "exit": 0.00729856836250987,
+    "pnl_usdt": -26.985399181500195,
+    "pnl_pct": -2.998377686833355,
+    "hold_candles": 19,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (5%)",
+      "Price 3.2% below EMA21 (extended)",
+      "Elevated volume 1.5x",
+      "-32.6% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 63,
+    "entry": 0.007101660970150559,
+    "exit": 0.007131599793929098,
+    "pnl_usdt": -1.2647248539902396,
+    "pnl_pct": -0.42157495133007983,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 57.6 (rollover zone \u2713 rolling over)",
+      "Above BB mid (73%)",
+      "Price 1.4% above EMA21",
+      "Volume spike 2.2x (exhaustion/distribution)",
+      "-15.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.006609014001721774,
+    "exit": 0.0057684514076279956,
+    "pnl_usdt": 31.796066473561545,
+    "pnl_pct": 12.71842658942462,
+    "hold_candles": 22,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "RSI 23.1 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-26%)",
+      "Price 9.3% below EMA21 (extended)",
+      "Volume spike 2.1x (exhaustion/distribution)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.005592859436053161,
+    "exit": 0.005569332761822045,
+    "pnl_usdt": 0.10516389022516834,
+    "pnl_pct": 0.4206555609006733,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "RSI 29.3 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (9%)",
+      "Price 10.1% below EMA21 (extended)",
+      "Volume spike 2.1x (exhaustion/distribution)",
+      "-19.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.005703776995627719,
+    "exit": 0.006007125762342262,
+    "pnl_usdt": -7.977576094237487,
+    "pnl_pct": -5.318384062824991,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (22%)",
+      "Price 4.3% below EMA21 (extended)",
+      "Elevated volume 1.4x",
+      "-20.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 87,
+    "entry": 0.006085650279310721,
+    "exit": 0.006083783891038895,
+    "pnl_usdt": 0.276018069975834,
+    "pnl_pct": 0.03066867444175933,
+    "hold_candles": 23,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 58.3 (rollover zone)",
+      "Near BB upper (87%) \u2014 overbought",
+      "Price 4.0% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.005854516099290911,
+    "exit": 0.005363384188851248,
+    "pnl_usdt": 12.583411731478929,
+    "pnl_pct": 8.388941154319287,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (-2%)",
+      "Price 4.2% below EMA21 (extended)",
+      "Elevated volume 1.4x",
+      "-21.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.004662131840645004,
+    "exit": 0.004839371161603609,
+    "pnl_usdt": -1.9008398627148673,
+    "pnl_pct": -3.8016797254297345,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (21%)",
+      "Price 4.4% below EMA21 (extended)",
+      "Elevated volume 1.4x",
+      "-26.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.004814221963064073,
+    "exit": 0.004683858973850149,
+    "pnl_usdt": 1.3539362145545248,
+    "pnl_pct": 2.7078724291090497,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Price 1.4% below EMA21 (extended)",
+      "-27.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.004656899900590387,
+    "exit": 0.004201140736999208,
+    "pnl_usdt": 24.46687567481315,
+    "pnl_pct": 9.78675026992526,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "-16.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 15,
+    "entry": 0.004259536972164417,
+    "exit": 0.004482557756120171,
+    "pnl_usdt": -7.853698139486829,
+    "pnl_pct": -5.235798759657886,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Above BB mid (73%)",
+      "Price 1.0% above EMA21",
+      "-25.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 32,
+    "entry": 0.004547198868232109,
+    "exit": 0.004748013862504835,
+    "pnl_usdt": -17.664940557200627,
+    "pnl_pct": -4.4162351393001575,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Near BB upper (80%) \u2014 overbought",
+      "Price 1.9% above EMA21",
+      "-27.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 87,
+    "entry": 0.004663636872075773,
+    "exit": 0.0048434861749732045,
+    "pnl_usdt": -9.641043451212186,
+    "pnl_pct": -3.8564173804848743,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 61.9 (rollover zone)",
+      "Near BB upper (83%) \u2014 overbought",
+      "Price 3.6% above EMA21 (mean-reversion opportunity)",
+      "-25.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.004577694987863866,
+    "exit": 0.004156063217711212,
+    "pnl_usdt": 32.23699262285088,
+    "pnl_pct": 9.210569320814537,
+    "hold_candles": 17,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (30%)",
+      "-19.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 57,
+    "entry": 0.004733685397495089,
+    "exit": 0.004936884938928961,
+    "pnl_usdt": -23.609458255880114,
+    "pnl_pct": -4.292628773796384,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 55.3 (rollover zone)",
+      "Above BB mid (59%)",
+      "Price 3.4% above EMA21 (mean-reversion opportunity)",
+      "Elevated volume 1.8x"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 40,
+    "entry": 0.0044678720314175295,
+    "exit": 0.004669194842052745,
+    "pnl_usdt": -18.024044486461396,
+    "pnl_pct": -4.506011121615349,
+    "hold_candles": 16,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 58.4 (rollover zone)",
+      "Above BB mid (65%)",
+      "Price 2.3% above EMA21"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 123,
+    "entry": 0.004598424809916862,
+    "exit": 0.004814225701204363,
+    "pnl_usdt": -7.039396104360867,
+    "pnl_pct": -4.692930736240577,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 59.5 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (92%) \u2014 extreme overbought",
+      "Price 3.3% above EMA21 (mean-reversion opportunity)",
+      "+16.6% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 35,
+    "entry": 0.004681817618645369,
+    "exit": 0.004911707058391519,
+    "pnl_usdt": -4.910260468725085,
+    "pnl_pct": -4.910260468725085,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Above BB mid (65%)",
+      "Price 1.2% above EMA21",
+      "+13.6% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.0044366995874968295,
+    "exit": 0.004313046466700177,
+    "pnl_usdt": 6.967629786402629,
+    "pnl_pct": 2.7870519145610517,
+    "hold_candles": 17,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (37%)",
+      "+3.4% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.0041155267357617506,
+    "exit": 0.0042160615009593375,
+    "pnl_usdt": -1.2214082382698792,
+    "pnl_pct": -2.4428164765397584,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (25%)",
+      "Price 2.9% below EMA21 (extended)",
+      "Elevated volume 1.8x"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.0036457661145449004,
+    "exit": 0.0038260201219452537,
+    "pnl_usdt": -2.4721005371302365,
+    "pnl_pct": -4.944201074260472,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (37%)",
+      "Price 1.5% below EMA21 (extended)",
+      "Elevated volume 1.5x"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 67,
+    "entry": 0.004012392551654714,
+    "exit": 0.004145773012208229,
+    "pnl_usdt": -49.86318966915725,
+    "pnl_pct": -3.324212644610484,
+    "hold_candles": 46,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 57.4 (rollover zone)",
+      "Near BB upper (87%) \u2014 overbought",
+      "Price 4.6% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 95,
+    "entry": 0.0041723856580064625,
+    "exit": 0.004292972746607159,
+    "pnl_usdt": -4.335184897252955,
+    "pnl_pct": -2.890123264835304,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 64.6 (rollover zone)",
+      "Price at/above BB upper (96%) \u2014 extreme overbought",
+      "Price 3.1% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.0041194446676130056,
+    "exit": 0.004232706143474938,
+    "pnl_usdt": -18.558689914653897,
+    "pnl_pct": -2.7494355429116886,
+    "hold_candles": 15,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (41%)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 97,
+    "entry": 0.005210036007020667,
+    "exit": 0.005427653582066155,
+    "pnl_usdt": -2.088445979569449,
+    "pnl_pct": -4.176891959138898,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "RSI 85.3 (extremely overbought)",
+      "Price at/above BB upper (110%) \u2014 extreme overbought",
+      "Price 16.1% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+23.7% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 109,
+    "entry": 0.006105937366664682,
+    "exit": 0.006496270763199262,
+    "pnl_usdt": -6.392685890713556,
+    "pnl_pct": -6.392685890713556,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 76.7 (extremely overbought)",
+      "Near BB upper (86%) \u2014 overbought",
+      "Price 16.2% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+48.4% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 109,
+    "entry": 0.006538825667797296,
+    "exit": 0.0059843821818397255,
+    "pnl_usdt": 63.5943876766877,
+    "pnl_pct": 8.479251690225027,
+    "hold_candles": 42,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 82.8 (extremely overbought)",
+      "Near BB upper (87%) \u2014 overbought",
+      "Price 18.3% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+80.4% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 22,
+    "entry": 0.005855308963032241,
+    "exit": 0.0061120810562977435,
+    "pnl_usdt": -19.733790769879135,
+    "pnl_pct": -4.385286837750919,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (27%)",
+      "Price 1.9% below EMA21 (extended)",
+      "+48.8% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 115,
+    "entry": 0.005859065231251525,
+    "exit": 0.005107629685478327,
+    "pnl_usdt": 173.13990316798862,
+    "pnl_pct": 12.8251780124436,
+    "hold_candles": 27,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 61.2 (rollover zone \u2713 rolling over)",
+      "Near BB upper (86%) \u2014 overbought",
+      "Price 5.2% above EMA21 (mean-reversion opportunity)",
+      "+55.7% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.00513015672101386,
+    "exit": 0.005104162183994635,
+    "pnl_usdt": 0.3800254811819014,
+    "pnl_pct": 0.5067006415758685,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (38%)",
+      "Price 2.3% below EMA21 (extended)",
+      "Volume spike 2.1x (exhaustion/distribution)",
+      "-26.6% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 22,
+    "entry": 0.004962563942455942,
+    "exit": 0.004846726467781138,
+    "pnl_usdt": 4.668452679623394,
+    "pnl_pct": 2.3342263398116967,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Above BB mid (57%)",
+      "-26.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.004996390355422788,
+    "exit": 0.0052006365817237965,
+    "pnl_usdt": -4.087875681677502,
+    "pnl_pct": -4.0878756816775015,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (44%)",
+      "-18.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.00497539731790235,
+    "exit": 0.004731038009188869,
+    "pnl_usdt": 19.64541065568637,
+    "pnl_pct": 4.911352663921593,
+    "hold_candles": 16,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Above BB mid (60%)",
+      "Elevated volume 1.4x",
+      "-16.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.004199403282521086,
+    "exit": 0.004203032101444858,
+    "pnl_usdt": -0.10801590963161344,
+    "pnl_pct": -0.08641272770529075,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "-26.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.0037893592648661394,
+    "exit": 0.003688160669017863,
+    "pnl_usdt": 10.014746766019352,
+    "pnl_pct": 2.6705991376051603,
+    "hold_candles": 27,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (43%)",
+      "-23.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.0037319289610486216,
+    "exit": 0.0038952525727653058,
+    "pnl_usdt": -26.258315217896183,
+    "pnl_pct": -4.376385869649364,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Above BB mid (55%)",
+      "-25.6% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 102,
+    "entry": 0.004394106069418975,
+    "exit": 0.004263976066915808,
+    "pnl_usdt": 32.576137328521796,
+    "pnl_pct": 2.9614670298656174,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 82.5 (extremely overbought)",
+      "Price at/above BB upper (101%) \u2014 extreme overbought",
+      "Price 18.4% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+4.5% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.0040650232801012496,
+    "exit": 0.004231271712579054,
+    "pnl_usdt": -47.03188251967725,
+    "pnl_pct": -4.089728914754543,
+    "hold_candles": 27,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (43%)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 14,
+    "entry": 0.003762005900160797,
+    "exit": 0.003595063507970859,
+    "pnl_usdt": 15.531564494351532,
+    "pnl_pct": 4.4375898555290085,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (23%)",
+      "Price 3.6% below EMA21 (extended)",
+      "Elevated volume 1.5x",
+      "+3.7% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.0034299220511906357,
+    "exit": 0.0035299165103984636,
+    "pnl_usdt": -1.457678304571334,
+    "pnl_pct": -2.915356609142668,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.02%)",
+      "Below BB mid \u2014 fading short (20%)",
+      "Price 4.9% below EMA21 (extended)",
+      "Elevated volume 1.6x"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.003565850654143332,
+    "exit": 0.003277944735916845,
+    "pnl_usdt": 32.29590312672861,
+    "pnl_pct": 8.073975781682153,
+    "hold_candles": 26,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.02%)",
+      "Above BB mid (65%)",
+      "-19.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.07219289154423,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 20,
+    "entry": 0.3990258818855218,
+    "exit": 0.40757141501010097,
+    "pnl_usdt": -1.070799353189681,
+    "pnl_pct": -2.141598706379362,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (67%)",
+      "Price 3.2% above EMA21 (mean-reversion opportunity)",
+      "-21.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.41830780356902353,
+    "exit": 0.41051416890909087,
+    "pnl_usdt": 0.4657834848786569,
+    "pnl_pct": 1.8631339395146278,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0005) \u2014 Downtrend confirmed",
+      "Above BB mid (60%)",
+      "Price 1.2% below EMA21 (extended)",
+      "-28.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.3765469576430976,
+    "exit": 0.3636403032323232,
+    "pnl_usdt": 0.8569086901910178,
+    "pnl_pct": 3.4276347607640716,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0040) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (-1%)",
+      "Price 9.7% below EMA21 (extended)",
+      "Volume spike 2.1x (exhaustion/distribution)",
+      "-38.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 27,
+    "entry": 0.3767107081367869,
+    "exit": 0.3665830571313131,
+    "pnl_usdt": 6.721106399898491,
+    "pnl_pct": 2.688442559959396,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0004) \u2014 Downtrend confirmed",
+      "Volume spike 2.3x (exhaustion/distribution)",
+      "-45.1% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 85,
+    "entry": 0.350305954903052,
+    "exit": 0.37401555248809987,
+    "pnl_usdt": -6.768254222686439,
+    "pnl_pct": -6.768254222686439,
+    "hold_candles": 13,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 57.2 (rollover zone)",
+      "Price at/above BB upper (109%) \u2014 extreme overbought",
+      "Price 4.4% above EMA21 (mean-reversion opportunity)",
+      "Volume spike 2.8x (exhaustion/distribution)",
+      "-41.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 45,
+    "entry": 0.38420306698314527,
+    "exit": 0.40532570534156653,
+    "pnl_usdt": -10.995559470298502,
+    "pnl_pct": -5.497779735149251,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 56.0 (rollover zone)",
+      "Above BB mid (73%)",
+      "Price 3.4% above EMA21 (mean-reversion opportunity)",
+      "-40.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 75,
+    "entry": 0.39891454404697513,
+    "exit": 0.4217641092569781,
+    "pnl_usdt": -11.455869709935804,
+    "pnl_pct": -5.727934854967902,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 68.5 (rollover zone)",
+      "Price at/above BB upper (92%) \u2014 extreme overbought",
+      "Price 6.6% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "-36.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 55,
+    "entry": 0.37406279628433126,
+    "exit": 0.3688952209090909,
+    "pnl_usdt": 1.0361045177249628,
+    "pnl_pct": 1.3814726902999503,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 58.0 (rollover zone)",
+      "Above BB mid (66%)",
+      "Price 2.5% above EMA21",
+      "+17.8% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 45,
+    "entry": 0.3912331881481481,
+    "exit": 0.33673512472727274,
+    "pnl_usdt": 3.4824540115598923,
+    "pnl_pct": 13.929816046239567,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 56.7 (rollover zone)",
+      "Above BB mid (59%)",
+      "Price 3.3% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.31910081791245787,
+    "exit": 0.33116491198989895,
+    "pnl_usdt": -0.9451632055006784,
+    "pnl_pct": -3.7806528220027134,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0040) \u2014 Downtrend confirmed",
+      "RSI 32.3 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (8%)",
+      "Price 11.1% below EMA21 (extended)",
+      "Volume spike 2.7x (exhaustion/distribution)",
+      "-26.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.26804868329966325,
+    "exit": 0.249713688,
+    "pnl_usdt": 1.710043402746897,
+    "pnl_pct": 6.840173610987588,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0058) \u2014 Downtrend confirmed",
+      "RSI 27.1 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-34%)",
+      "Price 17.8% below EMA21 (extended)",
+      "Volume spike 2.4x (exhaustion/distribution)",
+      "-26.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 19,
+    "entry": 0.27544175171717167,
+    "exit": 0.2606439167676768,
+    "pnl_usdt": 1.3431002069622284,
+    "pnl_pct": 5.372400827848914,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "Elevated volume 1.9x",
+      "-28.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.27030965232371745,
+    "exit": 0.2915359788088935,
+    "pnl_usdt": -5.889447427062963,
+    "pnl_pct": -7.852596569417285,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0005) \u2014 Downtrend confirmed",
+      "Above BB mid (64%)",
+      "Price 1.8% below EMA21 (extended)",
+      "-32.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 82,
+    "entry": 0.3007212204407021,
+    "exit": 0.32544803952407897,
+    "pnl_usdt": -14.389384737297622,
+    "pnl_pct": -8.22250556417007,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 56.7 (rollover zone)",
+      "Near BB upper (90%) \u2014 overbought",
+      "Price 5.8% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 95,
+    "entry": 0.3269069463955546,
+    "exit": 0.3087789626868687,
+    "pnl_usdt": 6.931629898264381,
+    "pnl_pct": 5.545303918611505,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 66.9 (rollover zone)",
+      "Price at/above BB upper (93%) \u2014 extreme overbought",
+      "Price 10.4% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.28982826323232325,
+    "exit": 0.2846063413737373,
+    "pnl_usdt": 0.4504324216303316,
+    "pnl_pct": 1.8017296865213264,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0003) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (33%)",
+      "-26.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.2651513997306397,
+    "exit": 0.2542329172020202,
+    "pnl_usdt": 1.029457372251414,
+    "pnl_pct": 4.117829489005655,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0035) \u2014 Downtrend confirmed",
+      "RSI 31.2 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (1%)",
+      "Price 12.2% below EMA21 (extended)",
+      "Volume spike 2.2x (exhaustion/distribution)",
+      "-35.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 35,
+    "entry": 0.25406458151957934,
+    "exit": 0.24687603245454542,
+    "pnl_usdt": 5.658836050297653,
+    "pnl_pct": 2.829418025148826,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Price at/above BB upper (95%) \u2014 extreme overbought",
+      "Price 2.8% above EMA21",
+      "-24.2% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 77,
+    "entry": 0.2754241356001261,
+    "exit": 0.2191300671212121,
+    "pnl_usdt": 40.87809396678611,
+    "pnl_pct": 20.439046983393055,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 58.4 (rollover zone)",
+      "Price at/above BB upper (104%) \u2014 extreme overbought",
+      "Price 6.4% above EMA21 (mean-reversion opportunity)",
+      "Elevated volume 1.5x"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 20,
+    "entry": 0.2790655946524606,
+    "exit": 0.3051909347990002,
+    "pnl_usdt": -16.38301035044529,
+    "pnl_pct": -9.361720200254451,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (72%)",
+      "Price 5.4% above EMA21 (mean-reversion opportunity)",
+      "-19.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 87,
+    "entry": 0.29345438532286733,
+    "exit": 0.3217013185959589,
+    "pnl_usdt": -7.2192480379906705,
+    "pnl_pct": -9.625664050654228,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 66.1 (rollover zone)",
+      "Near BB upper (84%) \u2014 overbought",
+      "Price 12.3% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 82,
+    "entry": 0.3242842559343936,
+    "exit": 0.27073335870707066,
+    "pnl_usdt": 86.69622570277467,
+    "pnl_pct": 16.51356680052851,
+    "hold_candles": 21,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 61.2 (rollover zone)",
+      "Near BB upper (78%) \u2014 overbought",
+      "Price 9.8% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.286131729023569,
+    "exit": 0.31893820502325726,
+    "pnl_usdt": -2.8663787228037525,
+    "pnl_pct": -11.465514891215008,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0027) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (6%)",
+      "Price 8.6% below EMA21 (extended)",
+      "+21.0% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 40,
+    "entry": 0.34076828554184263,
+    "exit": 0.3804922916290251,
+    "pnl_usdt": -26.228677223892003,
+    "pnl_pct": -11.657189877285335,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (63%)",
+      "Price 3.5% above EMA21 (mean-reversion opportunity)",
+      "+32.9% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 97,
+    "entry": 0.37010903072599505,
+    "exit": 0.41166792747288417,
+    "pnl_usdt": -25.26485708740446,
+    "pnl_pct": -11.228825372179761,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 59.1 (rollover zone \u2713 rolling over)",
+      "Near BB upper (81%) \u2014 overbought",
+      "Price 8.3% above EMA21 (mean-reversion opportunity)",
+      "Elevated volume 1.5x",
+      "+49.8% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.371777366332036,
+    "exit": 0.33084961692929293,
+    "pnl_usdt": 82.5650371212828,
+    "pnl_pct": 11.00867161617104,
+    "hold_candles": 52,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0012) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (15%)",
+      "Price 3.2% below EMA21 (extended)",
+      "+33.6% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 9,
+    "entry": 0.3260847120543051,
+    "exit": 0.2719945389494949,
+    "pnl_usdt": 37.32247633417265,
+    "pnl_pct": 16.587767259632287,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0005) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (34%)",
+      "Price 1.5% below EMA21 (extended)",
+      "+5.8% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.24387135144781144,
+    "exit": 0.24981878635353533,
+    "pnl_usdt": -0.6096897883264324,
+    "pnl_pct": -2.4387591533057296,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0067) \u2014 Downtrend confirmed",
+      "RSI 20.9 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-16%)",
+      "Price 21.1% below EMA21 (extended)",
+      "Volume spike 2.3x (exhaustion/distribution)",
+      "-20.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.2918393559474473,
+    "exit": 0.31083428229061894,
+    "pnl_usdt": -13.01738504836347,
+    "pnl_pct": -6.508692524181734,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Above BB mid (56%)",
+      "-19.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.2928456727945971,
+    "exit": 0.3082107059191058,
+    "pnl_usdt": -15.740406519804504,
+    "pnl_pct": -5.246802173268168,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (58%)",
+      "Price 1.4% above EMA21",
+      "-28.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 10,
+    "entry": 0.31154446610482245,
+    "exit": 0.2900714557575758,
+    "pnl_usdt": 51.693287837173,
+    "pnl_pct": 6.892438378289734,
+    "hold_candles": 21,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (73%)",
+      "Price 1.4% above EMA21",
+      "-18.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.26844830861952856,
+    "exit": 0.2713639488282828,
+    "pnl_usdt": -1.086108615750888,
+    "pnl_pct": -1.086108615750888,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0003) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (32%)",
+      "-17.7% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 52,
+    "entry": 0.3072119646464646,
+    "exit": 0.3225553653746392,
+    "pnl_usdt": -2.497201036071554,
+    "pnl_pct": -4.994402072143108,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 56.1 (rollover zone)",
+      "Near BB upper (82%) \u2014 overbought",
+      "Price 2.9% above EMA21",
+      "-16.2% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 102,
+    "entry": 0.3340867674074074,
+    "exit": 0.355059196077611,
+    "pnl_usdt": -3.1387697323295116,
+    "pnl_pct": -6.277539464659024,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 64.7 (rollover zone)",
+      "Price at/above BB upper (91%) \u2014 extreme overbought",
+      "Price 9.2% above EMA21 (mean-reversion opportunity)",
+      "+8.4% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 122,
+    "entry": 0.3605619448484848,
+    "exit": 0.38628397996833586,
+    "pnl_usdt": -1.7834685195812856,
+    "pnl_pct": -7.133874078325142,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 73.1 (rollover zone)",
+      "Price at/above BB upper (95%) \u2014 extreme overbought",
+      "Price 14.2% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.7x",
+      "+45.4% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 102,
+    "entry": 0.39882606922558916,
+    "exit": 0.428921461535387,
+    "pnl_usdt": -1.8864985661691356,
+    "pnl_pct": -7.545994264676542,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 64.6 (rollover zone)",
+      "Near BB upper (78%) \u2014 overbought",
+      "Price 8.6% above EMA21 (mean-reversion opportunity)",
+      "+36.6% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 115,
+    "entry": 0.42200433777777774,
+    "exit": 0.4585263900350871,
+    "pnl_usdt": -2.163606448314604,
+    "pnl_pct": -8.654425793258417,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 67.4 (rollover zone \u2713 rolling over)",
+      "Near BB upper (85%) \u2014 overbought",
+      "Price 12.1% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+51.0% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 65,
+    "entry": 0.38638369113979626,
+    "exit": 0.37457053199999996,
+    "pnl_usdt": 22.930236337645177,
+    "pnl_pct": 3.0573648450193573,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 57.4 (rollover zone)",
+      "Above BB mid (62%)",
+      "Price 4.2% above EMA21 (mean-reversion opportunity)",
+      "+43.5% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.40186108098402196,
+    "exit": 0.43102351559034036,
+    "pnl_usdt": -5.442633534250715,
+    "pnl_pct": -7.256844712334286,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0005) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (43%)",
+      "Price 1.2% below EMA21 (extended)",
+      "+20.3% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 110,
+    "entry": 0.3573976321450829,
+    "exit": 0.2991099141616162,
+    "pnl_usdt": 118.23971883747346,
+    "pnl_pct": 16.308926736203237,
+    "hold_candles": 42,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 64.7 (rollover zone)",
+      "Price at/above BB upper (96%) \u2014 extreme overbought",
+      "Price 7.9% above EMA21 (mean-reversion opportunity)",
+      "+36.1% pump (overbought fade)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 12,
+    "entry": 0.30081795952861945,
+    "exit": 0.308568765979798,
+    "pnl_usdt": -0.6441442578199139,
+    "pnl_pct": -2.576577031279655,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0014) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (29%)",
+      "Price 4.3% below EMA21 (extended)",
+      "Volume spike 2.0x (exhaustion/distribution)",
+      "-21.2% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.2943753977290794,
+    "exit": 0.30868151378704045,
+    "pnl_usdt": -8.504685953570347,
+    "pnl_pct": -4.859820544897341,
+    "hold_candles": 21,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "Above BB mid (70%)",
+      "-25.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 20,
+    "entry": 0.28656358592935255,
+    "exit": 0.25454821226262625,
+    "pnl_usdt": 11.17217093822212,
+    "pnl_pct": 11.17217093822212,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Above BB mid (70%)",
+      "Volume spike 2.2x (exhaustion/distribution)",
+      "-22.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.2251888677441077,
+    "exit": 0.22921950906060604,
+    "pnl_usdt": -0.44747342051989547,
+    "pnl_pct": -1.7898936820795817,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0033) \u2014 Downtrend confirmed",
+      "RSI 25.1 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (8%)",
+      "Price 12.5% below EMA21 (extended)",
+      "Volume spike 2.1x (exhaustion/distribution)",
+      "-37.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 24,
+    "entry": 0.22099280188552187,
+    "exit": 0.20073785525252524,
+    "pnl_usdt": 2.291358186802962,
+    "pnl_pct": 9.165432747211847,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "Above BB mid (75%)",
+      "Elevated volume 1.4x",
+      "-28.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.18282858383838382,
+    "exit": 0.19096370837373736,
+    "pnl_usdt": -1.1123977942290457,
+    "pnl_pct": -4.449591176916183,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0029) \u2014 Downtrend confirmed",
+      "RSI 22.3 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-7%)",
+      "Price 13.6% below EMA21 (extended)",
+      "Volume spike 2.5x (exhaustion/distribution)",
+      "-41.6% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 17,
+    "entry": 0.19554676026988874,
+    "exit": 0.1933809705050505,
+    "pnl_usdt": 1.1075559430639919,
+    "pnl_pct": 1.1075559430639919,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "Above BB mid (61%)",
+      "-32.3% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.19421790545454543,
+    "exit": 0.17414797180808078,
+    "pnl_usdt": 2.5834298850424213,
+    "pnl_pct": 10.333719540169685,
+    "hold_candles": 13,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (42%)",
+      "-35.8% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 14,
+    "entry": 0.1817401876000228,
+    "exit": 0.19198140899681593,
+    "pnl_usdt": -5.635089042238799,
+    "pnl_pct": -5.635089042238799,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "Below BB mid \u2014 fading short (44%)",
+      "Elevated volume 1.8x",
+      "-37.4% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 70,
+    "entry": 0.19681547003367003,
+    "exit": 0.20648963503322726,
+    "pnl_usdt": -2.457673931297735,
+    "pnl_pct": -4.915347862595469,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 62.1 (rollover zone)",
+      "Price at/above BB upper (100%) \u2014 extreme overbought",
+      "Price 5.3% above EMA21 (mean-reversion opportunity)",
+      "-34.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 95,
+    "entry": 0.19495893448249374,
+    "exit": 0.18539349563636362,
+    "pnl_usdt": 26.98512576167149,
+    "pnl_pct": 4.906386502122089,
+    "hold_candles": 28,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 67.7 (rollover zone \u2713 rolling over)",
+      "Near BB upper (85%) \u2014 overbought",
+      "Price 7.4% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "-19.0% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 7,
+    "entry": 0.14644523360480655,
+    "exit": 0.14514082623232322,
+    "pnl_usdt": 0.6680350771965224,
+    "pnl_pct": 0.8907134362620299,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0021) \u2014 Downtrend confirmed",
+      "RSI 21.0 (oversold \u2014 risky short)",
+      "Below BB mid \u2014 fading short (-39%)",
+      "Price 11.6% below EMA21 (extended)",
+      "Volume spike 4.1x (exhaustion/distribution)",
+      "-19.5% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 45,
+    "entry": 0.16917423489131486,
+    "exit": 0.17955589748136208,
+    "pnl_usdt": -27.615009865554228,
+    "pnl_pct": -6.136668859012051,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 55.5 (rollover zone)",
+      "Above BB mid (67%)",
+      "Price 4.7% above EMA21 (mean-reversion opportunity)",
+      "-15.9% crash \u2014 already crashed (risky short)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 45,
+    "entry": 0.16287040930590446,
+    "exit": 0.173687639987911,
+    "pnl_usdt": -16.60404540042866,
+    "pnl_pct": -6.641618160171464,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 55.5 (rollover zone)",
+      "Above BB mid (74%)",
+      "Price 4.0% above EMA21 (mean-reversion opportunity)"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "FARTCOINUSDT",
+    "direction": "SHORT",
+    "score": 55,
+    "entry": 0.1648458515911073,
+    "exit": 0.15008044884848484,
+    "pnl_usdt": 15.674919659903171,
+    "pnl_pct": 8.957096948516098,
+    "hold_candles": 25,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 55.1 (rollover zone)",
+      "Above BB mid (70%)",
+      "Price 2.3% above EMA21"
+    ],
+    "slippage_pct": 0.0936700336700393,
+    "is_low_liq": false
+  }
+]

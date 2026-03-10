@@ -1,0 +1,97 @@
+[
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 24,
+    "entry": 2.970703260041408,
+    "exit": 2.9822546396130094,
+    "pnl_usdt": -1.1665297972010062,
+    "pnl_pct": -0.38884326573366873,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0007) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "Below BB mid \u2014 fading short (26%)",
+      "Near 24h High (0.9% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07725327812284144,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 47,
+    "entry": 2.9806955347135955,
+    "exit": 2.992212054634337,
+    "pnl_usdt": -1.159110662590503,
+    "pnl_pct": -0.386370220863501,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 55.7 (rollover zone)",
+      "Above BB mid (67%)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07725327812284144,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 24,
+    "entry": 2.9760321749119223,
+    "exit": 2.986315648810542,
+    "pnl_usdt": -4.1465172259802205,
+    "pnl_pct": -0.3455431021650184,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0006) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "Below BB mid \u2014 fading short (27%)",
+      "Near 24h High (0.7% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07725327812284144,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 82,
+    "entry": 2.927165150818019,
+    "exit": 2.9176379468322042,
+    "pnl_usdt": -1.627377256652618,
+    "pnl_pct": -0.3254754513305235,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 20.4 (extremely oversold)",
+      "Price at/below BB lower (-55%) \u2014 extreme oversold",
+      "Volume spike 19.5x (capitulation/demand)",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.07725327812284144,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 20,
+    "entry": 2.9455221071095563,
+    "exit": 2.935329757185289,
+    "pnl_usdt": -13.495116743037933,
+    "pnl_pct": -0.34602863443687004,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Below BB mid (39%)",
+      "Near 24h low (0.9% above)"
+    ],
+    "slippage_pct": 0.07725327812284144,
+    "is_low_liq": false
+  }
+]

@@ -1,0 +1,2684 @@
+[
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 91,
+    "entry": 0.0036423829868442105,
+    "exit": 0.0036858381376805487,
+    "pnl_usdt": -7.158250682582075,
+    "pnl_pct": -1.193041780430346,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 66.8 (rollover zone)",
+      "Price at/above BB upper (93%) \u2014 extreme overbought",
+      "Price 1.7% above EMA21",
+      "Close to 24h High (1.5% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 97,
+    "entry": 0.0036408795491997565,
+    "exit": 0.003718670226358847,
+    "pnl_usdt": -25.63908290001684,
+    "pnl_pct": -2.13659024166807,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 68.0 (rollover zone \u2713 rolling over)",
+      "Near BB upper (83%) \u2014 overbought",
+      "Price 1.3% above EMA21",
+      "Near 24h High (0.8% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 91,
+    "entry": 0.0036611841727626384,
+    "exit": 0.0035996175304183727,
+    "pnl_usdt": 20.179255488633594,
+    "pnl_pct": 1.6816046240527995,
+    "hold_candles": 44,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 71.4 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (110%) \u2014 extreme overbought",
+      "Price 2.2% above EMA21",
+      "Elevated volume 1.5x",
+      "+2.4% small rally (fade entry)",
+      "Close to 24h High (1.2% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 72,
+    "entry": 0.0035168554911227377,
+    "exit": 0.0034627326990686333,
+    "pnl_usdt": 2.3084311620446742,
+    "pnl_pct": 1.5389541080297826,
+    "hold_candles": 30,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 56.4 (rollover zone)",
+      "Near BB upper (88%) \u2014 overbought",
+      "Volume spike 2.3x (exhaustion/distribution)",
+      "+3.5% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 60,
+    "entry": 0.0034912245191709586,
+    "exit": 0.0035327076528756454,
+    "pnl_usdt": -3.564634712854637,
+    "pnl_pct": -1.1882115709515455,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 57.7 (rollover zone)",
+      "Price at/above BB upper (94%) \u2014 extreme overbought"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 72,
+    "entry": 0.0034667741680013842,
+    "exit": 0.0034744833547718495,
+    "pnl_usdt": -1.1118674590375244,
+    "pnl_pct": -0.2223734918075049,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 55.8 (rollover zone)",
+      "Near BB upper (79%) \u2014 overbought"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 60,
+    "entry": 0.003456914355523805,
+    "exit": 0.0034909276896296754,
+    "pnl_usdt": -14.758827067057862,
+    "pnl_pct": -0.9839218044705241,
+    "hold_candles": 16,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 55.4 (rollover zone \u2713 rolling over)",
+      "Near BB upper (79%) \u2014 overbought"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 78,
+    "entry": 0.003621028762413362,
+    "exit": 0.0036688038552144613,
+    "pnl_usdt": -3.9581369772874524,
+    "pnl_pct": -1.3193789924291508,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 69.5 (rollover zone)",
+      "Price at/above BB upper (129%) \u2014 extreme overbought",
+      "Price 2.0% above EMA21",
+      "Elevated volume 1.5x",
+      "Close to 24h High (2.0% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 126,
+    "entry": 0.0035835644676300107,
+    "exit": 0.0034809,
+    "pnl_usdt": 57.29740238099187,
+    "pnl_pct": 2.8648701190495935,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 72.6 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (98%) \u2014 extreme overbought",
+      "Price 3.3% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.7x",
+      "+3.2% small rally (fade entry)",
+      "Close to 24h High (1.2% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 54,
+    "entry": 0.003485666833954887,
+    "exit": 0.0034522042881787967,
+    "pnl_usdt": -7.2000310206332605,
+    "pnl_pct": -0.9600041360844348,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (18%) \u2014 oversold",
+      "Elevated volume 1.4x"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 40,
+    "entry": 0.0034416359855974892,
+    "exit": 0.0034975692338239392,
+    "pnl_usdt": -31.691275456791903,
+    "pnl_pct": -1.6251936131688156,
+    "hold_candles": 34,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Price at/above BB upper (95%) \u2014 extreme overbought",
+      "+2.3% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 35,
+    "entry": 0.00344541710398468,
+    "exit": 0.0034872791621897866,
+    "pnl_usdt": -4.860027908573686,
+    "pnl_pct": -1.2150069771434215,
+    "hold_candles": 17,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 55.5 (rollover zone)",
+      "Above BB mid (75%)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 60,
+    "entry": 0.0034561833011676835,
+    "exit": 0.0034913672289467197,
+    "pnl_usdt": -9.161995253675991,
+    "pnl_pct": -1.0179994726306656,
+    "hold_candles": 32,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 57.7 (rollover zone \u2713 rolling over)",
+      "Near BB upper (83%) \u2014 overbought"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 75,
+    "entry": 0.0034627455281593467,
+    "exit": 0.003498025421621308,
+    "pnl_usdt": -1.5282624657975292,
+    "pnl_pct": -1.0188416438650194,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 59.5 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (92%) \u2014 extreme overbought",
+      "Elevated volume 1.7x"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 82,
+    "entry": 0.003550418101672353,
+    "exit": 0.003593897465769137,
+    "pnl_usdt": -27.554098254423767,
+    "pnl_pct": -1.2246265890855006,
+    "hold_candles": 15,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 73.1 (rollover zone)",
+      "Price at/above BB upper (125%) \u2014 extreme overbought",
+      "Price 2.7% above EMA21",
+      "+3.2% small rally (fade entry)",
+      "Near 24h High (0.5% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 102,
+    "entry": 0.003607901817916012,
+    "exit": 0.003657739845189897,
+    "pnl_usdt": -4.14407290905762,
+    "pnl_pct": -1.38135763635254,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 67.8 (rollover zone)",
+      "Price at/above BB upper (110%) \u2014 extreme overbought",
+      "Price 1.9% above EMA21",
+      "+4.8% small rally (fade entry)",
+      "Near 24h High (0.0% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 54,
+    "entry": 0.003671867212668379,
+    "exit": 0.003728208755270108,
+    "pnl_usdt": -4.603233668745739,
+    "pnl_pct": -1.5344112229152467,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 58.4 (rollover zone \u2713 rolling over)",
+      "Above BB mid (69%)",
+      "+4.9% small rally (fade entry)",
+      "Close to 24h High (2.0% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 97,
+    "entry": 0.00367523774192795,
+    "exit": 0.0037376016750583687,
+    "pnl_usdt": -5.0906039970386106,
+    "pnl_pct": -1.69686799901287,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 63.6 (rollover zone \u2713 rolling over)",
+      "Near BB upper (87%) \u2014 overbought",
+      "Price 1.9% above EMA21",
+      "+7.6% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 60,
+    "entry": 0.0036774273347878507,
+    "exit": 0.0035901,
+    "pnl_usdt": 54.61776718523341,
+    "pnl_pct": 2.374685529792757,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 59.0 (rollover zone \u2713 rolling over)",
+      "Above BB mid (74%)",
+      "Price 1.3% above EMA21",
+      "+7.2% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 60,
+    "entry": 0.003596349122862019,
+    "exit": 0.0035606398376132587,
+    "pnl_usdt": -2.9787946633231126,
+    "pnl_pct": -0.9929315544410375,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Price at/below BB lower (-6%) \u2014 extreme oversold",
+      "Price 1.1% below EMA21"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 58,
+    "entry": 0.0035551801159015802,
+    "exit": 0.0035196053516657983,
+    "pnl_usdt": -22.51453285657528,
+    "pnl_pct": -1.0006459047366791,
+    "hold_candles": 20,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 32.7 (oversold)",
+      "Price at/below BB lower (-16%) \u2014 extreme oversold",
+      "Price 1.5% below EMA21"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 68,
+    "entry": 0.0035167171082242966,
+    "exit": 0.0034773444787290953,
+    "pnl_usdt": -10.076263018942033,
+    "pnl_pct": -1.119584779882448,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 33.7 (oversold)",
+      "Price at/below BB lower (4%) \u2014 extreme oversold",
+      "Price 1.2% below EMA21",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 87,
+    "entry": 0.0034805638337407417,
+    "exit": 0.0034384207174710988,
+    "pnl_usdt": -1.8162193662894064,
+    "pnl_pct": -1.2108129108596042,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI Recovery 34.6\u219235.3",
+      "Near BB lower (14%) \u2014 oversold",
+      "Price 1.2% below EMA21",
+      "Near 24h low (0.3% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 75,
+    "entry": 0.003471763137327297,
+    "exit": 0.0034882,
+    "pnl_usdt": 12.309550294357567,
+    "pnl_pct": 0.47344424209067565,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 30.7 (oversold \u2713 recovering)",
+      "Price at/below BB lower (-1%) \u2014 extreme oversold",
+      "Price 1.9% below EMA21",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 24,
+    "entry": 0.003487566754830498,
+    "exit": 0.0034571409293544715,
+    "pnl_usdt": -7.851675639038734,
+    "pnl_pct": -0.8724084043376372,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Positive EMA Slope (0.0000) \u2014 Uptrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "Elevated volume 1.6x"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 68,
+    "entry": 0.003449674835654307,
+    "exit": 0.003423000842071416,
+    "pnl_usdt": -8.118937174182449,
+    "pnl_pct": -0.7732321118268999,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 32.3 (oversold)",
+      "Price at/below BB lower (-14%) \u2014 extreme oversold",
+      "Price 1.3% below EMA21",
+      "Near 24h low (0.7% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 57,
+    "entry": 0.003454444593930324,
+    "exit": 0.0033740809361431923,
+    "pnl_usdt": -6.979152995680021,
+    "pnl_pct": -2.3263843318933404,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (19%) \u2014 oversold",
+      "Near 24h low (0.6% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 102,
+    "entry": 0.003360829368061035,
+    "exit": 0.003319346559831663,
+    "pnl_usdt": -22.217448919743255,
+    "pnl_pct": -1.234302717763514,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI Recovery 31.6\u219237.0",
+      "Price at/below BB lower (-2%) \u2014 extreme oversold",
+      "Price 1.4% below EMA21",
+      "Elevated volume 1.8x",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 87,
+    "entry": 0.0033817355300124487,
+    "exit": 0.003359457161563092,
+    "pnl_usdt": -17.787196627124054,
+    "pnl_pct": -0.6587850602638539,
+    "hold_candles": 45,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 32.9 (oversold \u2713 recovering)",
+      "Near BB lower (19%) \u2014 oversold",
+      "Price 1.5% below EMA21",
+      "Near 24h low (0.7% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 47,
+    "entry": 0.003350763093449663,
+    "exit": 0.0033323537958875426,
+    "pnl_usdt": -5.768764278803762,
+    "pnl_pct": -0.5494061217908346,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (21%) \u2014 oversold"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 22,
+    "entry": 0.0033509585006846233,
+    "exit": 0.0032309,
+    "pnl_usdt": 42.99372874719678,
+    "pnl_pct": 3.582810728933065,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "Negative EMA Slope (-0.0000) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.03%)",
+      "Above BB mid (63%)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 82,
+    "entry": 0.0032385282977953527,
+    "exit": 0.0032169526374239824,
+    "pnl_usdt": -8.993943798847859,
+    "pnl_pct": -0.6662180591739154,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI Recovery 31.0\u219238.5",
+      "Near BB lower (22%) \u2014 oversold",
+      "Near 24h low (1.1% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 37,
+    "entry": 0.0032356834513036056,
+    "exit": 0.003214173924967318,
+    "pnl_usdt": -0.997139862103411,
+    "pnl_pct": -0.6647599080689406,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Near BB lower (11%) \u2014 oversold",
+      "Near 24h low (0.8% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 102,
+    "entry": 0.003196346574150783,
+    "exit": 0.0031727408089535403,
+    "pnl_usdt": -6.646709981117405,
+    "pnl_pct": -0.7385233312352673,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 32.1 (oversold \u2713 recovering)",
+      "Price at/below BB lower (-11%) \u2014 extreme oversold",
+      "Price 1.1% below EMA21",
+      "Elevated volume 1.9x",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 62,
+    "entry": 0.0032158605637839263,
+    "exit": 0.003183989984889376,
+    "pnl_usdt": -22.29848001505453,
+    "pnl_pct": -0.9910435562246458,
+    "hold_candles": 31,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI Recovery 30.4\u219238.3",
+      "Near BB lower (25%) \u2014 oversold",
+      "Near 24h low (0.7% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 52,
+    "entry": 0.0031934432977783088,
+    "exit": 0.0031616511726758148,
+    "pnl_usdt": -8.959893733560486,
+    "pnl_pct": -0.9955437481733874,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Price at/below BB lower (4%) \u2014 extreme oversold",
+      "Elevated volume 1.5x",
+      "Near 24h low (0.8% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 67,
+    "entry": 0.003155870480195982,
+    "exit": 0.0031277833760172467,
+    "pnl_usdt": -13.349931986272857,
+    "pnl_pct": -0.8899954657515237,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI Recovery 33.0\u219237.0",
+      "Near BB lower (12%) \u2014 oversold",
+      "Price 1.1% below EMA21",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "LONG",
+    "score": 82,
+    "entry": 0.0031836839508277803,
+    "exit": 0.0031531838250954567,
+    "pnl_usdt": -8.622122542017397,
+    "pnl_pct": -0.9580136157797108,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 34.7 (oversold \u2713 recovering)",
+      "Near BB lower (17%) \u2014 oversold",
+      "Near 24h low (0.3% above)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 72,
+    "entry": 0.0032015415069155174,
+    "exit": 0.003238392571256301,
+    "pnl_usdt": -6.906247679972259,
+    "pnl_pct": -1.1510412799953766,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 57.8 (rollover zone)",
+      "Near BB upper (87%) \u2014 overbought"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 80,
+    "entry": 0.003215533640145741,
+    "exit": 0.003253087262351076,
+    "pnl_usdt": -10.510933414856042,
+    "pnl_pct": -1.1678814905395603,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 56.6 (rollover zone \u2713 rolling over)",
+      "Near BB upper (85%) \u2014 overbought"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 99,
+    "entry": 0.0032529996497180883,
+    "exit": 0.0032883474694774726,
+    "pnl_usdt": -8.692978436059194,
+    "pnl_pct": -1.0866223045073993,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 59.8 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (92%) \u2014 extreme overbought",
+      "Price 1.1% above EMA21",
+      "Close to 24h High (1.3% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 102,
+    "entry": 0.0032554303236318983,
+    "exit": 0.0032886281840626757,
+    "pnl_usdt": -19.885490213101498,
+    "pnl_pct": -1.0197687288769999,
+    "hold_candles": 24,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 66.3 (rollover zone)",
+      "Price at/above BB upper (99%) \u2014 extreme overbought",
+      "Price 1.6% above EMA21",
+      "+3.3% small rally (fade entry)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 80,
+    "entry": 0.003295711617262211,
+    "exit": 0.0033281756264509077,
+    "pnl_usdt": -4.432670643388741,
+    "pnl_pct": -0.9850379207530535,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 59.4 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (94%) \u2014 extreme overbought",
+      "Near 24h High (1.0% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 90,
+    "entry": 0.0033134288217795626,
+    "exit": 0.0033455345041859363,
+    "pnl_usdt": -24.708389568568712,
+    "pnl_pct": -0.9689564536693612,
+    "hold_candles": 20,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 65.7 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (97%) \u2014 extreme overbought",
+      "Price 1.1% above EMA21",
+      "+3.5% small rally (fade entry)",
+      "Near 24h High (0.5% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 98,
+    "entry": 0.0032989943559219186,
+    "exit": 0.003333036793887277,
+    "pnl_usdt": -11.350938413906245,
+    "pnl_pct": -1.031903492173295,
+    "hold_candles": 26,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 58.0 (rollover zone \u2713 rolling over)",
+      "Near BB upper (87%) \u2014 overbought",
+      "+6.5% rally (fade opportunity)",
+      "Close to 24h High (1.2% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "u1000PEPEUSDT",
+    "direction": "SHORT",
+    "score": 83,
+    "entry": 0.0033024864192273133,
+    "exit": 0.0032837,
+    "pnl_usdt": 5.119711380535477,
+    "pnl_pct": 0.5688568200594974,
+    "hold_candles": 10,
+    "exit_reason": "end_of_data",
+    "signals": [
+      "High Liquidity (Spread 0.03%)",
+      "RSI 59.8 (rollover zone)",
+      "Price at/above BB upper (104%) \u2014 extreme overbought",
+      "Price 1.0% above EMA21",
+      "Elevated volume 1.4x",
+      "+3.6% small rally (fade entry)",
+      "Close to 24h High (1.8% distance)"
+    ],
+    "slippage_pct": 0.07371574872748778,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 104,
+    "entry": 0.8990889245963521,
+    "exit": 0.9127470579408943,
+    "pnl_usdt": -9.114649043646477,
+    "pnl_pct": -1.5191081739410794,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 78.4 (extremely overbought)",
+      "Price at/above BB upper (103%) \u2014 extreme overbought",
+      "Price 3.5% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.6x",
+      "Near 24h High (0.2% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 79,
+    "entry": 0.8983180884834528,
+    "exit": 0.9166802477145887,
+    "pnl_usdt": -18.39653850889439,
+    "pnl_pct": -2.044059834321599,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 67.5 (rollover zone \u2713 rolling over)",
+      "Near BB upper (78%) \u2014 overbought",
+      "Price 1.8% above EMA21",
+      "Close to 24h High (1.2% distance)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 102,
+    "entry": 0.9294348935820778,
+    "exit": 0.9162679786578248,
+    "pnl_usdt": 28.333162473612607,
+    "pnl_pct": 1.4166581236806304,
+    "hold_candles": 45,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 78.5 (extremely overbought)",
+      "Price at/above BB upper (146%) \u2014 extreme overbought",
+      "Price 4.6% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "+4.9% small rally (fade entry)",
+      "Near 24h High (0.1% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 72,
+    "entry": 0.8980230181015196,
+    "exit": 0.9096470687099916,
+    "pnl_usdt": -54.364990174520244,
+    "pnl_pct": -1.2944045279647678,
+    "hold_candles": 43,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 56.4 (rollover zone)",
+      "Near BB upper (87%) \u2014 overbought",
+      "+8.8% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 93,
+    "entry": 0.8987616543534424,
+    "exit": 0.9108072406427249,
+    "pnl_usdt": -6.701212847107936,
+    "pnl_pct": -1.3402425694215871,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 59.0 (rollover zone \u2713 rolling over)",
+      "Near BB upper (83%) \u2014 overbought",
+      "Price 1.1% above EMA21"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 73,
+    "entry": 0.8945490507019113,
+    "exit": 0.903385377284264,
+    "pnl_usdt": -25.682715884713364,
+    "pnl_pct": -0.9877967647966678,
+    "hold_candles": 42,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 61.6 (rollover zone \u2713 rolling over)",
+      "Near BB upper (86%) \u2014 overbought",
+      "Price 1.3% above EMA21"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 109,
+    "entry": 0.9376759845369252,
+    "exit": 0.9216,
+    "pnl_usdt": 41.14679646794483,
+    "pnl_pct": 1.7144498528310343,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 81.1 (extremely overbought)",
+      "Price at/above BB upper (145%) \u2014 extreme overbought",
+      "Price 5.2% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Elevated volume 1.4x",
+      "+3.8% small rally (fade entry)",
+      "Near 24h High (0.0% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 0.9081634522147678,
+    "exit": 0.9149,
+    "pnl_usdt": -18.915313989402687,
+    "pnl_pct": -0.7417770191922622,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (42%)",
+      "+2.6% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 73,
+    "entry": 0.9034096424403183,
+    "exit": 0.9170140280036942,
+    "pnl_usdt": -1.5058933316925158,
+    "pnl_pct": -1.5058933316925158,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 67.9 (rollover zone)",
+      "Price at/above BB upper (121%) \u2014 extreme overbought",
+      "Price 2.3% above EMA21"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 65,
+    "entry": 0.9076023351160659,
+    "exit": 0.8976,
+    "pnl_usdt": 33.061842380959206,
+    "pnl_pct": 1.10206141269864,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 57.0 (rollover zone)",
+      "Near BB upper (84%) \u2014 overbought",
+      "Price 1.0% above EMA21"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 37,
+    "entry": 0.9072921207957558,
+    "exit": 0.9284592730790451,
+    "pnl_usdt": 3.4995044812123313,
+    "pnl_pct": 2.333002987474887,
+    "hold_candles": 19,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Near BB lower (23%) \u2014 oversold",
+      "Near 24h low (1.5% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 48,
+    "entry": 0.9267551208015956,
+    "exit": 0.9384951671421149,
+    "pnl_usdt": -5.067162220960698,
+    "pnl_pct": -1.2667905552401746,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 55.3 (rollover zone)",
+      "Above BB mid (56%)",
+      "+3.8% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 48,
+    "entry": 0.9441460552814315,
+    "exit": 0.9549450680256365,
+    "pnl_usdt": -6.8627174898184915,
+    "pnl_pct": -1.143786248303082,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 59.3 (rollover zone)",
+      "Above BB mid (58%)",
+      "+4.3% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 63,
+    "entry": 0.9457819531034483,
+    "exit": 0.9579760914791574,
+    "pnl_usdt": -1.2893181494630794,
+    "pnl_pct": -1.2893181494630797,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 56.7 (rollover zone \u2713 rolling over)",
+      "Above BB mid (58%)",
+      "+5.1% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 105,
+    "entry": 0.9676405756317414,
+    "exit": 0.9825520776656519,
+    "pnl_usdt": -20.03321598148959,
+    "pnl_pct": -1.5410166139607375,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 69.9 (rollover zone \u2713 rolling over)",
+      "Price at/above BB upper (109%) \u2014 extreme overbought",
+      "Price 2.3% above EMA21",
+      "+8.1% rally (fade opportunity)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 111,
+    "entry": 0.9567560335125112,
+    "exit": 0.9458,
+    "pnl_usdt": 30.91832133546023,
+    "pnl_pct": 1.145123012424453,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 65.9 (rollover zone \u2713 rolling over)",
+      "Near BB upper (85%) \u2014 overbought",
+      "Price 1.7% above EMA21",
+      "+7.2% rally (fade opportunity)",
+      "Close to 24h High (1.1% distance)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 25,
+    "entry": 0.9468812347480106,
+    "exit": 0.9553825292826559,
+    "pnl_usdt": -1.3467308606407857,
+    "pnl_pct": -0.8978205737605238,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0003) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (33%)",
+      "+3.6% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 65,
+    "entry": 0.9555748843306036,
+    "exit": 0.9638939978414087,
+    "pnl_usdt": -3.917642815073337,
+    "pnl_pct": -0.8705872922385194,
+    "hold_candles": 2,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 55.5 (rollover zone)",
+      "Near BB upper (79%) \u2014 overbought",
+      "+3.6% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 78,
+    "entry": 0.9678752955751815,
+    "exit": 0.9778285094087836,
+    "pnl_usdt": -9.25521344660265,
+    "pnl_pct": -1.0283570496225165,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 68.3 (rollover zone)",
+      "Price at/above BB upper (115%) \u2014 extreme overbought",
+      "Price 1.4% above EMA21",
+      "+2.3% small rally (fade entry)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 111,
+    "entry": 0.9638870583617236,
+    "exit": 0.9525476556530503,
+    "pnl_usdt": 17.646366257805717,
+    "pnl_pct": 1.1764244171870477,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 70.4 (rollover zone)",
+      "Price at/above BB upper (98%) \u2014 extreme overbought",
+      "Price 1.8% above EMA21",
+      "+5.2% rally (fade opportunity)",
+      "Close to 24h High (1.2% distance)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 47,
+    "entry": 0.9521534710675101,
+    "exit": 0.9532,
+    "pnl_usdt": 2.1982358186786635,
+    "pnl_pct": 0.10991179093393319,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (20%) \u2014 oversold"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 20,
+    "entry": 0.952375770521067,
+    "exit": 0.9609778852695484,
+    "pnl_usdt": -5.419361778035343,
+    "pnl_pct": -0.9032269630058906,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (34%)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 86,
+    "entry": 0.9327760561538417,
+    "exit": 0.9033,
+    "pnl_usdt": 66.36074920094069,
+    "pnl_pct": 3.160035676235271,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 69.9 (rollover zone)",
+      "Price at/above BB upper (126%) \u2014 extreme overbought",
+      "Price 1.7% above EMA21",
+      "Elevated volume 1.5x",
+      "Close to 24h High (1.3% distance)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 30,
+    "entry": 0.9006489227125747,
+    "exit": 0.9053395234817866,
+    "pnl_usdt": -12.499256438572544,
+    "pnl_pct": -0.5208023516071892,
+    "hold_candles": 26,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0002) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Above BB mid (71%)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 37,
+    "entry": 0.9001874841379309,
+    "exit": 0.8947076739037552,
+    "pnl_usdt": -0.9131114902286491,
+    "pnl_pct": -0.6087409934857662,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Near BB lower (22%) \u2014 oversold",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 44,
+    "entry": 0.9030863542722114,
+    "exit": 0.8982256259200891,
+    "pnl_usdt": -8.880880264728534,
+    "pnl_pct": -0.5382351675593051,
+    "hold_candles": 26,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Near BB lower (23%) \u2014 oversold",
+      "Elevated volume 1.6x",
+      "Near 24h low (0.9% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 70,
+    "entry": 0.9021887791400903,
+    "exit": 0.8964601963871128,
+    "pnl_usdt": -2.857342386032477,
+    "pnl_pct": -0.6349649746738838,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "RSI Recovery 32.4\u219237.6",
+      "Price at/below BB lower (5%) \u2014 extreme oversold",
+      "Near 24h low (0.8% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 37,
+    "entry": 0.9010642624124242,
+    "exit": 0.8955819664912235,
+    "pnl_usdt": -6.3884574690035105,
+    "pnl_pct": -0.6084245208574771,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Near BB lower (17%) \u2014 oversold",
+      "Near 24h low (0.8% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 37,
+    "entry": 0.8947414391018735,
+    "exit": 0.8894106190018547,
+    "pnl_usdt": -3.5747668770342154,
+    "pnl_pct": -0.5957944795057026,
+    "hold_candles": 10,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Near BB lower (22%) \u2014 oversold",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 45,
+    "entry": 0.8953591968657586,
+    "exit": 0.8901882544872941,
+    "pnl_usdt": -4.331453563468372,
+    "pnl_pct": -0.577527141795783,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Price at/below BB lower (5%) \u2014 extreme oversold",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 45,
+    "entry": 0.8907055462627507,
+    "exit": 0.8856814633408956,
+    "pnl_usdt": -4.230424080327621,
+    "pnl_pct": -0.5640565440436828,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Price at/below BB lower (-1%) \u2014 extreme oversold",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 69,
+    "entry": 0.8817177174501349,
+    "exit": 0.875979115387976,
+    "pnl_usdt": -7.810121468927115,
+    "pnl_pct": -0.6508434557439263,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "RSI Recovery 32.0\u219240.5",
+      "Near BB lower (20%) \u2014 oversold",
+      "Elevated volume 1.7x",
+      "Near 24h low (0.6% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 45,
+    "entry": 0.8892376028134408,
+    "exit": 0.8803689631374719,
+    "pnl_usdt": -22.43994091994812,
+    "pnl_pct": -0.9973307075532499,
+    "hold_candles": 41,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "RSI Recovery 30.9\u219244.3",
+      "Below BB mid (37%)",
+      "Near 24h low (1.1% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 45,
+    "entry": 0.8829214783346954,
+    "exit": 0.8743567073757679,
+    "pnl_usdt": -20.37102897040369,
+    "pnl_pct": -0.970048998590652,
+    "hold_candles": 22,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Price at/below BB lower (9%) \u2014 extreme oversold",
+      "Near 24h low (0.9% above)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "LONG",
+    "score": 62,
+    "entry": 0.8911122012343277,
+    "exit": 0.9038,
+    "pnl_usdt": 3.2035861682984614,
+    "pnl_pct": 1.423816074799316,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (17%) \u2014 oversold",
+      "Volume spike 3.3x (capitulation/demand)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 26,
+    "entry": 0.905782720391234,
+    "exit": 0.914923197977938,
+    "pnl_usdt": -6.054748482785779,
+    "pnl_pct": -1.0091247471309632,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Negative EMA Slope (-0.0001) \u2014 Downtrend confirmed",
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Below BB mid \u2014 fading short (35%)",
+      "Close to 24h High (1.6% distance)"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 77,
+    "entry": 0.9165010874801062,
+    "exit": 0.9253091160313518,
+    "pnl_usdt": -1.4415741571234333,
+    "pnl_pct": -0.9610494380822889,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 58.6 (rollover zone)",
+      "Near BB upper (84%) \u2014 overbought",
+      "+2.3% small rally (fade entry)",
+      "Near 24h High (0.7% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 90,
+    "entry": 0.922597103872679,
+    "exit": 0.9329325175386461,
+    "pnl_usdt": -3.360756376510406,
+    "pnl_pct": -1.1202521255034685,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "RSI 73.6 (rollover zone)",
+      "Price at/above BB upper (123%) \u2014 extreme overbought",
+      "Price 2.1% above EMA21",
+      "+3.5% small rally (fade entry)",
+      "Near 24h High (0.2% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 110,
+    "entry": 0.932735441615079,
+    "exit": 0.9436097555465095,
+    "pnl_usdt": -26.23166790290751,
+    "pnl_pct": -1.1658519067958892,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 68.4 (rollover zone)",
+      "Price at/above BB upper (92%) \u2014 extreme overbought",
+      "Price 1.5% above EMA21",
+      "+4.3% small rally (fade entry)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "SUIUSDT",
+    "direction": "SHORT",
+    "score": 112,
+    "entry": 0.9547586696732485,
+    "exit": 0.9451,
+    "pnl_usdt": 45.523559942632396,
+    "pnl_pct": 1.0116346653918311,
+    "hold_candles": 41,
+    "exit_reason": "end_of_data",
+    "signals": [
+      "High Liquidity (Spread 0.01%)",
+      "HTF Alignment (1H RSI 57.5) \u2014 overbought territory",
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 63.9 (rollover zone \u2713 rolling over)",
+      "Near BB upper (88%) \u2014 overbought",
+      "+6.9% rally (fade opportunity)",
+      "Near 24h High (0.6% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.06530503978779781,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 84,
+    "entry": 3.4095161899573023,
+    "exit": 3.4502852520412386,
+    "pnl_usdt": -1.4946791499341299,
+    "pnl_pct": -1.195743319947304,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 77.4 (extremely overbought)",
+      "Price at/above BB upper (112%) \u2014 extreme overbought",
+      "Price 2.9% above EMA21",
+      "Volume spike 4.2x (exhaustion/distribution)",
+      "Near 24h High (0.4% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 74,
+    "entry": 3.457451385009845,
+    "exit": 3.493495940055548,
+    "pnl_usdt": -18.76532504941645,
+    "pnl_pct": -1.042518058300914,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "RSI 78.7 (extremely overbought)",
+      "Price at/above BB upper (93%) \u2014 extreme overbought",
+      "Price 2.6% above EMA21",
+      "+2.9% small rally (fade entry)",
+      "Near 24h High (0.3% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 116,
+    "entry": 3.5666261159420287,
+    "exit": 3.6149195131471843,
+    "pnl_usdt": -0.677017938455825,
+    "pnl_pct": -1.35403587691165,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "RSI 80.6 (extremely overbought)",
+      "Price at/above BB upper (124%) \u2014 extreme overbought",
+      "Price 3.5% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Volume spike 2.3x (exhaustion/distribution)",
+      "+5.5% rally (fade opportunity)",
+      "Near 24h High (0.6% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 116,
+    "entry": 3.5134767307155808,
+    "exit": 3.49,
+    "pnl_usdt": 8.68648130310481,
+    "pnl_pct": 0.6681908694696007,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "EMA Slope Flattening \u2014 Uptrend slowing",
+      "RSI 85.6 (extremely overbought)",
+      "Price at/above BB upper (121%) \u2014 extreme overbought",
+      "Price 5.2% above EMA21 (mean-reversion opportunity)",
+      "Stretch bonus: Deeply overbought RSI + Above EMA21",
+      "Volume spike 2.0x (exhaustion/distribution)",
+      "+8.8% rally (fade opportunity)",
+      "Near 24h High (0.0% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 59,
+    "entry": 3.455617620128805,
+    "exit": 3.452,
+    "pnl_usdt": 2.3554820540322834,
+    "pnl_pct": 0.10468809129032369,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "RSI 56.0 (rollover zone)",
+      "Near BB upper (87%) \u2014 overbought",
+      "+6.4% rally (fade opportunity)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 25,
+    "entry": 3.4319725724524166,
+    "exit": 3.4002572694000914,
+    "pnl_usdt": -6.93084714026329,
+    "pnl_pct": -0.9241129520351052,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Positive EMA Slope (0.0002) \u2014 Uptrend confirmed",
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Below BB mid (49%)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 58,
+    "entry": 3.442990370732502,
+    "exit": 3.493,
+    "pnl_usdt": 43.575169154648165,
+    "pnl_pct": 1.4525056384882722,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Price at/below BB lower (7%) \u2014 extreme oversold"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 25,
+    "entry": 3.4955773178192304,
+    "exit": 3.461249547876976,
+    "pnl_usdt": -7.3652576143710915,
+    "pnl_pct": -0.9820343485828121,
+    "hold_candles": 16,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Positive EMA Slope (0.0003) \u2014 Uptrend confirmed",
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Below BB mid (41%)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 50,
+    "entry": 3.4752633167421045,
+    "exit": 3.4487937111651084,
+    "pnl_usdt": -9.139890649256536,
+    "pnl_pct": -0.7616575541047113,
+    "hold_candles": 16,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Price at/below BB lower (2%) \u2014 extreme oversold",
+      "Price 1.2% below EMA21",
+      "Elevated volume 1.5x"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 58,
+    "entry": 3.4659133646896465,
+    "exit": 3.442023439723852,
+    "pnl_usdt": -7.237463425843761,
+    "pnl_pct": -0.6892822310327392,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Price at/below BB lower (5%) \u2014 extreme oversold"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 86,
+    "entry": 3.4442519706004133,
+    "exit": 3.418000087848228,
+    "pnl_usdt": -1.1432910386464434,
+    "pnl_pct": -0.7621940257642956,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 31.0 (oversold)",
+      "Price at/below BB lower (-26%) \u2014 extreme oversold",
+      "Price 1.1% below EMA21",
+      "Volume spike 2.1x (capitulation/demand)",
+      "Near 24h low (0.7% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 106,
+    "entry": 3.40356914911169,
+    "exit": 3.3753411474501407,
+    "pnl_usdt": -5.8055530231380095,
+    "pnl_pct": -0.8293647175911443,
+    "hold_candles": 13,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 31.9 (oversold)",
+      "Price at/below BB lower (-7%) \u2014 extreme oversold",
+      "Price 1.2% below EMA21",
+      "Volume spike 2.9x (capitulation/demand)",
+      "Near 24h low (0.1% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 85,
+    "entry": 3.4071400401071044,
+    "exit": 3.373719236434847,
+    "pnl_usdt": -33.84121911985243,
+    "pnl_pct": -0.9809049020247083,
+    "hold_candles": 29,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 34.1 (oversold \u2713 recovering)",
+      "Near BB lower (12%) \u2014 oversold",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 68,
+    "entry": 3.4009216771655972,
+    "exit": 3.372311067966091,
+    "pnl_usdt": -10.095125468464584,
+    "pnl_pct": -0.8412604557053819,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Price at/below BB lower (9%) \u2014 extreme oversold",
+      "Near 24h low (0.9% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 30,
+    "entry": 3.38418063297476,
+    "exit": 3.3551884252343465,
+    "pnl_usdt": -15.420563968794932,
+    "pnl_pct": -0.856697998266385,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Below BB mid (29%)",
+      "Elevated volume 1.8x",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 93,
+    "entry": 3.360539621728679,
+    "exit": 3.429,
+    "pnl_usdt": 91.67328372770989,
+    "pnl_pct": 2.0371840828379972,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI Recovery 30.5\u219239.6",
+      "Price at/below BB lower (5%) \u2014 extreme oversold",
+      "Near 24h low (0.9% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 81,
+    "entry": 3.428749548584387,
+    "exit": 3.466103761285048,
+    "pnl_usdt": -6.536647632851986,
+    "pnl_pct": -1.0894412721419977,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 57.2 (rollover zone \u2713 rolling over)",
+      "Near BB upper (76%) \u2014 overbought",
+      "Close to 24h High (1.6% distance)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 64,
+    "entry": 3.4523522376665556,
+    "exit": 3.405,
+    "pnl_usdt": 41.14780393778232,
+    "pnl_pct": 1.371593464592744,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "RSI 63.6 (rollover zone)",
+      "Near BB upper (86%) \u2014 overbought",
+      "Price 1.0% above EMA21",
+      "Near 24h High (0.6% distance) \u2014 supply zone"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 58,
+    "entry": 3.3910061259848048,
+    "exit": 3.3633649517933417,
+    "pnl_usdt": -5.705923615341426,
+    "pnl_pct": -0.8151319450487752,
+    "hold_candles": 13,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Price at/below BB lower (-8%) \u2014 extreme oversold",
+      "Price 1.1% below EMA21",
+      "Volume spike 2.5x (capitulation/demand)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 85,
+    "entry": 3.375182603550996,
+    "exit": 3.346755402404627,
+    "pnl_usdt": -5.053451232498257,
+    "pnl_pct": -0.8422418720830429,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI Recovery 34.8\u219237.4",
+      "Near BB lower (13%) \u2014 oversold",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 78,
+    "entry": 3.3429923375441026,
+    "exit": 3.312510990197832,
+    "pnl_usdt": -8.206184711687762,
+    "pnl_pct": -0.9117983012986404,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 33.3 (oversold)",
+      "Price at/below BB lower (-7%) \u2014 extreme oversold",
+      "Price 1.2% below EMA21",
+      "Elevated volume 1.5x",
+      "Near 24h low (0.1% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 78,
+    "entry": 3.284100760110421,
+    "exit": 3.24859706746538,
+    "pnl_usdt": -3.2432341671374587,
+    "pnl_pct": -1.0810780557124862,
+    "hold_candles": 1,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 29.7 (oversold)",
+      "Price at/below BB lower (-4%) \u2014 extreme oversold",
+      "Price 1.8% below EMA21",
+      "Elevated volume 1.9x",
+      "Near 24h low (0.0% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 85,
+    "entry": 3.244772688750728,
+    "exit": 3.209428471809961,
+    "pnl_usdt": -8.169497603784833,
+    "pnl_pct": -1.089266347171311,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 28.6 (oversold \u2713 recovering)",
+      "Price at/below BB lower (3%) \u2014 extreme oversold",
+      "Price 1.8% below EMA21",
+      "Elevated volume 1.5x",
+      "Near 24h low (0.8% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 75,
+    "entry": 3.2301776083250204,
+    "exit": 3.201645204278087,
+    "pnl_usdt": -17.224498042499572,
+    "pnl_pct": -0.8833075919230551,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 22.8 (extremely oversold)",
+      "Price at/below BB lower (9%) \u2014 extreme oversold",
+      "Price 2.0% below EMA21",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 103,
+    "entry": 3.224738238817317,
+    "exit": 3.197407498895163,
+    "pnl_usdt": -15.255604708529603,
+    "pnl_pct": -0.8475335949183113,
+    "hold_candles": 12,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 33.3 (oversold)",
+      "Price at/below BB lower (9%) \u2014 extreme oversold",
+      "Price 1.0% below EMA21",
+      "-7.2% dip (oversold bounce)",
+      "Near 24h low (0.1% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "SHORT",
+    "score": 67,
+    "entry": 3.24892664679089,
+    "exit": 3.107,
+    "pnl_usdt": 13.105249415010082,
+    "pnl_pct": 4.368416471670028,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "Bearish Divergence (Price HH vs RSI LH) \u2014 buyers exhausted",
+      "RSI 57.6 (rollover zone)",
+      "Near BB upper (86%) \u2014 overbought"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 71,
+    "entry": 3.135797521730645,
+    "exit": 3.116191419953184,
+    "pnl_usdt": -28.135572334365015,
+    "pnl_pct": -0.625234940763667,
+    "hold_candles": 33,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 25.2 (oversold)",
+      "Price at/below BB lower (9%) \u2014 extreme oversold",
+      "Price 1.4% below EMA21",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 66,
+    "entry": 3.1118187504391592,
+    "exit": 3.092782321898436,
+    "pnl_usdt": -9.176190871352956,
+    "pnl_pct": -0.611746058090197,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 32.8 (oversold)",
+      "Price at/below BB lower (-10%) \u2014 extreme oversold",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 23,
+    "entry": 3.113496237945076,
+    "exit": 3.095281417991648,
+    "pnl_usdt": -8.77541767905753,
+    "pnl_pct": -0.5850278452705019,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Below BB mid (47%)",
+      "Near 24h low (0.7% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 68,
+    "entry": 3.0974748552424938,
+    "exit": 3.0788165313827074,
+    "pnl_usdt": -5.421348762649796,
+    "pnl_pct": -0.6023720847388662,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Price at/below BB lower (2%) \u2014 extreme oversold",
+      "Near 24h low (0.6% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 60,
+    "entry": 3.083240430307668,
+    "exit": 3.0652318991168213,
+    "pnl_usdt": -7.885053941517404,
+    "pnl_pct": -0.58407806974203,
+    "hold_candles": 8,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (13%) \u2014 oversold",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 66,
+    "entry": 3.047138465048139,
+    "exit": 3.0273810256777303,
+    "pnl_usdt": -6.808128864797566,
+    "pnl_pct": -0.6483932252188158,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 29.6 (oversold)",
+      "Price at/below BB lower (-7%) \u2014 extreme oversold",
+      "Near 24h low (0.1% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 95,
+    "entry": 3.038745444594495,
+    "exit": 3.021521547409812,
+    "pnl_usdt": -17.85449854915092,
+    "pnl_pct": -0.5668094777508229,
+    "hold_candles": 20,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 23.4 (extremely oversold)",
+      "Price at/below BB lower (-2%) \u2014 extreme oversold",
+      "Price 1.3% below EMA21",
+      "Near 24h low (0.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 3.03436422367086,
+    "exit": 3.017258863607127,
+    "pnl_usdt": -4.2279103964255365,
+    "pnl_pct": -0.5637213861900716,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Near BB lower (19%) \u2014 oversold",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 3.015847482539682,
+    "exit": 2.998882968705376,
+    "pnl_usdt": -0.8437684895799147,
+    "pnl_pct": -0.5625123263866099,
+    "hold_candles": 0,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Near BB lower (15%) \u2014 oversold",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 75,
+    "entry": 2.994155798036345,
+    "exit": 2.9740286745240074,
+    "pnl_usdt": -7.058243162167625,
+    "pnl_pct": -0.6722136344921548,
+    "hold_candles": 6,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 22.6 (extremely oversold)",
+      "Price at/below BB lower (-14%) \u2014 extreme oversold",
+      "Price 1.0% below EMA21",
+      "Near 24h low (0.9% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 90,
+    "entry": 2.9697139127751218,
+    "exit": 2.946927930864948,
+    "pnl_usdt": -8.056426210875316,
+    "pnl_pct": -0.7672786867500302,
+    "hold_candles": 13,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 19.4 (extremely oversold)",
+      "Price at/below BB lower (-7%) \u2014 extreme oversold",
+      "Price 1.5% below EMA21",
+      "Volume spike 2.8x (capitulation/demand)",
+      "Near 24h low (0.4% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 93,
+    "entry": 2.9951815773110453,
+    "exit": 3.002,
+    "pnl_usdt": 6.146452488768534,
+    "pnl_pct": 0.22764638847290866,
+    "hold_candles": 48,
+    "exit_reason": "max_hold",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "RSI 31.8 (oversold)",
+      "Price at/below BB lower (5%) \u2014 extreme oversold",
+      "Elevated volume 1.7x",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 50,
+    "entry": 3.005683454638931,
+    "exit": 2.978933368270776,
+    "pnl_usdt": -12.014777052211903,
+    "pnl_pct": -0.8899834853490298,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (21%) \u2014 oversold"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 53,
+    "entry": 2.997830137154194,
+    "exit": 2.965155645846526,
+    "pnl_usdt": -1.634907073421742,
+    "pnl_pct": -1.0899380489478279,
+    "hold_candles": 3,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Price at/below BB lower (5%) \u2014 extreme oversold",
+      "Volume spike 2.0x (capitulation/demand)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 55,
+    "entry": 2.9841425379933364,
+    "exit": 2.9513782140715312,
+    "pnl_usdt": -6.587686111770777,
+    "pnl_pct": -1.0979476852951298,
+    "hold_candles": 7,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Price at/below BB lower (-3%) \u2014 extreme oversold",
+      "Elevated volume 1.6x",
+      "Near 24h low (1.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 60,
+    "entry": 3.02053900348326,
+    "exit": 2.987382800461775,
+    "pnl_usdt": -8.232687026202088,
+    "pnl_pct": -1.0976916034936117,
+    "hold_candles": 15,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Near BB lower (17%) \u2014 oversold",
+      "Near 24h low (1.1% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 30,
+    "entry": 2.988819785875127,
+    "exit": 2.9585281760772095,
+    "pnl_usdt": -7.601230243390581,
+    "pnl_pct": -1.0134973657854107,
+    "hold_candles": 4,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Below BB mid (31%)",
+      "Elevated volume 1.8x",
+      "Near 24h low (1.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 48,
+    "entry": 2.965109322398561,
+    "exit": 2.937853184323377,
+    "pnl_usdt": -13.788431611588535,
+    "pnl_pct": -0.9192287741059023,
+    "hold_candles": 9,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Price at/below BB lower (6%) \u2014 extreme oversold",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 23,
+    "entry": 2.972889673434775,
+    "exit": 2.943841604687841,
+    "pnl_usdt": -19.053426221187966,
+    "pnl_pct": -0.977098780573742,
+    "hold_candles": 14,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Below BB mid (41%)",
+      "Near 24h low (1.0% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 40,
+    "entry": 2.9549857652938765,
+    "exit": 2.926759016415226,
+    "pnl_usdt": -8.597020767123324,
+    "pnl_pct": -0.9552245296803692,
+    "hold_candles": 5,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Near BB lower (22%) \u2014 oversold",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 85,
+    "entry": 2.9293929871422275,
+    "exit": 2.8978186976459592,
+    "pnl_usdt": -24.251492264241705,
+    "pnl_pct": -1.0778441006329647,
+    "hold_candles": 15,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI 33.8 (oversold \u2713 recovering)",
+      "Price at/below BB lower (0%) \u2014 extreme oversold",
+      "Price 1.0% below EMA21",
+      "Elevated volume 1.9x",
+      "Near 24h low (0.6% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 73,
+    "entry": 2.8894427462439674,
+    "exit": 2.8617413981891704,
+    "pnl_usdt": -17.25676224713277,
+    "pnl_pct": -0.9587090137295983,
+    "hold_candles": 11,
+    "exit_reason": "trail_stop",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "Bullish Divergence (Price LL vs RSI HL) \u2014 sellers exhausted",
+      "Price at/below BB lower (4%) \u2014 extreme oversold",
+      "Price 1.1% below EMA21",
+      "Near 24h low (0.5% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  },
+  {
+    "symbol": "TRUMPUSDT",
+    "direction": "LONG",
+    "score": 48,
+    "entry": 2.9144318737256585,
+    "exit": 2.899,
+    "pnl_usdt": -6.3539822761811156,
+    "pnl_pct": -0.529498523015093,
+    "hold_candles": 14,
+    "exit_reason": "end_of_data",
+    "signals": [
+      "HTF Alignment (1H RSI 43.4) \u2014 oversold territory",
+      "RSI Recovery 33.6\u219244.7",
+      "Below BB mid (40%)",
+      "Near 24h low (1.2% above)"
+    ],
+    "slippage_pct": 0.09450655624568288,
+    "is_low_liq": false
+  }
+]
