@@ -33,3 +33,13 @@ BANNER = r"""
 ##       ##     ## ##   ### ##    ##    ##    ##       ##     ## ##   ### ##    ##     ##     ## ##     ##    ##
 ##       ##     ## ##    ##  ######     ##    ##       ##     ## ##    ##  ######      ########   #######     ##
 """
+
+def get_gradient_banner():
+    """Returns the banner pre-colorized with a cyan-magenta gradient."""
+    try:
+        from core.ui import gradient_text
+        lines = BANNER.strip("\n").split("\n")
+        colorized = [gradient_text(line, (0, 255, 255), (255, 0, 255)) for line in lines]
+        return "\n".join(colorized)
+    except ImportError:
+        return BANNER

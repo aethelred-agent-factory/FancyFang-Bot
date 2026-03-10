@@ -634,6 +634,36 @@ class Animator:
         self._loop(frame, duration)
 
     # ─────────────────────────────────────────────
+    #  NEURAL SCAN  —  high-tech data stream
+    # ─────────────────────────────────────────────
+    def neural_scan(self, duration=3, palette="plasma"):
+        chars = "0123456789ABCDEF!@#$%^&*()_+-=[]{}|;:,.<>?"
+        def frame(t):
+            buf = ScreenBuffer()
+            tt  = t * 4
+            fn  = PALETTES[palette]
+
+            # Draw data streams
+            for x in range(0, buf.width, 2):
+                speed = random.uniform(0.5, 2.0)
+                offset = int(t * 10 * speed) % buf.height
+                for y in range(buf.height):
+                    if (y + offset) % 5 == 0:
+                        c = random.choice(chars)
+                        r, g, b = fn(tt, x + y)
+                        buf.put(x, y, c, get_ansi_rgb(r, g, b))
+
+            # Glowing center line
+            mid_y = buf.height // 2
+            line = " < NEURAL LINK ESTABLISHED > ".center(buf.width, "═")
+            for i, c in enumerate(line):
+                r, g, b = fn(tt + i*0.1, i)
+                buf.put(i, mid_y, c, get_ansi_rgb(r, g, b))
+
+            buf.flush()
+        self._loop(frame, duration)
+
+    # ─────────────────────────────────────────────
     #  SHATTER  —  text breaks apart & reassembles
     # ─────────────────────────────────────────────
     def shatter(self, text, duration=3, palette="blood"):
@@ -795,16 +825,18 @@ KILL_TEXT = """
 #  EVENT FUNCTIONS  —  each one is a unique cinematic moment
 # ══════════════════════════════════════════════════════════════
 
-anim = Animator(fps=30)
+anim = Animator(fps=60)
 
 def boot():
     """Plasma wave boot sequence — the grand entrance."""
     anim.scan(BOOT_SCREEN,    palette="ice",    duration=1.5)
-    anim.wave(BOOT_SCREEN,    palette="plasma", duration=3)
+    anim.neural_scan(duration=1.5, palette="plasma")
+    anim.wave(BOOT_SCREEN,    palette="plasma", duration=2.5)
 
 def signal():
     """Matrix rain descends, signal materializes from the noise."""
-    anim.matrix(SIGNAL_TEXT,  palette="acid",   duration=3)
+    anim.neural_scan(duration=1, palette="acid")
+    anim.matrix(SIGNAL_TEXT,  palette="acid",   duration=2)
 
 def long():
     """Upward shockwave + gold glow for a long entry."""
@@ -847,6 +879,7 @@ def kill():
 if __name__ == "__main__":
     events = [
         ("BOOT",       boot),
+        ("NEURAL SCAN",lambda: anim.neural_scan(duration=2)),
         ("SIGNAL",     signal),
         ("LONG ENTRY", long),
         ("SHORT ENTRY",short),

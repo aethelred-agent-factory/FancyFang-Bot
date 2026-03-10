@@ -206,7 +206,7 @@ def print_direction_results(
 
         rsi_val = scan_res.get("rsi")
         rsi_str = f"{rsi_val:.1f}" if rsi_val is not None else "N/A"
-        rsi_gauge = ui.score_gauge(int(rsi_val or 0), width=15) if rsi_val else ""
+        rsi_bar = ui.braille_progress_bar(rsi_val, width=15) if rsi_val else ""
 
         # Build card lines
         title_line = (
@@ -217,7 +217,7 @@ def print_direction_results(
         )
 
         stat_line = (
-            f" RSI: {rsi_str:<5} {rsi_gauge}   "
+            f" RSI: {rsi_str:<5} [{rsi_bar}]   "
             f"Fund: {fp_color}{fp_str}{Style.RESET_ALL} ({funding_label})  "
             f"Vol: {Fore.WHITE}{pc.fmt_vol(scan_res.get('vol_24h', 0))}{Style.RESET_ALL}"
         )
@@ -248,7 +248,8 @@ def print_direction_results(
         if scan_res.get("news_count", 0) > 0 and scan_res.get("news_titles"):
             card_lines.append(f"{Fore.YELLOW}📰 {scan_res['news_count']} news items: {scan_res['news_titles'][0][:65]}...")
 
-        print(ui.modern_panel("", card_lines, color=gc, width=90))
+        rgb = (0, 255, 0) if direction == "LONG" else (255, 0, 0)
+        print(ui.glow_panel(f"SIGNAL #{i:02d}", card_lines, color_rgb=rgb, width=90))
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -264,9 +265,9 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
     combined = sorted(tagged_long + tagged_short, key=lambda x: x["score"], reverse=True)
     top = [r for r in combined[:n] if r["score"] >= cfg["MIN_SCORE"]]
 
-    print(Fore.CYAN + Style.BRIGHT + hr("═"))
-    print(Fore.CYAN + Style.BRIGHT + f"  ⚡ COMBINED TOP {n} — HIGHEST SCORE ACROSS BOTH DIRECTIONS")
-    print(Fore.CYAN + Style.BRIGHT + hr("═"))
+    banner_text = f"COMBINED TOP {n} — HIGHEST SCORE ACROSS BOTH DIRECTIONS"
+    print("\n" + ui.gradient_text(banner_text.center(BANNER_WIDTH), (0, 255, 255), (255, 0, 255)))
+    print(ui.hr_double(Fore.MAGENTA))
 
     if not top:
         print(Fore.YELLOW + "  Nothing passes minimum score.\n")
@@ -290,6 +291,7 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
 
         rsi_val = r.get("rsi")
         rsi_str = f"{rsi_val:.1f}" if rsi_val is not None else " N/A"
+        rsi_bar = ui.braille_progress_bar(rsi_val, width=10) if rsi_val else " " * 10
 
         conf = r.get("confidence", "N/A")
         cc = r.get("conf_color", Fore.WHITE)
@@ -302,7 +304,7 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
             f"{gc}{r['score']:>5}{Style.RESET_ALL}  "
             f"{r['price']:>10.4g}  "
             f"{r.get('change_24h', 0):>+6.2f}  "
-            f"{rsi_str:>5}  "
+            f"[{rsi_bar}] "
             f"{fp_str:>9}  "
             f"{pc.fmt_vol(r.get('vol_24h', 0)):>8}  "
             f"{cc}{conf:<7}{Style.RESET_ALL}"

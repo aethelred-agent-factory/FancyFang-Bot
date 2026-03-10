@@ -71,6 +71,7 @@ from core.phemex_short import (
     detect_patterns as detect_patterns_short,
     detect_bearish_divergence
 )
+import core.ui as ui
 from modules.banner import BANNER
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
@@ -870,7 +871,7 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
     avg_hold_period = float(np.mean([trade.hold_candles for trade in closed_trades]))
     expectancy = total_pnl / len(closed_trades)
-    pnl_color = Fore.GREEN if total_pnl >= 0 else Fore.RED
+    pnl_color = ui.pnl_color(total_pnl)
 
     max_drawdown, max_drawdown_pct = compute_drawdown(closed_trades)
     sharpe_ratio  = compute_sharpe(closed_trades, timeframe)
@@ -879,35 +880,28 @@ def print_stats(trades: List[Trade], label: str = "", timeframe: str = "15m"):
     best_trade  = max(closed_trades, key=lambda trade: trade.pnl_usdt or 0.0)
     worst_trade = min(closed_trades, key=lambda trade: trade.pnl_usdt or 0.0)
 
-    print(Fore.CYAN + f"\n{'═'*70}")
-    if label:
-        print(Fore.CYAN + Style.BRIGHT + f"  RESULTS — {label}")
-    print(Fore.CYAN + f"{'═'*70}")
-    print(f"  Trades      : {len(closed_trades)}  ({len(winning_trades)} W / {len(losing_trades)} L)")
-    print(f"  Win Rate    : {win_rate:.1f}%  [{draw_bar(win_rate)}]")
-    print(f"  Total PnL   : {pnl_color}{total_pnl:+.4f} USDT{Style.RESET_ALL}")
-    print(f"  Expectancy  : {pnl_color}{expectancy:+.4f} USDT/trade{Style.RESET_ALL}")
-    print(f"  Avg Win     : {Fore.GREEN}{avg_win:+.4f}{Style.RESET_ALL}  "
-          f"Avg Loss: {Fore.RED}{avg_loss:+.4f}{Style.RESET_ALL}")
-    pf_color = Fore.GREEN if profit_factor >= 1.5 else (Fore.YELLOW if profit_factor >= 1.0 else Fore.RED)
-    pf_str = f"{profit_factor:.2f}" if profit_factor < 99 else "∞"
-    print(f"  Prof. Factor: {pf_color}{pf_str}{Style.RESET_ALL}")
-    print(f"  Avg Hold    : {avg_hold_period:.1f} candles")
-    print()
+    # Wrap stats in a Mission Report Panel
+    lines = [
+        f"  Trades      : {len(closed_trades)}  ({len(winning_trades)} W / {len(losing_trades)} L)",
+        f"  Win Rate    : {win_rate:.1f}%  [{ui.braille_progress_bar(win_rate, width=15)}]",
+        f"  Total PnL   : {pnl_color}{total_pnl:+.4f} USDT{Style.RESET_ALL}",
+        f"  Expectancy  : {pnl_color}{expectancy:+.4f} USDT/trade{Style.RESET_ALL}",
+        f"  Avg Win     : {Fore.GREEN}{avg_win:+.4f}{Style.RESET_ALL}  Avg Loss: {Fore.RED}{avg_loss:+.4f}{Style.RESET_ALL}",
+        f"  Prof. Factor: {profit_factor:.2f} | Avg Hold: {avg_hold_period:.1f} candles",
+        "",
+        ui.hr_dash(width=60),
+        "",
+        ui.cyber_telemetry("Max DD", max_drawdown, max(1.0, abs(total_pnl)), "$"),
+        f"    ({max_drawdown_pct:.1f}% risk exposure)",
+        ui.cyber_telemetry("Sharpe", sharpe_ratio if not np.isnan(sharpe_ratio) else 0.0, 3.0, ""),
+        ui.cyber_telemetry("Sortino", sortino_ratio if not np.isnan(sortino_ratio) else 0.0, 5.0, ""),
+        "",
+        f"  Max Streak  : {Fore.GREEN}{max_win_streak}W{Style.RESET_ALL} / {Fore.RED}{max_loss_streak}L{Style.RESET_ALL}",
+        f"  Best Trade  : {Fore.GREEN}{best_trade.pnl_usdt:+.4f}{Style.RESET_ALL} ({best_trade.symbol})",
+        f"  Worst Trade : {Fore.RED}{worst_trade.pnl_usdt:+.4f}{Style.RESET_ALL} ({worst_trade.symbol})"
+    ]
 
-    # ── Risk metrics ─────────────────────────────────────────────
-    dd_color = Fore.RED if max_drawdown > 0 else Fore.GREEN
-    sh_color = Fore.GREEN if (not np.isnan(sharpe_ratio) and sharpe_ratio >= 1.0) else (Fore.YELLOW if (not np.isnan(sharpe_ratio) and sharpe_ratio >= 0) else Fore.RED)
-    so_color = Fore.GREEN if (not np.isnan(sortino_ratio) and sortino_ratio >= 1.5) else (Fore.YELLOW if (not np.isnan(sortino_ratio) and sortino_ratio >= 0) else Fore.RED)
-    print(f"  Max Drawdown: {dd_color}{max_drawdown:+.4f} USDT  ({max_drawdown_pct:.1f}%){Style.RESET_ALL}")
-    print(f"  Sharpe (ann): {sh_color}{fmt_stat(sharpe_ratio)}{Style.RESET_ALL}   "
-          f"Sortino (ann): {so_color}{fmt_stat(sortino_ratio)}{Style.RESET_ALL}")
-    print(f"  Max Streak  : {Fore.GREEN}{max_win_streak}W{Style.RESET_ALL} / {Fore.RED}{max_loss_streak}L{Style.RESET_ALL}")
-    print(f"  Best Trade  : {Fore.GREEN}{best_trade.pnl_usdt:+.4f}{Style.RESET_ALL} "
-          f"({best_trade.symbol} {best_trade.direction})")
-    print(f"  Worst Trade : {Fore.RED}{worst_trade.pnl_usdt:+.4f}{Style.RESET_ALL} "
-          f"({worst_trade.symbol} {worst_trade.direction})")
-    print()
+    print("\n" + ui.glow_panel(f"MISSION REPORT: {label or 'BACKTEST RESULTS'}", lines, color_rgb=(255, 128, 0), width=80))
 
 
     # Direction breakdown
