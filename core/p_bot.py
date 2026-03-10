@@ -450,6 +450,7 @@ def send_telegram_message(message: str) -> None:
 
 # ── Logging Setup ─────────────────────────────────────────────────────
 _bot_logs = deque(maxlen=100)
+_thesis_log = deque(maxlen=20)
 
 logger = pc.setup_colored_logging(
     "phemex_bot",
@@ -1305,6 +1306,25 @@ def _live_pnl_display():
             while len(log_lines) < 5: log_lines.insert(0, "")
             print(term.move_xy(2, log_y) + ui.modern_panel("SYSTEM LOGS", log_lines, width=left_w, color=Fore.WHITE))
 
+            # 4. Machine Thesis & Sector Momentum
+            thesis_y = log_y + 7
+            thesis_lines = list(_thesis_log)[-5:]
+            while len(thesis_lines) < 5: thesis_lines.append("")
+
+            from modules.sector_manager import sector_manager
+            sector_scores = sector_manager.get_all_sector_scores()
+            sector_viz = []
+            for s, s_score in sector_scores.items():
+                if s_score > 0:
+                    bar = ui.braille_progress_bar(min(100, s_score / 1.5), width=10)
+                    sector_viz.append(f" {s:<6} [{bar}] {s_score:>5.1f}")
+
+            print(term.move_xy(2, thesis_y) + ui.glow_panel("MACHINE THESIS", thesis_lines, color_rgb=(255, 255, 0), width=left_w))
+
+            radar_y = thesis_y + 8
+            if sector_viz:
+                print(term.move_xy(2, radar_y) + ui.modern_panel("SECTOR MOMENTUM", sector_viz[:4], width=left_w, color=Fore.YELLOW))
+
             # --- Right Column: Trade History ---
             hist_y = start_y
             hist_lines = []
@@ -1980,7 +2000,10 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
     tui_log(f"EXECUTING {arrow} {symbol} | Predictive Score: {predictive_score:.2f} | Price: {price:.4g} | Qty: {qty_str} | Margin: ${active_margin} | Lev: {active_leverage}x", event_type="EXEC")
 
     # --- Entry Cinematic ---
-    play_animation(animations.long if direction == "LONG" else animations.short)
+    if predictive_score > 1.8 or result.get("score", 0) > 160:
+        play_animation(animations.singularity)
+    else:
+        play_animation(animations.long if direction == "LONG" else animations.short)
 
     # --- Entity API: Trade Intent ---
     trade_id = f"tr-{symbol}-{int(time.time())}"
@@ -2639,6 +2662,20 @@ def bot_loop(args):
                     last_ft = FAST_TRACK_COOLDOWN.get(scan_res["inst_id"], 0)
                     if time.time() - last_ft < FAST_TRACK_COOLDOWN_SECONDS:
                         return
+
+                    # ── AI Thesis Generation (Machine Intelligence Upgrade) ──
+                    if scan_res["score"] > 130:
+                        def _fetch_thesis(res, dr):
+                            prompt = f"Analyze {dr} signal for {res['inst_id']} (Score: {res['score']}). Signals: {', '.join(res['signals'])}. Sector: {res.get('sector', 'Unknown')}. Liquidity Spectre: {res.get('spectre_score', 0)}. Provide a 1-sentence aggressive trading thesis."
+
+                            def _token_cb(token):
+                                if not _thesis_log or res['inst_id'] not in _thesis_log[-1]:
+                                    _thesis_log.append(f"[{res['inst_id']}] ")
+                                _thesis_log[-1] += token
+
+                            pc.call_deepseek(prompt, output_callback=_token_cb)
+
+                        threading.Thread(target=_fetch_thesis, args=(scan_res, direction), daemon=True).start()
 
                     _fast_track_opened.add(scan_res["inst_id"])
                     FAST_TRACK_COOLDOWN[scan_res["inst_id"]] = time.time()

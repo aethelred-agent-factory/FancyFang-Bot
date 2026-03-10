@@ -34,12 +34,15 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import requests
 from colorama import Fore, Style
 from requests.adapters import HTTPAdapter
+
+from modules.sector_manager import sector_manager
+from modules.liquidity_spectre import spectre
 from urllib3.util.retry import Retry
 
 # ── Exchange Constants ───────────────────────────────────────────────
@@ -271,6 +274,8 @@ class TickerData:
     ema200: Optional[float] = None
     adx: Optional[float] = None
     poc_price: Optional[float] = None
+    sector: str = "OTHER"
+    spectre_score: float = 0.0
 
 # ----------------------------
 # Thread-local session
@@ -1178,37 +1183,37 @@ def calc_order_book_imbalance(
 
 
 def get_order_book_with_volumes(symbol: str, rps: float = None) -> Tuple[
-    Optional[float], Optional[float], Optional[float], float, Optional[float]
+    Optional[float], Optional[float], Optional[float], float, Optional[float], List[List], List[List]
 ]:
     """
-    Extended order book fetch that also returns the imbalance ratio.
+    Extended order book fetch that also returns the imbalance ratio and raw book data.
 
     Returns:
-        (best_bid, best_ask, spread_pct, depth, imbalance_ratio)
+        (best_bid, best_ask, spread_pct, depth, imbalance_ratio, bids, asks)
     """
     url = f"{BASE_URL}/md/v2/orderbook"
     resp = safe_request("GET", url, params={"symbol": symbol}, rps=rps)
     if not resp:
-        return None, None, None, 0.0, None
+        return None, None, None, 0.0, None, [], []
     try:
         data = resp.json()
     except Exception:
-        return None, None, None, 0.0, None
+        return None, None, None, 0.0, None, [], []
     if data.get("error") is not None:
-        return None, None, None, 0.0, None
+        return None, None, None, 0.0, None, [], []
 
     result = data.get("result", {}) or {}
     book   = result.get("orderbook_p", {}) or {}
     bids   = book.get("bids", [])
     asks   = book.get("asks", [])
     if not bids or not asks:
-        return None, None, None, 0.0, None
+        return None, None, None, 0.0, None, [], []
 
     try:
         best_bid = float(bids[0][0])
         best_ask = float(asks[0][0])
     except Exception:
-        return None, None, None, 0.0, None
+        return None, None, None, 0.0, None, bids, asks
 
     spread_pct = ((best_ask - best_bid) / best_bid * 100.0) if best_bid > 0 else None
 
@@ -1224,7 +1229,7 @@ def get_order_book_with_volumes(symbol: str, rps: float = None) -> Tuple[
     depth      = depth_sum(bids) + depth_sum(asks)
     imbalance  = calc_order_book_imbalance(bids, asks)
 
-    return best_bid, best_ask, spread_pct, depth, imbalance
+    return best_bid, best_ask, spread_pct, depth, imbalance, bids, asks
 
 
 # ── Upgrade #9: Dynamic Pair Selection Helpers ────────────────────────────────
@@ -1836,7 +1841,11 @@ def unified_analyse(
 
         # 4. Expensive API calls
         # [T1-02] Use get_order_book_with_volumes (Upgrade #10 imbalance) — was get_order_book
-        best_bid, best_ask, spread, depth, ob_imbalance = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        best_bid, best_ask, spread, depth, ob_imbalance, bids, asks = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+
+        # ── Sector & Spectre Integration ────────────────────────────────────
+        symbol_sector = sector_manager.get_sector(symbol)
+        spectre_data = spectre.analyze_book(bids, asks)
 
         # ── Spread Filter (Upgrade #1) ──────────────────────────────────────
         spread_ok, _ = check_spread_filter(spread, symbol, max_pct=cfg.get("spread_max_pct"))
@@ -1893,7 +1902,7 @@ def unified_analyse(
 
         # 4. Expensive API calls
         # [T1-02] Use get_order_book_with_volumes (Upgrade #10 imbalance) — was get_order_book
-        best_bid, best_ask, spread, depth, ob_imbalance = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        best_bid, best_ask, spread, depth, ob_imbalance, bids, asks = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
 
         # ── Spread Filter (Upgrade #1) ──────────────────────────────────────
         spread_ok, _ = check_spread_filter(spread, symbol, max_pct=cfg.get("spread_max_pct"))
@@ -1904,10 +1913,14 @@ def unified_analyse(
         data = pre_data
         data.spread = spread
         data.ob_imbalance = ob_imbalance
+        data.sector = symbol_sector
+        data.spectre_score = spectre_data.get("spectre_score", 0.0)
 
         # 9. Final Scoring
         try:
             score, signals = score_func(data)
+            # Update sector momentum
+            sector_manager.update_momentum(symbol, score)
         except Exception as e:
             logger.error("  %s: score_func FAILED: %s", symbol, e)
             return None
@@ -1939,6 +1952,7 @@ def unified_analyse(
             "regime": regime, "entropy": entropy, "kalman_price": kalman_price, "kalman_slope": kalman_slope,
             "adx": adx, "poc_price": poc_price,
             "ema200": ema200, "adx": adx, "poc_price": poc_price,
+            "sector": data.sector, "spectre_score": data.spectre_score,
             # ── Upgrade fields ────────────────────────────────────────────────
             "best_bid":    best_bid,       # Upgrade #1 slippage / #10 imbalance
             "best_ask":    best_ask,

@@ -40,7 +40,7 @@ def mock_cfg():
 def test_unified_analyse_long(mock_safe, mock_ob, mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
     """Test unified_analyse for LONG direction."""
     mock_candles_fn.side_effect = lambda symbol, timeframe, limit, rps: mock_candles[:limit]
-    mock_ob.return_value = (100.0, 100.1, 0.1, 1000.0, 1.2) # bid, ask, spread, depth, imbalance    
+    mock_ob.return_value = (100.0, 100.1, 0.1, 1000.0, 1.2, [], []) # bid, ask, spread, depth, imbalance, bids, asks
     # Mock safe_request for funding rate and news
     mock_safe.return_value = MagicMock()
     mock_safe.return_value.json.return_value = {"code": 0, "data": {"fundingRate": "0.0001"}}
@@ -114,7 +114,7 @@ def test_unified_analyse_spread_filter_fail(mock_ob, mock_candles_fn, mock_ticke
 def test_unified_analyse_depth_capture(mock_ob, mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
     """Test that depth is correctly captured and returned in the result."""
     mock_candles_fn.return_value = mock_candles
-    mock_ob.return_value = (100.0, 100.1, 0.1, 5000.0, 1.2) # depth = 5000.0
+    mock_ob.return_value = (100.0, 100.1, 0.1, 5000.0, 1.2, [], []) # depth = 5000.0
     
     with patch("core.phemex_long.score_long") as mock_score:
         mock_score.return_value = (150, ["Signal"])

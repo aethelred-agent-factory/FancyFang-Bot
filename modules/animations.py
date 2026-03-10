@@ -871,6 +871,39 @@ def kill():
     anim.explosion(KILL_TEXT, palette="blood",  duration=2)
     anim.glitch(KILL_TEXT,    palette="void",   duration=2)
 
+def singularity():
+    """Ultra-high conviction animation — a pulsing black hole vortex."""
+    text = " < S I N G U L A R I T Y > "
+    ps   = ParticleSystem()
+
+    def frame(t):
+        buf = ScreenBuffer()
+        tt  = t * 5
+        cx, cy = buf.width // 2, buf.height // 2
+
+        # Pulsing vortex particles
+        for _ in range(10):
+            angle = random.uniform(0, 2*math.pi)
+            dist  = 10 + math.sin(tt)*5 + random.uniform(0, 5)
+            vx = -math.sin(angle) * 2
+            vy = math.cos(angle) * 1
+            ps.emit(cx + math.cos(angle)*dist, cy + math.sin(angle)*dist*0.4,
+                    count=1, vx=vx, vy=vy, life=30, palette="void", glyph_set=["◈","◇","◆"])
+
+        ps.update()
+        ps.render(buf, tt)
+
+        # The core
+        core_size = 5 + math.sin(tt*2)*2
+        for i in range(int(core_size*3)):
+            a = (2*math.pi / (core_size*3)) * i
+            buf.put(cx + math.cos(a)*core_size, cy + math.sin(a)*core_size*0.4, "█", get_ansi_rgb(255,255,255))
+
+        render_text_to_buf(buf, text, "void", tt, glitch=True)
+        buf.flush()
+
+    anim._loop(frame, 4.0)
+
 
 # ══════════════════════════════════════════════════════════════
 #  DEMO  —  run all events in sequence
