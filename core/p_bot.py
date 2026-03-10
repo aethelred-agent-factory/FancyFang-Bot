@@ -1756,6 +1756,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
                 signal_strength=min(predictive_score, 2.0), # Cap predictive score for signal strength input
                 stop_distance=stop_distance,
                 open_positions=_cached_positions,
+                available_liquidity=result.get("depth"),
             )
             # reject_trade check
             reject, reject_reason = risk_mgr.should_reject_trade(risk_usd, _cached_balance, _cached_positions)

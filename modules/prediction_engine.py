@@ -17,6 +17,7 @@ _PREDICTION_WEIGHTS_CONFIG = {
     "norm_fr_change":    {"weight": 0.10, "long_direction": -1, "short_direction": 1}, # -1 means falling FR (less positive / more negative) is bullish for long
     "norm_ob_imbalance": {"weight": 0.15, "long_direction": 1, "short_direction": -1}, # 1 means positive imbalance (bid>ask) is bullish for long
     "norm_bb_pct":       {"weight": 0.10, "long_direction": -1, "short_direction": 1}, # -1 means below mid BB is bullish for long
+    "norm_adx":          {"weight": 0.10, "long_direction": 1, "short_direction": 1},  # trend strength
 }
 
 class PredictionEngine:

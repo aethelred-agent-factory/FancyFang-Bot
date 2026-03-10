@@ -385,6 +385,34 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
             score += 20
             signals.append("Volume-Price Divergence (Hollow Pump)")
 
+    # ── Alpha Enhancements ───────────────────────────────────────────────────
+    # 1. ADX Filter
+    if data.adx is not None:
+        if data.adx > 25:
+            # Strong trend. Check if EMA slope agrees.
+            if data.ema_slope is not None and data.ema_slope < 0:
+                score += 15
+                signals.append(f"Strong Bearish Trend (ADX:{data.adx:.1f})")
+        elif data.adx < 20:
+            # Weak trend, mean-reversion signals are better here.
+            score += 10
+            signals.append(f"Ranging Market — Mean Reversion Favored (ADX:{data.adx:.1f})")
+
+    # 2. POC Distance (Volume Profile)
+    if data.poc_price is not None and data.price is not None:
+        dist_to_poc = pc.pct_change(data.price, data.poc_price)
+        if dist_to_poc > 2.0: # Price is significantly above POC
+            score += 12
+            signals.append(f"Price Above POC ({dist_to_poc:.1f}%) — Gravitational pull down")
+
+    # 3. Regime Scaling
+    if data.regime == "VOLATILE":
+        score -= 20
+        signals.append("Regime: Volatile — High Risk Penalty")
+    elif data.regime == "TRENDING" and data.ema_slope is not None and data.ema_slope < 0:
+        score += 10
+        signals.append("Regime: Bearish Trending")
+
     # ── New Predictive Engine Integration ────────────────────────────────────
     features = feature_builder_short.build_features(data)
     predictive_score = prediction_engine_short.get_prediction_score(features, "SHORT")

@@ -2071,6 +2071,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             signal_strength  = signal_conf,
             stop_distance    = stop_dist,
             open_positions   = state.positions, # List is stable enough for risk check
+            available_liquidity = result.get("depth"),
         )
 
         # Portfolio rejection gate
