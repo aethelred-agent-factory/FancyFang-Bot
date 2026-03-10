@@ -7,62 +7,51 @@ import os
 # Add the root directory to sys.path to import research.backtest as backtest
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from research.backtest import score_long_window, score_short_window
+from research.backtest import score_window_unified
 
 class TestBacktestScoring(unittest.TestCase):
     def setUp(self):
         # 100 periods of neutral data
-        self.neutral_closes = [100.0] * 101
-        self.neutral_highs = [101.0] * 101
-        self.neutral_lows = [99.0] * 101
-        self.neutral_vols = [1000.0] * 101
+        # Window format: (open, high, low, close, volume)
+        self.neutral_window = [(100.0, 101.0, 99.0, 100.0, 1000.0)] * 101
 
     def test_neutral_scoring(self):
         # In a perfectly flat market, score should be low or zero
-        # Note: EMA slope 0 might give some small score in current logic (score += 0? no)
-        # Actually, price < ema200 penalizes long by 15.
-        l_score, l_sigs = score_long_window(
-            self.neutral_closes, self.neutral_highs, self.neutral_lows, self.neutral_vols
-        )
-        s_score, s_sigs = score_short_window(
-            self.neutral_closes, self.neutral_highs, self.neutral_lows, self.neutral_vols
-        )
+        l_score, l_sigs = score_window_unified("BTCUSDT", self.neutral_window, "LONG")
+        s_score, s_sigs = score_window_unified("BTCUSDT", self.neutral_window, "SHORT")
         self.assertLess(l_score, 50)
         self.assertLess(s_score, 50)
 
     def test_long_oversold_rsi(self):
         # Create a price drop to trigger oversold RSI
         closes = [100.0] * 80 + [90.0, 80.0, 70.0, 60.0, 50.0, 40.0, 30.0, 25.0, 20.0, 15.0]
-        # RSI will be very low
-        highs = [c + 1 for c in closes]
-        lows = [c - 1 for c in closes]
-        vols = [1000.0] * len(closes)
+        # Window format: (open, high, low, close, volume)
+        window = [(c, c + 1, c - 1, c, 1000.0) for c in closes]
 
-        l_score, l_sigs = score_long_window(closes, highs, lows, vols)
+        l_score, l_sigs = score_window_unified("BTCUSDT", window, "LONG")
         # Should have rsi_oversold signal
-        self.assertTrue(any("RSI" in s and "oversold" in s for s in l_sigs))
+        self.assertTrue(any("RSI" in s and "Oversold" in s for s in l_sigs))
         self.assertGreater(l_score, 20)
 
     def test_short_overbought_rsi(self):
         # Create a price pump
         closes = [100.0] * 80 + [110.0, 120.0, 130.0, 140.0, 150.0, 160.0, 170.0, 180.0]
-        highs = [c + 1 for c in closes]
-        lows = [c - 1 for c in closes]
-        vols = [1000.0] * len(closes)
+        # Window format: (open, high, low, close, volume)
+        window = [(c, c + 1, c - 1, c, 1000.0) for c in closes]
 
-        s_score, s_sigs = score_short_window(closes, highs, lows, vols)
+        s_score, s_sigs = score_window_unified("BTCUSDT", window, "SHORT")
         # Should have rsi_overbought signal
-        self.assertTrue(any("RSI" in s and "overbought" in s for s in s_sigs))
+        self.assertTrue(any("RSI" in s and "Overbought" in s for s in s_sigs))
         self.assertGreater(s_score, 20)
 
     def test_funding_signals(self):
         # Negative funding should boost long score
-        l_score_base, _ = score_long_window(
-            self.neutral_closes, self.neutral_highs, self.neutral_lows, self.neutral_vols,
+        l_score_base, _ = score_window_unified(
+            "BTCUSDT", self.neutral_window, "LONG",
             funding=0.0
         )
-        l_score_neg, l_sigs = score_long_window(
-            self.neutral_closes, self.neutral_highs, self.neutral_lows, self.neutral_vols,
+        l_score_neg, l_sigs = score_window_unified(
+            "BTCUSDT", self.neutral_window, "LONG",
             funding=-0.001 # -0.1%
         )
         self.assertGreater(l_score_neg, l_score_base)

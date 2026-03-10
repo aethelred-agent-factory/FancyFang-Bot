@@ -91,18 +91,34 @@ def test_unified_analyse_volatility_filter_fail(mock_candles_fn, mock_ticker, mo
         assert result is None
 
 @patch("core.phemex_common.get_candles")
-def test_unified_analyse_spread_filter_fail(mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
+@patch("core.phemex_common.get_order_book_with_volumes")
+def test_unified_analyse_spread_filter_fail(mock_ob, mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
     """Test spread filter in unified_analyse."""
     mock_candles_fn.return_value = mock_candles
+    # Mock OB to return a high spread (1.0%)
+    mock_ob.return_value = (100.0, 101.0, 1.0, 1000.0, 1.0)
     
-    # Mock high spread from ticker
-    # spread = (high - low) / last * 100
-    mock_ticker["highRp"] = "110.0"
-    mock_ticker["lowRp"] = "90.0"
-    mock_ticker["lastRp"] = "100.0"
-    # spread = 20 / 100 * 100 = 20%
+    mock_cfg["spread_max_pct"] = 0.1 # Max allowed 0.1%
     
-    mock_cfg["spread_max_pct"] = 0.1
+    # Ensure it passes the gate first
+    with patch("core.phemex_long.score_long") as mock_score:
+        mock_score.return_value = (150, ["Strong Signal"])
+        result = phemex_long.analyse(mock_ticker, mock_cfg)
+
+        assert result is None
+        # Verify OB was called (reached the filter)
+        assert mock_ob.called
+
+@patch("core.phemex_common.get_candles")
+@patch("core.phemex_common.get_order_book_with_volumes")
+def test_unified_analyse_depth_capture(mock_ob, mock_candles_fn, mock_ticker, mock_candles, mock_cfg):
+    """Test that depth is correctly captured and returned in the result."""
+    mock_candles_fn.return_value = mock_candles
+    mock_ob.return_value = (100.0, 100.1, 0.1, 5000.0, 1.2) # depth = 5000.0
     
-    result = phemex_long.analyse(mock_ticker, mock_cfg)
-    assert result is None
+    with patch("core.phemex_long.score_long") as mock_score:
+        mock_score.return_value = (150, ["Signal"])
+        result = phemex_long.analyse(mock_ticker, mock_cfg)
+
+        assert result is not None
+        assert result["depth"] == 5000.0

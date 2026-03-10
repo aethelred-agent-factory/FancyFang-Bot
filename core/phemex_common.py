@@ -260,6 +260,8 @@ class TickerData:
     slope_change: Optional[float] = None
     news_count: int = 0
     news_titles: List[str] = field(default_factory=list)
+    adx: Optional[float] = None
+    poc_price: Optional[float] = None
     raw_ohlc: List[Tuple[float, float, float, float, float]] = field(default_factory=list)
     vol_24h: float = 0.0
     regime: str = "UNKNOWN"
@@ -587,6 +589,60 @@ def calc_atr(highs: List[float], lows: List[float], closes: List[float], period:
     for i in range(period, len(true_range_list)):
         average_true_range = (average_true_range * (period - 1) + true_range_list[i]) / period
     return average_true_range
+
+def calc_adx(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> Optional[float]:
+    """
+    Calculates Average Directional Index (ADX).
+    Returns value between 0 and 100.
+    > 25: Trending
+    < 20: Ranging/Weak trend
+    """
+    if len(closes) < period * 2:
+        return None
+
+    highs_arr = np.asarray(highs, dtype=float)
+    lows_arr = np.asarray(lows, dtype=float)
+    closes_arr = np.asarray(closes, dtype=float)
+
+    # 1. TR, +DM, -DM
+    up_move = highs_arr[1:] - highs_arr[:-1]
+    down_move = lows_arr[:-1] - lows_arr[1:]
+
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+    h_l = highs_arr[1:] - lows_arr[1:]
+    h_pc = np.abs(highs_arr[1:] - closes_arr[:-1])
+    l_pc = np.abs(lows_arr[1:] - closes_arr[:-1])
+    tr = np.maximum(h_l, np.maximum(h_pc, l_pc))
+
+    # 2. Smooth them using Wilder's smoothing
+    def wilder_smooth(arr, p):
+        smoothed = np.zeros_like(arr)
+        smoothed[p-1] = np.sum(arr[:p])
+        for i in range(p, len(arr)):
+            smoothed[i] = smoothed[i-1] - (smoothed[i-1] / p) + arr[i]
+        return smoothed
+
+    tr_smooth = wilder_smooth(tr, period)
+    plus_dm_smooth = wilder_smooth(plus_dm, period)
+    minus_dm_smooth = wilder_smooth(minus_dm, period)
+
+    # 3. +DI and -DI
+    # Avoid division by zero
+    tr_smooth = np.where(tr_smooth == 0, 1e-10, tr_smooth)
+    plus_di = 100.0 * (plus_dm_smooth / tr_smooth)
+    minus_di = 100.0 * (minus_dm_smooth / tr_smooth)
+
+    # 4. DX and ADX
+    sum_di = plus_di + minus_di
+    sum_di = np.where(sum_di == 0, 1e-10, sum_di)
+    dx = 100.0 * (np.abs(plus_di - minus_di) / sum_di)
+
+    # ADX is the mean of DX over the period
+    adx = wilder_smooth(dx[period-1:], period) / period
+
+    return float(adx[-1])
 
 def calc_market_regime(closes: List[float], period: int = 20) -> Tuple[str, float]:
     """
@@ -1675,12 +1731,35 @@ def unified_analyse(
                 return None
 
             vol_spike = calc_volume_spike(vols)
+            adx = calc_adx(highs, lows, closes)
             regime, entropy = calc_market_regime(closes)
             kalman_series = calc_kalman_series(closes)
             kalman_price  = kalman_series[-1] if kalman_series else None
             kalman_slope  = kalman_series[-1] - kalman_series[-2] if len(kalman_series) >= 2 else 0.0
+
+            # Pattern & Divergence detection (Moved up for pre-score gate)
+            raw_patterns = detect_patterns_func(ohlc)
+            has_div = detect_div_func(closes, rsi_hist)
+
         except Exception as e:
             logger.error(f"  {symbol}: Indicator calculation failed: {e}")
+            return None
+
+        # 3.5 Pre-score gate (Performance Optimization)
+        # Avoid expensive API calls if basic indicators don't show potential.
+        data_pre = TickerData(
+            inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
+            change_24h=pct_change(last, open24), funding_rate=funding_rate, patterns=raw_patterns,
+            dist_low_pct=pct_change(last, low24), dist_high_pct=pct_change(last, high24),
+            vol_spike=vol_spike, has_div=has_div, rsi_1h=None, rsi_4h=None,
+            fr_change=funding_rate_change or 0.0, spread=None,
+            ema_slope=ema_slope, slope_change=slope_change,
+            adx=adx, poc_price=None,
+            raw_ohlc=ohlc[-10:], vol_24h=vol24,
+            regime=regime, entropy=entropy, kalman_slope=kalman_slope,
+        )
+        pre_score, _ = score_func(data_pre)
+        if pre_score < cfg.get("score_threshold", _PRE_SCORE_GATE_DEFAULT):
             return None
 
         # 4. Expensive API calls
@@ -1717,9 +1796,6 @@ def unified_analyse(
             if cl4h:
                 rsi_4h, _, _ = calc_rsi(cl4h)
 
-        # 7. Pattern & Divergence detection
-        raw_patterns = detect_patterns_func(ohlc)
-        has_div = detect_div_func(closes, rsi_hist)
 
         # 8. Data Aggregation — full TickerData with all upgrade fields populated
         data = TickerData(
@@ -1730,6 +1806,7 @@ def unified_analyse(
             fr_change=funding_rate_change or 0.0, spread=spread,
             dist_to_node_below=dist_to_node_below, dist_to_node_above=dist_to_node_above,
             ema_slope=ema_slope, slope_change=slope_change,
+            adx=adx, poc_price=poc_price,
             raw_ohlc=ohlc[-10:], vol_24h=vol24,
             regime=regime, entropy=entropy, kalman_slope=kalman_slope,
         )
@@ -1766,9 +1843,11 @@ def unified_analyse(
             "ema_slope": ema_slope, "slope_change": slope_change, "fr_change": funding_rate_change,
             "rsi_1h": rsi_1h, "rsi_4h": rsi_4h, "scan_timestamp": now_utc_iso,
             "regime": regime, "entropy": entropy, "kalman_price": kalman_price, "kalman_slope": kalman_slope,
+            "adx": adx, "poc_price": poc_price,
             # ── Upgrade fields ────────────────────────────────────────────────
             "best_bid":    best_bid,       # Upgrade #1 slippage / #10 imbalance
             "best_ask":    best_ask,
+            "depth":       depth,          # Upgrade #17: Liquidity Guard 2.0
             "ob_imbalance": ob_imbalance,  # Upgrade #10: order book imbalance ratio
             # ── Audit fields (Upgrade #16) ───────────────────────────────────
             "raw_signals": {
@@ -1781,7 +1860,9 @@ def unified_analyse(
                 "ob_imbalance": ob_imbalance,
                 "funding_rate": funding_rate,
                 "rsi_1h": rsi_1h,
-                "rsi_4h": rsi_4h
+                "rsi_4h": rsi_4h,
+                "adx": adx,
+                "poc_price": poc_price
             }
         }
 

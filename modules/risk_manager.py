@@ -134,8 +134,21 @@ class RiskManager:
         stop_distance: Optional[float] = None,
         open_positions: Optional[List[Dict[str, Any]]] = None,
         risk_model: Optional[str] = None,
+        available_liquidity: Optional[float] = None,
+        max_liquidity_ratio: float = 0.10,
     ) -> Tuple[float, float]:
-        """Compute the risk amount (USD) and resulting position size for a new trade."""
+        """
+        Compute the risk amount (USD) and resulting position size for a new trade.
+
+        Args:
+            account_balance      : current account balance in USDT
+            signal_strength      : raw score or confidence value
+            stop_distance        : fraction (e.g. 0.02 for 2% SL)
+            open_positions       : list of existing position dicts
+            risk_model           : override for global RISK_MODEL
+            available_liquidity  : total USD depth from order book (Liquidity Guard 2.0)
+            max_liquidity_ratio  : max fraction of depth to occupy (default 10%)
+        """
         model = (risk_model or RISK_MODEL).lower()
         open_positions = open_positions or []
 
@@ -161,6 +174,20 @@ class RiskManager:
         if stop_distance and stop_distance > 0 and risk_amount > 0:
             position_size = risk_amount / stop_distance
 
+        # ── Liquidity Guard 2.0 ─────────────────────────────────────────────
+        # If order book depth is provided, cap the notional position size to
+        # avoid excessive slippage on entry and exit.
+        if available_liquidity is not None and available_liquidity > 0:
+            max_safe_size = available_liquidity * max_liquidity_ratio
+            if position_size > max_safe_size:
+                logger.info(
+                    f"risk_manager: Liquidity Guard capping size {position_size:.2f} "
+                    f"-> {max_safe_size:.2f} (depth: {available_liquidity:.2f})"
+                )
+                position_size = max_safe_size
+                # Recalculate risk_amount based on capped size
+                risk_amount = position_size * (stop_distance or 0.0)
+
         return risk_amount, position_size
 
     def should_reject_trade(
@@ -183,8 +210,19 @@ _instance = RiskManager()
 def record_trade_result(pnl: float) -> None:
     _instance.record_trade_result(pnl)
 
-def compute_dynamic_risk(*args, **kwargs) -> Tuple[float, float]:
-    return _instance.compute_dynamic_risk(*args, **kwargs)
+def compute_dynamic_risk(
+    account_balance: float,
+    signal_strength: float,
+    stop_distance: Optional[float] = None,
+    open_positions: Optional[List[Dict[str, Any]]] = None,
+    risk_model: Optional[str] = None,
+    available_liquidity: Optional[float] = None,
+    max_liquidity_ratio: float = 0.10,
+) -> Tuple[float, float]:
+    return _instance.compute_dynamic_risk(
+        account_balance, signal_strength, stop_distance,
+        open_positions, risk_model, available_liquidity, max_liquidity_ratio
+    )
 
 def should_reject_trade(*args, **kwargs) -> Tuple[bool, str]:
     return _instance.should_reject_trade(*args, **kwargs)

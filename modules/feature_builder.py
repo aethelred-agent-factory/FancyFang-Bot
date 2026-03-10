@@ -18,6 +18,7 @@ class FeatureBuilder:
         self._norm_fr_change = pc.RollingNormalizer(window=100)
         self._norm_ob_imbalance = pc.RollingNormalizer(window=100)
         self._norm_bb_pct = pc.RollingNormalizer(window=100)
+        self._norm_adx = pc.RollingNormalizer(window=100)
 
     def build_features(self, data: pc.TickerData) -> Dict[str, float]:
         features = {}
@@ -49,6 +50,10 @@ class FeatureBuilder:
                 bb_pct = (data.price - data.bb["lower"]) / bb_range
                 features["norm_bb_pct"] = self._norm_bb_pct.update_and_score(bb_pct - 0.5)
 
+        # Normalized ADX
+        if data.adx is not None:
+            features["norm_adx"] = self._norm_adx.update_and_score(data.adx)
+
         return features
 
     def reset_normalizers(self):
@@ -59,3 +64,4 @@ class FeatureBuilder:
         self._norm_fr_change.reset()
         self._norm_ob_imbalance.reset()
         self._norm_bb_pct.reset()
+        self._norm_adx.reset()
