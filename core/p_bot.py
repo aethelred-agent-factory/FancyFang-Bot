@@ -92,6 +92,9 @@ from modules.storage_manager import StorageManager
 # ── Global Control ───────────────────────────────────────────────────
 _running = True
 _shutdown_requested = False
+_session_wins = 0
+_session_losses = 0
+_session_total_pnl = 0.0
 
 def handle_exit(signum, frame):
     """Force an immediate exit on signal, ensuring loops are terminated."""
@@ -908,6 +911,14 @@ def _cache_refresher():
                             send_telegram_message(msg)
                             logger.info(msg)
 
+                            # Update session stats
+                            global _session_wins, _session_losses, _session_total_pnl
+                            if realized_pnl > 0:
+                                _session_wins += 1
+                            elif realized_pnl < 0:
+                                _session_losses += 1
+                            _session_total_pnl += realized_pnl
+
                             log_trade({
                                 "timestamp": now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
                                 "symbol": sym,
@@ -1023,6 +1034,51 @@ def _update_pnl_history(symbol: str, current_upnl: float):
     _pnl_histories[symbol].append(current_upnl)
     if len(_pnl_histories[symbol]) > 200:
         _pnl_histories[symbol].pop(0)
+
+def _get_tui_logs() -> str:
+    """Returns the last 15 lines of system logs as a single string."""
+    return "\n".join(list(_bot_logs)[-15:])
+
+def _manual_tg_scan() -> str:
+    """Triggers a manual dual-direction scan and returns a formatted report for Telegram."""
+    # Use current bot config
+    cfg = {
+        "MIN_VOLUME": MIN_VOLUME,
+        "TIMEFRAME":  TIMEFRAME,
+        "CANDLES":    500,
+        "TOP_N":      5,
+        "MIN_SCORE":  0,
+        "MAX_WORKERS": MAX_WORKERS,
+        "RATE_LIMIT_RPS": RATE_LIMIT_RPS,
+    }
+    # Create a dummy args for scanner
+    class DummyArgs:
+        no_ai = True
+        no_entity = True
+
+    try:
+        long_r, short_r = run_scanner_both(cfg, DummyArgs())
+
+        # Format a brief report
+        lines = [f"🔍 *Manual Scan ({TIMEFRAME})*"]
+
+        tagged_long  = [dict(r, _dir="LONG")  for r in long_r]
+        tagged_short = [dict(r, _dir="SHORT") for r in short_r]
+        combined = sorted(tagged_long + tagged_short, key=lambda x: x["score"], reverse=True)
+
+        top = combined[:8]
+        if not top:
+            lines.append("No instruments found matching volume criteria.")
+        else:
+            for r in top:
+                direction = r.get("_dir", "?")
+                arrow = "▲" if direction == "LONG" else "▼"
+                lines.append(f"{arrow} `{r['inst_id']}` | Score: `{r['score']}` | Price: `{r['price']:.5g}`")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Scan failed: {e}"
+
 
 def _live_pnl_display():
     """Full-screen TUI dashboard using blessed."""
@@ -2344,7 +2400,8 @@ def bot_loop(args):
             except Exception as error:
                 logger.error(f"Cache refresher thread crashed: {error}\n{traceback.format_exc()}")
 
-        threading.Thread(target=_display_wrapper, daemon=True).start()
+        if not getattr(args, 'no_tui', False):
+            threading.Thread(target=_display_wrapper, daemon=True).start()
         threading.Thread(target=_cache_wrapper, daemon=True).start()
 
     # ── Drawdown guard initialisation ────────────────────────────────
@@ -2358,16 +2415,30 @@ def bot_loop(args):
             return _cached_balance
         def _get_live_positions():
             return _cached_positions
-        def _get_session_pnl():
-            return sum(p.get("pnl", 0.0) for p in _cached_positions)
-        telegram.start(_get_live_balance, _get_live_positions, _get_session_pnl)
+        def _get_live_stats():
+            with _cache_lock:
+                upnl = sum(p.get("pnl", 0.0) for p in _cached_positions)
+            return {
+                "wins": _session_wins,
+                "losses": _session_losses,
+                "total_pnl": _session_total_pnl + upnl
+            }
+
+        telegram.start(
+            get_balance_fn     = _get_live_balance,
+            get_positions_fn   = _get_live_positions,
+            get_session_pnl_fn = _get_live_stats,
+            get_logs_fn        = _get_tui_logs,
+            run_scan_fn        = _manual_tg_scan
+        )
         logger.info("[TG] Telegram controller started")
 
     scan_number = 0
     # ── Main Bot Execution Loop ──────────────────────────────────────
     while _running:
         try:
-            _process_animations()
+            if not getattr(args, 'no_tui', False):
+                _process_animations()
             # ── Time-of-day Profitability Filter ──
             if pc.is_hour_blocked():
                 curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
@@ -2941,6 +3012,7 @@ def main():
     run_p.add_argument("--no-ai",     action="store_true", help="Disable AI commentary")
     run_p.add_argument("--no-entity", action="store_true", help="Disable Entity API")
     run_p.add_argument("--no-dynamic", action="store_true", help="Disable adaptive score filtering")
+    run_p.add_argument("--no-tui",     action="store_true", help="Run without the full-screen TUI dashboard")
 
     # ── deploy: single scan + exit ───────────────────────────────────
     deploy_p = sub.add_parser("deploy", help="Run one scan and optionally execute, then exit")
