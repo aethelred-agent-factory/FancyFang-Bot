@@ -343,6 +343,50 @@ def tui_log(msg: str, event_type: str = "SIM") -> None:
     # Ensure it also goes into our local logger which is hooked to the TUI deque
     logger.info(msg)
 
+def _get_tui_logs() -> str:
+    """Returns the last 15 lines of system logs as a single string."""
+    return "\n".join(list(_bot_logs)[-15:])
+
+def _manual_tg_scan(args) -> str:
+    """Triggers a manual dual-direction scan and returns a formatted report for Telegram."""
+    # Use current bot config
+    cfg = {
+        "MIN_VOLUME":     args.min_vol,
+        "TIMEFRAME":      args.timeframe,
+        "TOP_N":          5,
+        "MIN_SCORE":      0,
+        "MAX_WORKERS":    args.workers,
+        "RATE_LIMIT_RPS": args.rate,
+        "CANDLES":        500,
+    }
+    # Create a dummy args for scanner
+    class DummyArgs:
+        no_ai = True
+        no_entity = True
+
+    try:
+        long_r, short_r = p_bot.run_scanner_both(cfg, DummyArgs())
+
+        # Format a brief report
+        lines = [f"🔍 *SIM Manual Scan ({args.timeframe})*"]
+
+        tagged_long  = [dict(r, _dir="LONG")  for r in long_r]
+        tagged_short = [dict(r, _dir="SHORT") for r in short_r]
+        combined = sorted(tagged_long + tagged_short, key=lambda x: x["score"], reverse=True)
+
+        top = combined[:8]
+        if not top:
+            lines.append("No instruments found matching criteria.")
+        else:
+            for r in top:
+                direction = r.get("_dir", "?")
+                arrow = "▲" if direction == "LONG" else "▼"
+                lines.append(f"{arrow} `{r['inst_id']}` | Score: `{r['score']}` | Price: `{r['price']:.5g}`")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Scan failed: {e}"
+
 
 def play_animation(anim_fn):
     """Queues a cinematic animation to be played safely."""
@@ -1694,7 +1738,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     _ensure_ws_started()
 
     with state.lock:
-        if not state.display_thread_running:
+        if not state.display_thread_running and not getattr(args, 'no_tui', False):
             state.display_thread_running = True
             # REF: [Tier 1] Critical Thread Error Handling
             def _display_wrapper():
@@ -1870,6 +1914,8 @@ def sim_bot_loop(args) -> None:
 
     while _running:
         try:
+            if not getattr(args, 'no_tui', False):
+                _process_animations()
             # ── Time-of-day Profitability Filter ──
             if pc.is_hour_blocked():
                 curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
@@ -2027,6 +2073,7 @@ def main() -> None:
     parser.add_argument("--no-ai",          action="store_true")
     parser.add_argument("--no-entity",      action="store_true")
     parser.add_argument("--no-dynamic",     action="store_true")
+    parser.add_argument("--no-tui",         action="store_true", help="Run without the full-screen TUI dashboard")
     args = parser.parse_args()
 
     print(Fore.GREEN + Style.BRIGHT + "  🚀 Phemex SIMULATION Bot Starting (Paper Trading)")
@@ -2054,6 +2101,8 @@ def main() -> None:
             get_balance_fn     = get_sim_balance,
             get_positions_fn   = get_sim_positions,
             get_session_pnl_fn = _session_pnl_fn,
+            get_logs_fn        = _get_tui_logs,
+            run_scan_fn        = lambda: _manual_tg_scan(args)
         )
         logger.info("telegram_controller: started")
 

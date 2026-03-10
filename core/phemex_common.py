@@ -1883,11 +1883,6 @@ def unified_analyse(
             raw_ohlc=ohlc[-10:], vol_24h=vol24, regime=regime, entropy=entropy,
             kalman_slope=kalman_slope, ema200=ema200,
             adx=adx, poc_price=poc_price,
-            raw_ohlc=ohlc[-10:], vol_24h=vol24,
-            regime=regime, entropy=entropy, kalman_slope=kalman_slope,
-            ema200=ema200,
-            adx=adx,
-            poc_price=poc_price,
         )
         pre_score, _ = score_func(pre_data)
 

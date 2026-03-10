@@ -41,9 +41,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import logging
 import os
+import re
 import threading
 import time
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
@@ -65,14 +66,22 @@ _halted      = False   # manual /stop override
 _thread: Optional[threading.Thread] = None
 
 # Injected callbacks — set by start()
-_get_balance:   Optional[Callable[[], float]]       = None
-_get_positions: Optional[Callable[[], List[dict]]]  = None
+_get_balance:     Optional[Callable[[], float]]       = None
+_get_positions:   Optional[Callable[[], List[dict]]]  = None
 _get_session_pnl: Optional[Callable[[], dict]]      = None    # optional
-
+_get_logs:        Optional[Callable[[], str]]         = None    # optional
+_run_scan:        Optional[Callable[[], str]]        = None    # optional
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
+
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+def strip_ansi(s: str) -> str:
+    """Strip ANSI escape sequences from a string."""
+    return ANSI_ESCAPE.sub('', s)
+
 
 def _send(text: str) -> None:
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
@@ -151,12 +160,18 @@ def _handle_status(chat_id: str) -> None:
         halt_str = "🛑 HALTED (manual /stop)" if _halted else "🟢 ACTIVE"
 
     balance = _get_balance() if _get_balance else 0.0
-    n_pos   = len(_get_positions()) if _get_positions else "?"
+    positions = _get_positions() if _get_positions else []
+    n_pos = len(positions)
+
+    upnl = sum(p.get("pnl", 0.0) for p in positions)
+    equity = balance + upnl
 
     msg = (
         "📊 *Bot Status*\n\n"
         f"Status: `{halt_str}`\n"
         f"Balance: `{balance:.4f}` USDT\n"
+        f"Unrealised PnL: `{upnl:+.4f}` USDT\n"
+        f"Equity: `{equity:.4f}` USDT\n"
         f"Open positions: `{n_pos}`\n\n"
         f"{dd_line}"
     )
@@ -195,12 +210,62 @@ def _handle_positions(chat_id: str) -> None:
         entry = p.get("entry", 0.0)
         pnl   = p.get("pnl", 0.0)
         score = p.get("entry_score", "?")
-        arrow = "🟢▲" if side == "Buy" else "🔴▼"
+        arrow = "🟢▲" if side == "Buy" or side == "Long" else "🔴▼"
         lines.append(
             f"{arrow} `{sym}` | Entry: `{entry:.5g}` | "
             f"PnL: `{pnl:+.4f}` | Score: `{score}`"
         )
     _send("\n".join(lines))
+
+
+def _handle_logs(chat_id: str) -> None:
+    if _get_logs:
+        raw_logs = _get_logs()
+        clean_logs = strip_ansi(raw_logs)
+        if not clean_logs.strip():
+            _send("Empty logs.")
+        else:
+            _send(f"📜 *Recent Logs*\n```\n{clean_logs}\n```")
+    else:
+        _send("_Log callback not registered._")
+
+
+def _handle_scan(chat_id: str) -> None:
+    if _run_scan:
+        _send("🔍 *Initiating manual scan...* (This may take ~30-60s)")
+        try:
+            report = _run_scan()
+            _send(f"✅ *Scan Complete*\n\n{strip_ansi(report)}")
+        except Exception as e:
+            _send(f"❌ *Scan Failed:* {e}")
+    else:
+        _send("_Scan callback not registered._")
+
+
+def _handle_snapshot(chat_id: str) -> None:
+    """Aggregates status, profit, and positions into one message."""
+    _handle_status(chat_id)
+    _handle_profit(chat_id)
+    _handle_positions(chat_id)
+
+
+def _handle_help(chat_id: str) -> None:
+    help_text = (
+        "🤖 *FancyFangBot Help*\n\n"
+        "Commands:\n"
+        "• /start — Enable new trade entry\n"
+        "• /stop — Halt new trade entry\n"
+        "• /status — Current bot status, balance, equity\n"
+        "• /profit — Session PnL summary\n"
+        "• /positions — List open positions\n"
+        "• /snapshot — Complete state overview\n"
+        "• /scan — Run a fresh manual market scan\n"
+        "• /logs — Show recent system log lines\n"
+        "• /block [mins] — Manually suppress trading\n"
+        "• /unblock — Clear manual block\n"
+        "• /help — Show this help message"
+    )
+    _send(help_text)
 
 
 def _handle_block(chat_id: str, text: str) -> None:
@@ -229,6 +294,10 @@ _COMMAND_MAP: Dict[str, Callable] = {
     "/status":    _handle_status,
     "/profit":    _handle_profit,
     "/positions": _handle_positions,
+    "/snapshot":  _handle_snapshot,
+    "/scan":      _handle_scan,
+    "/logs":      _handle_logs,
+    "/help":      _handle_help,
     "/block":     _handle_block,
     "/unblock":   _handle_unblock,
 }
@@ -245,11 +314,11 @@ def _poll_loop() -> None:
         updates = _get_updates()
         for upd in updates:
             msg = upd.get("message", {})
-            raw_text = (msg.get("text") or "").strip().lower()
+            raw_text = (msg.get("text") or "").strip()
             if not raw_text:
                 continue
             parts = raw_text.split()
-            cmd = parts[0]
+            cmd = parts[0].lower()
             chat_id = str(msg.get("chat", {}).get("id", ""))
             # Only respond to the configured chat ID (security gate)
             if TG_CHAT_ID and chat_id != str(TG_CHAT_ID):
@@ -259,17 +328,23 @@ def _poll_loop() -> None:
             handler = _COMMAND_MAP.get(cmd)
             if handler:
                 logger.info(f"tg_controller: handling command '{cmd}'")
-                try:
-                    if cmd == "/block":
-                        handler(chat_id, raw_text)
-                    else:
-                        handler(chat_id)
-                except Exception as e:
-                    logger.error(f"tg_controller: handler error for '{cmd}': {e}")
+                # Run handler in a separate thread to keep poll loop responsive
+                def _wrap(h=handler, c_id=chat_id, txt=raw_text, c=cmd):
+                    try:
+                        if c == "/block":
+                            h(c_id, txt)
+                        else:
+                            h(c_id)
+                    except Exception as e:
+                        logger.error(f"tg_controller: handler error for '{c}': {e}")
+                        _send(f"⚠️ Error executing {c}: {e}")
+
+                threading.Thread(target=_wrap, daemon=True).start()
+
             elif cmd.startswith("/"):
                 _send(
                     f"Unknown command: `{cmd}`\n"
-                    f"Available: /start /stop /status /profit /positions /block /unblock"
+                    f"Available: " + " ".join(_COMMAND_MAP.keys())
                 )
         time.sleep(1)
     logger.info("tg_controller: poll loop stopped")
@@ -283,6 +358,8 @@ def start(
     get_balance_fn:     Callable[[], float],
     get_positions_fn:   Callable[[], List[dict]],
     get_session_pnl_fn: Optional[Callable[[], dict]] = None,
+    get_logs_fn:        Optional[Callable[[], str]] = None,
+    run_scan_fn:        Optional[Callable[[], str]] = None,
 ) -> None:
     """
     Start the Telegram control interface in a daemon thread.
@@ -292,8 +369,10 @@ def start(
         get_positions_fn    : callable returning list of open position dicts
         get_session_pnl_fn  : optional callable returning session stats dict
                               with keys: wins, losses, total_pnl
+        get_logs_fn         : optional callable returning recent log lines (str)
+        run_scan_fn         : optional callable executing manual scan (returns str)
     """
-    global _running, _thread, _get_balance, _get_positions, _get_session_pnl
+    global _running, _thread, _get_balance, _get_positions, _get_session_pnl, _get_logs, _run_scan
 
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
         logger.warning("tg_controller: TG_BOT_TOKEN or TG_CHAT_ID not set — Telegram control disabled")
@@ -302,6 +381,8 @@ def start(
     _get_balance     = get_balance_fn
     _get_positions   = get_positions_fn
     _get_session_pnl = get_session_pnl_fn
+    _get_logs        = get_logs_fn
+    _run_scan        = run_scan_fn
 
     with _lock:
         if _running:
