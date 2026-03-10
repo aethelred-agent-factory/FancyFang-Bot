@@ -276,3 +276,47 @@ def render_pnl_chart(
 
     return lines
 
+def render_price_line(
+    current_price: float,
+    stop_price: float,
+    take_profit: float,
+    pnl_val: float,
+    width: int = 40,
+) -> str:
+    """
+    Renders a line showing current price position relative to SL and TP.
+    Shows the PnL amount moving across the line.
+    [X] -------- $0.45 -------- [$]
+    """
+    # X = Stop Loss, $ = Take Profit
+    # Range is from stop_price to take_profit
+    total_range = abs(take_profit - stop_price) or 1e-10
+    
+    # Calculate progress (0.0 at SL, 1.0 at TP)
+    if stop_price < take_profit: # LONG
+        progress = (current_price - stop_price) / total_range
+    else: # SHORT
+        progress = (stop_price - current_price) / total_range
+        
+    progress = max(0.0, min(1.0, progress))
+    
+    # Inner width for the line (excluding ends)
+    inner_w = width - 6
+    pos = int(progress * inner_w)
+    
+    pnl_str = f" {pnl_color(pnl_val)}${abs(pnl_val):.2f}{Style.RESET_ALL} "
+    pnl_len = len(strip_ansi(pnl_str))
+    
+    # Center the PnL string around the progress position
+    start_pnl = pos - (pnl_len // 2)
+    start_pnl = max(0, min(inner_w - pnl_len, start_pnl))
+    
+    line = list("─" * inner_w)
+    # We don't actually put the string in the list, we'll slice it in
+    
+    left_part = "─" * start_pnl
+    right_part = "─" * (inner_w - start_pnl - pnl_len)
+    
+    full_line = f"{Fore.RED}[X]{Style.RESET_ALL} {Fore.CYAN}{left_part}{Style.RESET_ALL}{pnl_str}{Fore.CYAN}{right_part}{Style.RESET_ALL} {Fore.GREEN}[$]{Style.RESET_ALL}"
+    return full_line
+

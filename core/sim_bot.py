@@ -916,7 +916,9 @@ def _live_pnl_display() -> None:
                 f" Equity: {Style.BRIGHT}${equity:.2f}{Style.RESET_ALL}",
                 f" Entropy Penalty: {Fore.MAGENTA}{state.entropy_penalty:.2f}{Style.RESET_ALL}"
             ]
-            print(term.move_xy(2, y) + ui.modern_panel("ACCOUNT", summary_lines, width=left_w))
+            
+            account_panel = ui.modern_panel("ACCOUNT", summary_lines, width=left_w)
+            print(term.move_xy(2, y) + account_panel)
             y += len(summary_lines) + 3
 
             # 2. Positions
@@ -924,7 +926,12 @@ def _live_pnl_display() -> None:
                 print(term.move_xy(2, y) + ui.modern_panel("POSITIONS", [Fore.WHITE + " Idle..."], width=left_w))
                 y += 4
             else:
-                for pos in positions:
+                # Calculate how many positions we can show
+                remaining_h = (term.height - 2) - y - 10 # 10 lines for logs and footer
+                pos_h = 7 # Entry, RSI/ADX, POC, Chart(2), PriceLine, Spacing
+                max_show = max(1, remaining_h // pos_h)
+                
+                for pos in positions[:max_show]:
                     sym = pos["symbol"]
                     now = live_prices.get(sym)
                     if not now:
@@ -934,6 +941,15 @@ def _live_pnl_display() -> None:
                     upnl = (now - pos['entry']) * pos['size'] if pos['side'] == "Buy" else (pos['entry'] - now) * pos['size']
                     hist = state.pnl_histories.get(sym, [0.0])
                     chart = ui.render_pnl_chart(hist, width=left_w-20, height=2)
+
+                    # Price Line System
+                    price_line = ui.render_price_line(
+                        current_price=now,
+                        stop_price=pos.get("stop_price", pos['entry']*0.9),
+                        take_profit=pos.get("take_profit", pos['entry']*1.1),
+                        pnl_val=upnl,
+                        width=left_w-4
+                    )
 
                     # Extract macro metrics from raw_signals if present
                     raw = pos.get("raw_signals", {})
@@ -951,20 +967,30 @@ def _live_pnl_display() -> None:
                     info = [
                         f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Lev: {pos.get('leverage','?')}x",
                         f" {rsi_str} | {adx_str} | {spr_str}",
-                        f" {chart[0]}", f" {chart[1]}"
+                        f" {chart[0]}", f" {chart[1]}",
+                        f" {price_line}"
                     ]
                     
                     if poc_px:
                         dist_poc = (now - poc_px) / poc_px * 100.0
                         info.insert(2, f" POC: {poc_px:.5g} (Dist: {dist_poc:+.2f}%)")
 
-                    print(term.move_xy(2, y) + ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA))
+                    panel = ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA)
+                    print(term.move_xy(2, y) + panel)
                     y += len(info) + 2
 
+                if len(positions) > max_show:
+                    print(term.move_xy(2, y) + term.italic_white(f"  ... and {len(positions) - max_show} more positions hidden"))
+                    y += 2
+
             # 3. Logs
+            # Dynamically size logs to fill remaining space
+            logs_y = term.height - 8
+            if y > logs_y: y = logs_y # Force if we overflowed
+            
             log_lines = list(_bot_logs)[-5:]
             while len(log_lines) < 5: log_lines.insert(0, "")
-            print(term.move_xy(2, y) + ui.modern_panel("LOGS", log_lines, width=left_w, color=Fore.WHITE))
+            print(term.move_xy(2, logs_y) + ui.modern_panel("LOGS", log_lines, width=left_w, color=Fore.WHITE))
 
             # --- Right Column: History ---
             hist_lines = []
