@@ -74,6 +74,8 @@ ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 def strip_ansi(s):
     return ANSI_ESCAPE.sub('', s)
 
+import matplotlib
+matplotlib.use('Agg')
 import random
 import requests
 import sys
@@ -92,6 +94,11 @@ from modules.storage_manager import StorageManager
 # ── Global Control ───────────────────────────────────────────────────
 _running = True
 _shutdown_requested = False
+_session_wins = 0
+_session_losses = 0
+_session_total_pnl = 0.0
+_session_equity_history = []
+_equity_lock = threading.Lock()
 
 def handle_exit(signum, frame):
     """Force an immediate exit on signal, ensuring loops are terminated."""
@@ -908,6 +915,19 @@ def _cache_refresher():
                             send_telegram_message(msg)
                             logger.info(msg)
 
+                            # Update session stats
+                            global _session_wins, _session_losses, _session_total_pnl
+                            if realized_pnl > 0:
+                                _session_wins += 1
+                            elif realized_pnl < 0:
+                                _session_losses += 1
+                            _session_total_pnl += realized_pnl
+
+                            with _equity_lock:
+                                with _cache_lock:
+                                    current_equity = _cached_balance + sum(p.get("pnl", 0.0) for p in _cached_positions)
+                                _session_equity_history.append(current_equity)
+
                             log_trade({
                                 "timestamp": now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
                                 "symbol": sym,
@@ -1023,6 +1043,136 @@ def _update_pnl_history(symbol: str, current_upnl: float):
     _pnl_histories[symbol].append(current_upnl)
     if len(_pnl_histories[symbol]) > 200:
         _pnl_histories[symbol].pop(0)
+
+def _get_tui_logs() -> str:
+    """Returns the last 15 lines of system logs as a single string."""
+    return "\n".join(list(_bot_logs)[-15:])
+
+def _get_session_chart() -> Optional[str]:
+    """Generates a PnL chart using matplotlib and returns the file path."""
+    try:
+        import matplotlib.pyplot as plt
+        import os
+
+        with _equity_lock:
+            data = list(_session_equity_history)
+
+        if not data:
+            # If no trades yet, use initial balance
+            data = [_cached_balance] if _cached_balance > 0 else [100.0]
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(data, marker='o', linestyle='-', color='b')
+        plt.title(f"Session Equity Curve ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')})")
+        plt.xlabel("Trade Count")
+        plt.ylabel("Equity (USDT)")
+        plt.grid(True)
+
+        logs_dir = Path(SCRIPT_DIR).parent / "data" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        chart_path = logs_dir / f"session_chart_{int(time.time())}.png"
+        plt.savefig(chart_path)
+        plt.close()
+
+        return str(chart_path)
+    except Exception as e:
+        logger.error(f"Failed to generate chart: {e}")
+        return None
+
+def _run_manual_backtest(text: str) -> str:
+    """Parses backtest command and runs a mini backtest."""
+    import research.backtest as bt
+
+    parts = text.split()
+    # /backtest [symbol] [timeframe] [candles]
+    symbol = parts[1].upper() if len(parts) > 1 else "BTCUSDT"
+    tf = parts[2] if len(parts) > 2 else TIMEFRAME
+    candles = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 300
+
+    try:
+        # Fetch data for backtest
+        ohlc_rows = bt.get_candles(symbol, timeframe=tf, limit=candles)
+        spread = bt.get_spread_pct(symbol)
+        funding = bt.get_funding(symbol)
+        rsi_1h = bt.get_htf_rsi(symbol)
+
+        if not ohlc_rows or len(ohlc_rows) < 110:
+            return f"❌ Insufficient data for {symbol} ({len(ohlc_rows)} candles)"
+
+        trades = bt.backtest_symbol(
+            symbol, ohlc_rows, spread, funding, rsi_1h,
+            min_score=MIN_SCORE, trail_pct=TRAIL_PCT, leverage=LEVERAGE,
+            margin=MARGIN_USDT, max_margin=150.0,
+            direction=DIRECTION
+        )
+
+        if not trades:
+            return f"No trades triggered for {symbol} ({tf}, {candles} candles)."
+
+        # Format brief report
+        win_trades = [t for t in trades if t.pnl_usdt > 0]
+        total_pnl = sum(t.pnl_usdt for t in trades)
+
+        report = [
+            f"🧪 *Backtest Results: {symbol}*",
+            f"Period: `{candles}` candles (`{tf}`)",
+            f"Trades: `{len(trades)}`",
+            f"Win Rate: `{len(win_trades)/len(trades)*100:.1f}%`",
+            f"Total PnL: `{total_pnl:+.4f} USDT`",
+            "",
+            "Recent Trades:"
+        ]
+
+        for t in trades[-5:]:
+            emoji = "✅" if t.pnl_usdt > 0 else "❌"
+            report.append(f"{emoji} {t.direction} | PnL: `{t.pnl_usdt:+.2f}`")
+
+        return "\n".join(report)
+    except Exception as e:
+        logger.error(f"Backtest callback error: {e}")
+        return f"Error: {e}"
+
+
+def _manual_tg_scan() -> str:
+    """Triggers a manual dual-direction scan and returns a formatted report for Telegram."""
+    # Use current bot config
+    cfg = {
+        "MIN_VOLUME": MIN_VOLUME,
+        "TIMEFRAME":  TIMEFRAME,
+        "CANDLES":    500,
+        "TOP_N":      5,
+        "MIN_SCORE":  0,
+        "MAX_WORKERS": MAX_WORKERS,
+        "RATE_LIMIT_RPS": RATE_LIMIT_RPS,
+    }
+    # Create a dummy args for scanner
+    class DummyArgs:
+        no_ai = True
+        no_entity = True
+
+    try:
+        long_r, short_r = run_scanner_both(cfg, DummyArgs())
+
+        # Format a brief report
+        lines = [f"🔍 *Manual Scan ({TIMEFRAME})*"]
+
+        tagged_long  = [dict(r, _dir="LONG")  for r in long_r]
+        tagged_short = [dict(r, _dir="SHORT") for r in short_r]
+        combined = sorted(tagged_long + tagged_short, key=lambda x: x["score"], reverse=True)
+
+        top = combined[:8]
+        if not top:
+            lines.append("No instruments found matching volume criteria.")
+        else:
+            for r in top:
+                direction = r.get("_dir", "?")
+                arrow = "▲" if direction == "LONG" else "▼"
+                lines.append(f"{arrow} `{r['inst_id']}` | Score: `{r['score']}` | Price: `{r['price']:.5g}`")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Scan failed: {e}"
+
 
 def _live_pnl_display():
     """Full-screen TUI dashboard using blessed."""
@@ -2292,6 +2442,9 @@ def bot_loop(args):
     _account_high_water = _cached_balance + sum([p.get("pnl", 0.0) for p in _cached_positions])
     _account_trail_stop = _account_high_water * (1 - ACCOUNT_TRAIL_PCT)
 
+    with _equity_lock:
+        _session_equity_history.append(_account_high_water)
+
     load_blacklist() # Load persistent blacklist at startup
 
     # Load recent trade history for recovery
@@ -2344,7 +2497,8 @@ def bot_loop(args):
             except Exception as error:
                 logger.error(f"Cache refresher thread crashed: {error}\n{traceback.format_exc()}")
 
-        threading.Thread(target=_display_wrapper, daemon=True).start()
+        if not getattr(args, 'no_tui', False):
+            threading.Thread(target=_display_wrapper, daemon=True).start()
         threading.Thread(target=_cache_wrapper, daemon=True).start()
 
     # ── Drawdown guard initialisation ────────────────────────────────
@@ -2358,16 +2512,32 @@ def bot_loop(args):
             return _cached_balance
         def _get_live_positions():
             return _cached_positions
-        def _get_session_pnl():
-            return sum(p.get("pnl", 0.0) for p in _cached_positions)
-        telegram.start(_get_live_balance, _get_live_positions, _get_session_pnl)
+        def _get_live_stats():
+            with _cache_lock:
+                upnl = sum(p.get("pnl", 0.0) for p in _cached_positions)
+            return {
+                "wins": _session_wins,
+                "losses": _session_losses,
+                "total_pnl": _session_total_pnl + upnl
+            }
+
+        telegram.start(
+            get_balance_fn     = _get_live_balance,
+            get_positions_fn   = _get_live_positions,
+            get_session_pnl_fn = _get_live_stats,
+            get_logs_fn        = _get_tui_logs,
+            run_scan_fn        = _manual_tg_scan,
+            get_chart_fn       = _get_session_chart,
+            run_backtest_fn    = _run_manual_backtest
+        )
         logger.info("[TG] Telegram controller started")
 
     scan_number = 0
     # ── Main Bot Execution Loop ──────────────────────────────────────
     while _running:
         try:
-            _process_animations()
+            if not getattr(args, 'no_tui', False):
+                _process_animations()
             # ── Time-of-day Profitability Filter ──
             if pc.is_hour_blocked():
                 curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
@@ -2941,6 +3111,7 @@ def main():
     run_p.add_argument("--no-ai",     action="store_true", help="Disable AI commentary")
     run_p.add_argument("--no-entity", action="store_true", help="Disable Entity API")
     run_p.add_argument("--no-dynamic", action="store_true", help="Disable adaptive score filtering")
+    run_p.add_argument("--no-tui",     action="store_true", help="Run without the full-screen TUI dashboard")
 
     # ── deploy: single scan + exit ───────────────────────────────────
     deploy_p = sub.add_parser("deploy", help="Run one scan and optionally execute, then exit")

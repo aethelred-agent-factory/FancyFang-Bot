@@ -44,6 +44,8 @@ from typing import Any, Dict, List, Optional, Tuple
 if sys.platform != "win32":
     pass
 
+import matplotlib
+matplotlib.use('Agg')
 import blessed
 import requests
 import websocket
@@ -247,6 +249,7 @@ class SimBotState:
     
     # System Control
     is_running: bool = True
+    no_tui: bool = False
     display_thread_running: bool = False
     ws_app: Optional[websocket.WebSocketApp] = None
     ws_thread: Optional[threading.Thread] = None
@@ -342,6 +345,138 @@ def tui_log(msg: str, event_type: str = "SIM") -> None:
     pc.log_system_event(event_type, msg)
     # Ensure it also goes into our local logger which is hooked to the TUI deque
     logger.info(msg)
+
+def _get_tui_logs() -> str:
+    """Returns the last 15 lines of system logs as a single string."""
+    return "\n".join(list(_bot_logs)[-15:])
+
+def _get_session_chart() -> Optional[str]:
+    """Generates a PnL chart using matplotlib and returns the file path."""
+    try:
+        import matplotlib.pyplot as plt
+        import os
+
+        with state.lock:
+            data = list(state.equity_history)
+
+        if not data:
+            with state.lock:
+                balance = state.balance
+                locked_margin = sum(p.get("margin", 0.0) for p in state.positions)
+                current_upnl = sum(p.get("pnl", 0.0) for p in state.positions)
+                equity = balance + locked_margin + current_upnl
+            data = [equity]
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(data, marker='o', linestyle='-', color='g')
+        plt.title(f"SIM Session Equity Curve ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')})")
+        plt.xlabel("Snapshot Count")
+        plt.ylabel("Equity (USDT)")
+        plt.grid(True)
+
+        logs_dir = Path(SCRIPT_DIR).parent / "data" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        chart_path = logs_dir / f"sim_chart_{int(time.time())}.png"
+        plt.savefig(chart_path)
+        plt.close()
+
+        return str(chart_path)
+    except Exception as e:
+        logger.error(f"Failed to generate SIM chart: {e}")
+        return None
+
+def _run_manual_backtest(text: str, args) -> str:
+    """Parses backtest command and runs a mini backtest."""
+    import research.backtest as bt
+
+    parts = text.split()
+    # /backtest [symbol] [timeframe] [candles]
+    symbol = parts[1].upper() if len(parts) > 1 else "BTCUSDT"
+    tf = parts[2] if len(parts) > 2 else args.timeframe
+    candles = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 300
+
+    try:
+        # Fetch data for backtest
+        ohlc_rows = bt.get_candles(symbol, timeframe=tf, limit=candles)
+        spread = bt.get_spread_pct(symbol)
+        funding = bt.get_funding(symbol)
+        rsi_1h = bt.get_htf_rsi(symbol)
+
+        if not ohlc_rows or len(ohlc_rows) < 110:
+            return f"❌ Insufficient data for {symbol} ({len(ohlc_rows)} candles)"
+
+        trades = bt.backtest_symbol(
+            symbol, ohlc_rows, spread, funding, rsi_1h,
+            min_score=args.min_score, trail_pct=p_bot.TRAIL_PCT, leverage=p_bot.LEVERAGE,
+            margin=p_bot.MARGIN_USDT, max_margin=150.0,
+            direction=args.direction
+        )
+
+        if not trades:
+            return f"No trades triggered for {symbol} ({tf}, {candles} candles)."
+
+        # Format brief report
+        win_trades = [t for t in trades if t.pnl_usdt > 0]
+        total_pnl = sum(t.pnl_usdt for t in trades)
+
+        report = [
+            f"🧪 *Backtest Results: {symbol}*",
+            f"Period: `{candles}` candles (`{tf}`)",
+            f"Trades: `{len(trades)}`",
+            f"Win Rate: `{len(win_trades)/len(trades)*100:.1f}%`",
+            f"Total PnL: `{total_pnl:+.4f} USDT`",
+            "",
+            "Recent Trades:"
+        ]
+
+        for t in trades[-5:]:
+            emoji = "✅" if t.pnl_usdt > 0 else "❌"
+            report.append(f"{emoji} {t.direction} | PnL: `{t.pnl_usdt:+.2f}`")
+
+        return "\n".join(report)
+    except Exception as e:
+        logger.error(f"Backtest callback error: {e}")
+        return f"Error: {e}"
+
+def _manual_tg_scan(args) -> str:
+    """Triggers a manual dual-direction scan and returns a formatted report for Telegram."""
+    # Use current bot config
+    cfg = {
+        "MIN_VOLUME":     args.min_vol,
+        "TIMEFRAME":      args.timeframe,
+        "TOP_N":          5,
+        "MIN_SCORE":      0,
+        "MAX_WORKERS":    args.workers,
+        "RATE_LIMIT_RPS": args.rate,
+        "CANDLES":        500,
+    }
+    # Create a dummy args for scanner
+    class DummyArgs:
+        no_ai = True
+        no_entity = True
+
+    try:
+        long_r, short_r = p_bot.run_scanner_both(cfg, DummyArgs())
+
+        # Format a brief report
+        lines = [f"🔍 *SIM Manual Scan ({args.timeframe})*"]
+
+        tagged_long  = [dict(r, _dir="LONG")  for r in long_r]
+        tagged_short = [dict(r, _dir="SHORT") for r in short_r]
+        combined = sorted(tagged_long + tagged_short, key=lambda x: x["score"], reverse=True)
+
+        top = combined[:8]
+        if not top:
+            lines.append("No instruments found matching criteria.")
+        else:
+            for r in top:
+                direction = r.get("_dir", "?")
+                arrow = "▲" if direction == "LONG" else "▼"
+                lines.append(f"{arrow} `{r['inst_id']}` | Score: `{r['score']}` | Price: `{r['price']:.5g}`")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Scan failed: {e}"
 
 
 def play_animation(anim_fn):
@@ -861,10 +996,9 @@ def _log_closed_trade(
 def _live_pnl_display() -> None:
     """Full-screen TUI dashboard using blessed."""
     term = blessed.Terminal()
-    global _display_thread_running
 
     with term.fullscreen(), term.hidden_cursor():
-        while _display_thread_running:
+        while state.display_thread_running:
             if state.display_paused_event.is_set():
                 time.sleep(0.5)
                 continue
@@ -1035,12 +1169,23 @@ def check_opposite_signal(symbol: str, side: str, ticker: Optional[dict] = None)
     return False, 0
 
 
-def update_pnl_and_stops() -> None:
+def update_pnl_and_stops(args) -> None:
     """
     Polls live prices for all open positions, updates PnL, and evaluates
     trailing-stop and take-profit levels.
     """
-    _process_animations()
+    if not state.no_tui:
+        _process_animations()
+
+    # Update equity history for charting even in --no-tui mode
+    with state.lock:
+        balance = state.balance
+        locked_margin = sum(p.get("margin", 0.0) for p in state.positions)
+        current_upnl = sum(p.get("pnl", 0.0) for p in state.positions)
+        equity = balance + locked_margin + current_upnl
+        state.equity_history.append(equity)
+        if len(state.equity_history) > 100:
+            state.equity_history.pop(0)
 
     # Initialize outside lock to avoid UnboundLocalError
     ticker_map: Dict[str, Any] = {}
@@ -1694,7 +1839,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     _ensure_ws_started()
 
     with state.lock:
-        if not state.display_thread_running:
+        if not state.display_thread_running and not getattr(args, 'no_tui', False):
             state.display_thread_running = True
             # REF: [Tier 1] Critical Thread Error Handling
             def _display_wrapper():
@@ -1828,6 +1973,7 @@ def sim_bot_loop(args) -> None:
     Exits gracefully when the global _running flag is False.
     """
     global COOLDOWN_SECONDS
+    state.no_tui = getattr(args, 'no_tui', False)
 
     # Calculate dynamic cooldown based on timeframe and cooldown argument (T3-16)
     tf_sec = p_bot.get_tf_seconds(args.timeframe)
@@ -1848,8 +1994,15 @@ def sim_bot_loop(args) -> None:
     state.load_account()
     load_sim_cooldowns()
 
+    with state.lock:
+        balance = state.balance
+        locked_margin = sum(p.get("margin", 0.0) for p in state.positions)
+        current_upnl = sum(p.get("pnl", 0.0) for p in state.positions)
+        state.equity_history.append(balance + locked_margin + current_upnl)
+
     # --- Cinematic Boot ---
-    play_animation(animations.boot)
+    if not state.no_tui:
+        play_animation(animations.boot)
     hw.bridge.signal('START')
 
     with state.lock:
@@ -1885,7 +2038,7 @@ def sim_bot_loop(args) -> None:
                     time.sleep(60)
                     continue
 
-            update_pnl_and_stops()
+            update_pnl_and_stops(args)
 
             # Recompute dynamic max positions and available slots
             # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
@@ -2027,6 +2180,7 @@ def main() -> None:
     parser.add_argument("--no-ai",          action="store_true")
     parser.add_argument("--no-entity",      action="store_true")
     parser.add_argument("--no-dynamic",     action="store_true")
+    parser.add_argument("--no-tui",         action="store_true", help="Run without the full-screen TUI dashboard")
     args = parser.parse_args()
 
     print(Fore.GREEN + Style.BRIGHT + "  🚀 Phemex SIMULATION Bot Starting (Paper Trading)")
@@ -2054,6 +2208,10 @@ def main() -> None:
             get_balance_fn     = get_sim_balance,
             get_positions_fn   = get_sim_positions,
             get_session_pnl_fn = _session_pnl_fn,
+            get_logs_fn        = _get_tui_logs,
+            run_scan_fn        = lambda: _manual_tg_scan(args),
+            get_chart_fn       = _get_session_chart,
+            run_backtest_fn    = lambda txt: _run_manual_backtest(txt, args)
         )
         logger.info("telegram_controller: started")
 
