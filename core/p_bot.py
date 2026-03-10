@@ -233,8 +233,8 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
 
 # Strategy parameters
 MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "25.0"))   # $ margin per trade
-LEVERAGE       = int(os.getenv("BOT_LEVERAGE", "50"))          # leverage multiplier
-TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.05"))     # 5% trailing stop
+LEVERAGE       = int(os.getenv("BOT_LEVERAGE", "30"))          # leverage multiplier
+TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.01"))     # 1% trailing stop
 TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.50")) # 50% take profit
 SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "300"))    # seconds between scans
 
@@ -246,7 +246,7 @@ MIN_SCORE_LOW_LIQ = int(os.getenv("BOT_MIN_SCORE_LOW_LIQ", "135"))
 
 # Low-Liquidity Adjusted Parameters
 LOW_LIQ_LEVERAGE = int(os.getenv("BOT_LOW_LIQ_LEVERAGE", "10"))
-LOW_LIQ_TRAIL_PCT = float(os.getenv("BOT_LOW_LIQ_TRAIL", "0.05")) # Keep 5% even for low-liq in Reaper mode
+LOW_LIQ_TRAIL_PCT = float(os.getenv("BOT_LOW_LIQ_TRAIL", "0.01")) # Keep 1% for low-liq
 LOW_LIQ_MARGIN = float(os.getenv("BOT_LOW_LIQ_MARGIN", "10.0"))
 
 # Predictive score thresholds
@@ -257,8 +257,8 @@ MIN_PREDICTIVE_SCORE_GAP = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_GAP", "0.0"
 FAST_TRACK_PREDICTIVE_SCORE = float(os.getenv("BOT_FAST_TRACK_PREDICTIVE_SCORE", "0.5"))
 
 MAX_POSITIONS  = 999
-DIRECTION      = os.getenv("BOT_DIRECTION", "SHORT")
-TIMEFRAME      = os.getenv("BOT_TIMEFRAME", "4H")
+DIRECTION      = os.getenv("BOT_DIRECTION", "BOTH")
+TIMEFRAME      = os.getenv("BOT_TIMEFRAME", "1H")
 MAX_WORKERS    = int(os.getenv("BOT_MAX_WORKERS", "30"))
 
 # Position Mode: OneWay (posSide="Merged") or Hedged (posSide="Long"/"Short")
@@ -1179,6 +1179,11 @@ def _live_pnl_display():
     term = blessed.Terminal()
     global _display_thread_running
 
+    def draw_panel(x: int, y: int, panel_text: str):
+        """Helper to print multi-line panels at specific coordinates line-by-line."""
+        for i, line in enumerate(panel_text.split("\n")):
+            print(term.move_xy(x, y + i) + line)
+
     with term.fullscreen(), term.hidden_cursor():
         while _display_thread_running:
             if _display_paused.is_set():
@@ -1242,13 +1247,13 @@ def _live_pnl_display():
                     bl_str = ", ".join(f"{s}({int((e-time.time())/60)}m)" for s, e in bl_active.items())
                     summary_lines.append(f" {Fore.YELLOW}🚫 COOLDOWN: {bl_str[:left_w-15]}{Style.RESET_ALL}")
 
-            print(term.move_xy(2, y) + ui.glow_panel("SYSTEM CORE", summary_lines, color_rgb=(0, 255, 255), width=left_w))
+            draw_panel(2, y, ui.glow_panel("SYSTEM CORE", summary_lines, color_rgb=(0, 255, 255), width=left_w))
             y += len(summary_lines) + 3
 
             # 2. Active Positions Panel
             pos_y = y
             if not positions:
-                print(term.move_xy(2, pos_y) + ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (Awaiting entry signals...)"], width=left_w))
+                draw_panel(2, pos_y, ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (Awaiting entry signals...)"], width=left_w))
                 y += 4
             else:
                 for pos in positions:
@@ -1257,7 +1262,7 @@ def _live_pnl_display():
                         now = _live_prices.get(sym)
 
                     if not now:
-                        print(term.move_xy(2, y) + ui.modern_panel(sym, [Fore.WHITE + "Waiting for price..."], width=left_w))
+                        draw_panel(2, y, ui.modern_panel(sym, [Fore.WHITE + "Waiting for price..."], width=left_w))
                         y += 4; continue
 
                     side = pos["side"]
@@ -1297,14 +1302,14 @@ def _live_pnl_display():
                         f" {chart_lines[1]}",
                         f" {chart_lines[2]}"
                     ]
-                    print(term.move_xy(2, y) + ui.glow_panel(pos_header, pos_info, width=left_w, color_rgb=(255, 0, 255)))
+                    draw_panel(2, y, ui.glow_panel(pos_header, pos_info, width=left_w, color_rgb=(255, 0, 255)))
                     y += len(pos_info) + 2
 
             # 3. System Logs
             log_y = y
             log_lines = list(_bot_logs)[-5:]
             while len(log_lines) < 5: log_lines.insert(0, "")
-            print(term.move_xy(2, log_y) + ui.modern_panel("SYSTEM LOGS", log_lines, width=left_w, color=Fore.WHITE))
+            draw_panel(2, log_y, ui.modern_panel("SYSTEM LOGS", log_lines, width=left_w, color=Fore.WHITE))
 
             # 4. Machine Thesis & Sector Momentum
             thesis_y = log_y + 7
@@ -1345,7 +1350,7 @@ def _live_pnl_display():
                 sym = t['symbol'].replace('USDT', '')
                 hist_lines.append(f" {ts} {sym:<6} {ui.pnl_color(p)}{p:+.2f}{Style.RESET_ALL}")
 
-            print(term.move_xy(left_w + 4, hist_y) + ui.modern_panel("TRADE HISTORY", hist_lines, width=right_w, color=Fore.CYAN))
+            draw_panel(left_w + 4, hist_y, ui.modern_panel("TRADE HISTORY", hist_lines, width=right_w, color=Fore.CYAN))
 
             sys.stdout.flush()
             time.sleep(1)

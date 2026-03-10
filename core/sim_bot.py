@@ -2228,8 +2228,10 @@ def main() -> None:
     parser.add_argument("--interval",       type=int,   default=300)
     parser.add_argument("--min-score",      type=int,   default=120)
     parser.add_argument("--min-score-gap",  type=int,   default=0)
-    parser.add_argument("--direction",      default="SHORT", choices=["LONG", "SHORT", "BOTH"])
-    parser.add_argument("--timeframe",      default="4H")
+    parser.add_argument("--direction",      default="BOTH", choices=["LONG", "SHORT", "BOTH"])
+    parser.add_argument("--timeframe",      default="1H")
+    parser.add_argument("--leverage",       type=int,   default=30)
+    parser.add_argument("--trail-pct",      type=float, default=0.01) # 1.0% Trailing Stop
     parser.add_argument("--cooldown",       type=int,   default=5, help="Cooldown in candles after exit")
     parser.add_argument("--min-vol",        type=int,   default=1_000_000)
     parser.add_argument("--workers",        type=int,   default=30)
