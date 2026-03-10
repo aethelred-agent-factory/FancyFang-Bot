@@ -7,18 +7,19 @@ import modules.telegram_controller as telegram_controller
 
 @pytest.fixture
 def mock_requests():
-    with patch("requests.get") as mock_get, patch("requests.post") as mock_post:
+    with patch("requests.get") as mock_get, \
+         patch("requests.post") as mock_post, \
+         patch("modules.telegram_controller.TG_BOT_TOKEN", "token"), \
+         patch("modules.telegram_controller.TG_CHAT_ID", "chat_id"):
         yield mock_get, mock_post
 
 def test_telegram_controller_send(mock_requests):
     mock_get, mock_post = mock_requests
-    with (patch("modules.telegram_controller.TG_BOT_TOKEN", "token"), 
-          patch("modules.telegram_controller.TG_CHAT_ID", "chat_id")):
-        telegram_controller._send("Hello World")
-        mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
-        assert kwargs["json"]["text"] == "Hello World"
-        assert kwargs["json"]["chat_id"] == "chat_id"
+    telegram_controller._send("Hello World")
+    mock_post.assert_called_once()
+    args, kwargs = mock_post.call_args
+    assert kwargs["json"]["text"] == "Hello World"
+    assert kwargs["json"]["chat_id"] == "chat_id"
 
 def test_telegram_controller_get_updates(mock_requests):
     mock_get, mock_post = mock_requests
@@ -26,10 +27,9 @@ def test_telegram_controller_get_updates(mock_requests):
         "result": [{"update_id": 100, "message": {"text": "/status", "chat": {"id": "chat_id"}}}]
     }
     
-    with patch("modules.telegram_controller.TG_BOT_TOKEN", "token"):
-        updates = telegram_controller._get_updates()
-        assert len(updates) == 1
-        assert telegram_controller._offset == 101
+    updates = telegram_controller._get_updates()
+    assert len(updates) == 1
+    assert telegram_controller._offset == 101
 
 def test_handle_start_stop():
     telegram_controller._handle_start("chat_id")

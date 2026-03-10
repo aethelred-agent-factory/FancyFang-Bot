@@ -58,6 +58,19 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
+import core.phemex_common as pc
+from core.phemex_long import (
+    score_long,
+    feature_builder_long,
+    detect_patterns as detect_patterns_long,
+    detect_bullish_divergence
+)
+from core.phemex_short import (
+    score_short,
+    feature_builder_short,
+    detect_patterns as detect_patterns_short,
+    detect_bearish_divergence
+)
 from modules.banner import BANNER
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
@@ -82,35 +95,6 @@ CANDLES_PER_YEAR = {
     "1m": 525_600, "3m": 175_200, "5m": 105_120, "15m": 35_040,
     "30m": 17_520,  "1H": 8_760,   "2H": 4_380,   "4H": 2_190,
     "6H": 1_460,    "12H": 730,    "1D": 365,
-}
-
-# ─────────────────────────────────────────────────────────────────────
-# Scoring weights — exact match to phemex_long.py / phemex_short.py
-# ─────────────────────────────────────────────────────────────────────
-LONG_WEIGHTS = {
-    "divergence":        20,
-    "rsi_recovery":      25,
-    "rsi_oversold":      22,
-    "bb_lower_90":       30,
-    "bb_lower_75":       22,
-    "ema_stretch_3":     15,
-    "vol_spike_2":       15,
-    "funding_negative":  22,
-    "htf_align_oversold":15,
-    "funding_momentum":  10,
-}
-
-SHORT_WEIGHTS = {
-    "divergence":           20,
-    "rsi_rollover":         25,
-    "rsi_overbought":       22,
-    "bb_upper_90":          30,
-    "bb_upper_75":          22,
-    "ema_stretch_3":        15,
-    "vol_spike_2":          15,
-    "funding_high":         22,
-    "htf_align_overbought": 15,
-    "funding_momentum":     10,
 }
 
 TAKER_FEE = 0.0006  # 0.06% per side (Phemex USDT-M maker/taker)
@@ -182,17 +166,8 @@ def get_tickers(min_vol: float = 1_000_000) -> List[dict]:
     ]
 
 def get_candles(symbol: str, timeframe: str = "15m", limit: int = 500) -> List[list]:
-    """Fetch OHLCV. Row format: [ts, interval, last_close, open, high, low, close, volume, turnover]"""
-    resolution = TIMEFRAME_MAP.get(timeframe, 900)
-    api_symbol = symbol.replace(".", "")
-    data = _get(
-        f"{BASE_URL}/exchange/public/md/v2/kline/last",
-        params={"symbol": api_symbol, "resolution": resolution, "limit": limit},
-    )
-    if not data or data.get("code") != 0:
-        return []
-    rows = data.get("data", {}).get("rows", [])
-    return sorted(rows, key=lambda row: row[0])
+    """Fetch OHLCV using common helper which handles limit mapping."""
+    return pc.get_candles(symbol, timeframe, limit)
 
 def get_spread_pct(symbol: str) -> Optional[float]:
     """Calculates the best bid-ask spread as a percentage of the mid price."""
@@ -243,482 +218,65 @@ def get_htf_rsi(symbol: str, tf: str = "1H") -> Optional[float]:
             continue
     if len(closes) < 16:
         return None
-    rsi, _, _ = calc_rsi(closes)
+    rsi, _, _ = pc.calc_rsi(closes)
     return rsi
 
-# ─────────────────────────────────────────────────────────────────────
-# Indicators (ported 1:1 from scanner files)
-# ─────────────────────────────────────────────────────────────────────
-def calc_rsi(closes: List[float], period: int = 14
-             ) -> Tuple[Optional[float], Optional[float], List[Optional[float]]]:
-    """Calculates Relative Strength Index (RSI) and returns (current, previous, history)."""
-    num_closes = len(closes)
-    if num_closes <= period:
-        return None, None, [None] * num_closes
-    prices_array = np.asarray(closes, dtype=float)
-    diffs = np.diff(prices_array)
-    gains = np.where(diffs > 0, diffs, 0.0)
-    losses = np.where(diffs < 0, -diffs, 0.0)
-    avg_gain = float(gains[:period].sum() / period)
-    avg_loss = float(losses[:period].sum() / period)
-    history: List[Optional[float]] = [None] * period
 
-    def _rsi_formula(gain_val: float, loss_val: float) -> float:
-        return 100.0 if loss_val == 0 else 100.0 - 100.0 / (1.0 + gain_val / loss_val)
-
-    history.append(_rsi_formula(avg_gain, avg_loss))
-    for i in range(period, len(gains)):
-        avg_gain = (avg_gain * (period - 1) + float(gains[i])) / period
-        avg_loss = (avg_loss * (period - 1) + float(losses[i])) / period
-        history.append(_rsi_formula(avg_gain, avg_loss))
-
-    return history[-1], history[-2] if len(history) >= 2 else None, history
-
-
-def calc_bb(closes: List[float], period: int = 21, mult: float = 2.0) -> Optional[Dict]:
-    """Calculates Bollinger Bands (upper, mid, lower)."""
-    if len(closes) < period:
-        return None
-    window_array = np.asarray(closes[-period:], dtype=float)
-    mid = float(window_array.mean())
-    std = float(np.sqrt(((window_array - mid) ** 2).sum() / period))
-    return {"upper": mid + mult * std, "mid": mid, "lower": mid - mult * std}
-
-
-def calc_ema(closes: List[float], period: int = 21) -> Optional[float]:
-    """Calculates a single Exponential Moving Average (EMA) value."""
-    if len(closes) < period:
-        return None
-    smoothing_constant = 2.0 / (period + 1)
-    ema = float(np.mean(closes[:period]))
-    for close in closes[period:]:
-        ema = close * smoothing_constant + ema * (1 - smoothing_constant)
-    return ema
-
-
-def calc_ema_series(closes: List[float], period: int = 21) -> List[Optional[float]]:
-    """Calculates a series of Exponential Moving Average (EMA) values."""
-    if len(closes) < period:
-        return [None] * len(closes)
-    smoothing_constant = 2.0 / (period + 1)
-    ema = float(np.mean(closes[:period]))
-    result: List[Optional[float]] = [None] * (period - 1)
-    result.append(ema)
-    for close in closes[period:]:
-        ema = close * smoothing_constant + ema * (1 - smoothing_constant)
-        result.append(ema)
-    return result
-
-
-def vol_spike_ratio(volumes: List[float], lookback: int = 20) -> float:
-    """Returns the ratio of the current volume compared to the average over a lookback period."""
-    if len(volumes) < lookback + 1:
-        return 1.0
-    avg_volume = float(np.mean(volumes[-lookback - 1:-1]))
-    if avg_volume > 0:
-        return volumes[-1] / avg_volume
-    return 1.0
-
-
-def check_divergence(
-    closes: List[float],
-    rsi_history: List[Optional[float]],
-    window: int = 20,
-    bullish: bool = True,
-) -> bool:
-    """Checks for bullish or bearish divergence between price and RSI."""
-    if len(closes) < window:
-        return False
-    prices = closes[-window:]
-    rsies = [r for r in rsi_history[-window:] if r is not None]
-    if len(rsies) < window // 2:
-        return False
-    if bullish:
-        price_lower_low = prices[-1] < min(prices[:-5]) if len(prices) > 5 else False
-        rsi_higher_low = rsies[-1] > min(rsies[:-3]) if len(rsies) > 3 else False
-        return price_lower_low and rsi_higher_low and rsies[-1] < 45
-    else:
-        price_higher_high = prices[-1] > max(prices[:-5]) if len(prices) > 5 else False
-        rsi_lower_high = rsies[-1] < max(rsies[:-3]) if len(rsies) > 3 else False
-        return price_higher_high and rsi_lower_high and rsies[-1] > 55
-
-# ─────────────────────────────────────────────────────────────────────
-# Scoring — exact match to scanner weights/thresholds
-# ─────────────────────────────────────────────────────────────────────
-def calculate_percentage_change(new_value: float, base_value: float) -> float:
-    """Calculates the percentage change between two values."""
-    return (new_value - base_value) / base_value * 100.0 if base_value else 0.0
-
-
-def _calc_atr_simple(
-    highs: List[float],
-    lows:  List[float],
-    closes: List[float],
-    period: int = 14,
-) -> Optional[float]:
-    """Calculates Average True Range (ATR) using vectorized numpy operations."""
-    num_closes = len(closes)
-    if num_closes <= period:
-        return None
-
-    highs_arr = np.asarray(highs, dtype=float)
-    lows_arr = np.asarray(lows, dtype=float)
-    closes_arr = np.asarray(closes, dtype=float)
-
-    h_l = highs_arr[1:] - lows_arr[1:]
-    h_pc = np.abs(highs_arr[1:] - closes_arr[:-1])
-    l_pc = np.abs(lows_arr[1:] - closes_arr[:-1])
-    true_ranges = np.maximum(h_l, np.maximum(h_pc, l_pc))
-
-    # Initial average (simple mean of first period TRs)
-    atr = float(np.mean(true_ranges[:period]))
-    
-    # Wilders smoothing for subsequent values
-    for i in range(period, len(true_ranges)):
-        atr = (atr * (period - 1) + float(true_ranges[i])) / period
-        
-    return atr
-
-
-def score_long_window(
-    closes: List[float],
-    highs: List[float],
-    lows: List[float],
-    volumes: List[float],
+def score_window_unified(
+    symbol: str,
+    window_data: List[Tuple[float, float, float, float, float]],
+    direction: str,
     rsi_1h: Optional[float] = None,
     funding: Optional[float] = None,
-    funding_prev: Optional[float] = None,
     spread: Optional[float] = None,
 ) -> Tuple[int, List[str]]:
-    """Scores a window of data for a potential LONG entry based on multiple indicators."""
-    weights = LONG_WEIGHTS
-    score = 0
-    signals: List[str] = []
+    """Bridge between backtester window and production scoring logic."""
+    closes = [x[3] for x in window_data]
+    highs = [x[1] for x in window_data]
+    lows = [x[2] for x in window_data]
+    vols = [x[4] for x in window_data]
+    ohlc_basic = [(x[0], x[1], x[2], x[3], x[4]) for x in window_data]
 
-    rsi, prev_rsi, rsi_history = calc_rsi(closes)
-    bollinger = calc_bb(closes)
-    ema_series = calc_ema_series(closes)
+    last = closes[-1]
+    rsi, prev_rsi, rsi_hist = pc.calc_rsi(closes)
+    bb = pc.calc_bb(closes)
+    ema_series = pc.calc_ema_series(closes, 21)
     ema21 = ema_series[-1] if ema_series else None
-    volume_spike = vol_spike_ratio(volumes)
-    has_divergence = check_divergence(closes, rsi_history, bullish=True)
+    ema_slope, slope_change = pc.calc_ema_slope(ema_series)
+    vol_spike = pc.calc_volume_spike(vols)
+    adx = pc.calc_adx(highs, lows, closes)
+    poc_price, _ = pc.calc_volume_profile(window_data, vols)
+    regime, entropy = pc.calc_market_regime(closes)
+    kalman_series = pc.calc_kalman_series(closes)
+    kalman_slope = kalman_series[-1] - kalman_series[-2] if len(kalman_series) >= 2 else 0.0
 
-    current_price = closes[-1]
+    # 24h stats approximation (from the 100-candle window)
     open_24h = closes[0]
     low_24h = min(lows)
-    change_24h = calculate_percentage_change(current_price, open_24h)
-    dist_from_low = calculate_percentage_change(current_price, low_24h) if low_24h > 0 else None
-
-    # EMA slope
-    ema200 = calc_ema(closes, period=200)
-
-    if len(ema_series) >= 4:
-        valid_emas = [e for e in ema_series[-4:] if e is not None]
-        if len(valid_emas) >= 2:
-            slope = valid_emas[-1] - valid_emas[-2]
-            if slope > 0:
-                score += 12
-                signals.append(f"Positive EMA Slope ({slope:.4f}) — Uptrend confirmed")
-            elif slope < -0.01:
-                score += 5
-                signals.append("EMA Slope Flattening — Downtrend slowing")
-
-    # Trend Filter (Hard)
-    if ema200 is not None:
-        if current_price < ema200:
-            score -= 15
-            signals.append(f"Price below EMA200 ({current_price:.2f} < {ema200:.2f}) — Downtrend")
-        else:
-            score += 10
-            signals.append(f"Price above EMA200 ({current_price:.2f} > {ema200:.2f}) — Uptrend")
-
-    # Spread / liquidity
-    if spread is not None:
-        if spread > 0.15:
-            signals.append(f"Low Liquidity (Spread {spread:.2f}%)")
-        elif spread < 0.05:
-            score += 5
-            signals.append(f"High Liquidity (Spread {spread:.2f}%)")
-
-    # Funding momentum
-    if funding is not None and funding_prev is not None:
-        funding_change = funding - funding_prev
-        if funding_change < 0:
-            score += weights["funding_momentum"]
-            signals.append(f"Funding Momentum (becoming more negative {funding_change*100:.4f}% — squeeze building)")
-
-    # HTF alignment
-    if rsi_1h is not None:
-        if rsi_1h < 30:
-            score += weights["htf_align_oversold"]
-            signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — deeply oversold")
-        elif rsi_1h < 45:
-            score += 8
-            signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — oversold territory")
-
-    # Divergence
-    if has_divergence:
-        score += weights["divergence"]
-        signals.append("Bullish Divergence (Price LL vs RSI HL) — sellers exhausted")
-
-    # RSI
-    if rsi is not None:
-        rolling_up = prev_rsi is not None and rsi > prev_rsi
-        if rsi < 25:
-            score += weights["rsi_oversold"]
-            signals.append(f"RSI {rsi:.1f} (extremely oversold)")
-        elif rsi < 35:
-            score += weights["rsi_recovery"] if rolling_up else 18
-            signals.append(f"RSI {rsi:.1f} (oversold{' ✓ recovering' if rolling_up else ''})")
-        elif 35 <= rsi <= 50 and rolling_up and prev_rsi is not None and prev_rsi < 35:
-            score += weights["rsi_recovery"]
-            signals.append(f"RSI Recovery {prev_rsi:.1f}→{rsi:.1f}")
-        elif rsi > 70:
-            signals.append(f"RSI {rsi:.1f} (overbought — risky long)")
-
-    # BB
-    if bollinger is not None:
-        bb_range = bollinger["upper"] - bollinger["lower"]
-        if bb_range > 0:
-            bb_percentage = (current_price - bollinger["lower"]) / bb_range
-            if bb_percentage <= 0.10:
-                score += weights["bb_lower_90"]
-                signals.append(f"Price at/below BB lower ({bb_percentage*100:.0f}%) — extreme oversold")
-            elif bb_percentage <= 0.25:
-                score += weights["bb_lower_75"]
-                signals.append(f"Near BB lower ({bb_percentage*100:.0f}%) — oversold")
-            elif bb_percentage <= 0.50:
-                score += 5
-                signals.append(f"Below BB mid ({bb_percentage*100:.0f}%)")
-            elif bb_percentage > 0.85:
-                signals.append(f"Above BB mid — fading long ({bb_percentage*100:.0f}%)")
-
-    # EMA stretch
-    if ema21 is not None:
-        pct_from_ema = calculate_percentage_change(current_price, ema21)
-        if pct_from_ema < -3.0:
-            score += weights["ema_stretch_3"]
-            signals.append(f"Price {abs(pct_from_ema):.1f}% below EMA21 (mean-reversion opportunity)")
-            if rsi is not None and rsi < 35:
-                score += 5
-                signals.append("Stretch bonus: Deeply oversold RSI + Below EMA21")
-        elif pct_from_ema < -1.0:
-            score += 5
-            signals.append(f"Price {abs(pct_from_ema):.1f}% below EMA21")
-
-    # Volume spike
-    if volume_spike >= 2.0:
-        score += weights["vol_spike_2"]
-        signals.append(f"Volume spike {volume_spike:.1f}x (capitulation/demand)")
-    elif volume_spike >= 1.4:
-        score += 7
-        signals.append(f"Elevated volume {volume_spike:.1f}x")
-
-    # 24h change
-    if change_24h < -15:
-        score += 20
-        signals.append(f"{change_24h:.1f}% crash (capitulation)")
-    elif change_24h < -7:
-        score += 12
-        signals.append(f"{change_24h:.1f}% dip (oversold bounce)")
-    elif 5 < change_24h < 15:
-        score += 5
-        signals.append(f"+{change_24h:.1f}% (bullish momentum)")
-    elif change_24h >= 15:
-        signals.append(f"+{change_24h:.1f}% (overextended — risky long)")
-
-    # Near 24h low
-    if dist_from_low is not None and dist_from_low < 1.5:
-        score += 10
-        signals.append(f"Near 24h low ({dist_from_low:.1f}% above)")
-
-    # Funding
-    if funding is not None:
-        funding_rate_pct = funding * 100
-        if funding_rate_pct < -0.01:
-            score += weights["funding_negative"]
-            signals.append(f"Negative Funding ({funding_rate_pct:.4f}%) — crowded shorts, squeeze fuel")
-        elif funding_rate_pct > 0.10:
-            score -= 10
-            signals.append(f"Positive Funding ({funding_rate_pct:.4f}%) — crowded longs, caution")
-
-    return max(int(round(score)), 0), signals
-
-
-def score_short_window(
-    closes: List[float],
-    highs: List[float],
-    lows: List[float],
-    volumes: List[float],
-    rsi_1h: Optional[float] = None,
-    funding: Optional[float] = None,
-    funding_prev: Optional[float] = None,
-    spread: Optional[float] = None,
-) -> Tuple[int, List[str]]:
-    """Scores a window of data for a potential SHORT entry based on multiple indicators."""
-    weights = SHORT_WEIGHTS
-    score = 0
-    signals: List[str] = []
-
-    rsi, prev_rsi, rsi_history = calc_rsi(closes)
-    bollinger = calc_bb(closes)
-    ema_series = calc_ema_series(closes)
-    ema21 = ema_series[-1] if ema_series else None
-    volume_spike = vol_spike_ratio(volumes)
-    has_divergence = check_divergence(closes, rsi_history, bullish=False)
-
-    current_price = closes[-1]
-    open_24h = closes[0]
     high_24h = max(highs)
-    change_24h = calculate_percentage_change(current_price, open_24h)
-    dist_from_high = calculate_percentage_change(high_24h, current_price) if current_price > 0 else None
 
-    # EMA slope
-    ema200 = calc_ema(closes, period=200)
+    if direction == "LONG":
+        patterns = detect_patterns_long(ohlc_basic)
+        has_div = detect_bullish_divergence(closes, rsi_hist)
+        score_func = score_long
+    else:
+        patterns = detect_patterns_short(ohlc_basic)
+        has_div = detect_bearish_divergence(closes, rsi_hist)
+        score_func = score_short
 
-    if len(ema_series) >= 4:
-        valid_emas = [e for e in ema_series[-4:] if e is not None]
-        if len(valid_emas) >= 2:
-            slope = valid_emas[-1] - valid_emas[-2]
-            if slope < 0:
-                score += 12
-                signals.append(f"Negative EMA Slope ({slope:.4f}) — Downtrend confirmed")
-            elif slope > 0.01:
-                score += 5
-                signals.append("EMA Slope Flattening — Uptrend slowing")
+    data = pc.TickerData(
+        inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
+        change_24h=pc.pct_change(last, open_24h), funding_rate=funding, patterns=patterns,
+        dist_low_pct=pc.pct_change(last, low_24h), dist_high_pct=pc.pct_change(last, high_24h),
+        vol_spike=vol_spike, has_div=has_div, rsi_1h=rsi_1h,
+        fr_change=0.0, spread=spread,
+        ema_slope=ema_slope, slope_change=slope_change,
+        adx=adx, poc_price=poc_price,
+        raw_ohlc=ohlc_basic[-10:],
+        regime=regime, entropy=entropy, kalman_slope=kalman_slope,
+    )
 
-    # Trend Filter (Hard for Shorts)
-    if ema200 is not None:
-        if current_price > ema200:
-            score -= 15
-            signals.append(f"Price above EMA200 ({current_price:.2f} > {ema200:.2f}) — Uptrend (risky short)")
-        else:
-            score += 10
-            signals.append(f"Price below EMA200 ({current_price:.2f} < {ema200:.2f}) — Downtrend (trend-aligned short)")
-
-    # Spread / liquidity
-    if spread is not None:
-        if spread > 0.15:
-            score -= 10
-            signals.append(f"Low Liquidity (Spread {spread:.2f}%)")
-        elif spread < 0.05:
-            score += 5
-            signals.append(f"High Liquidity (Spread {spread:.2f}%)")
-
-    # Funding momentum
-    if funding is not None and funding_prev is not None:
-        funding_change = funding - funding_prev
-        if funding_change > 0:
-            score += weights["funding_momentum"]
-            signals.append(f"Funding Momentum (becoming more positive +{funding_change*100:.4f}% — fade building)")
-
-    # HTF alignment
-    if rsi_1h is not None:
-        if rsi_1h > 65:
-            score += weights["htf_align_overbought"]
-            signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — deeply overbought")
-        elif rsi_1h > 55:
-            score += 8
-            signals.append(f"HTF Alignment (1H RSI {rsi_1h:.1f}) — overbought territory")
-
-    # Divergence
-    if has_divergence:
-        score += weights["divergence"]
-        signals.append("Bearish Divergence (Price HH vs RSI LH) — buyers exhausted")
-
-    # RSI
-    if rsi is not None:
-        rolling_over = prev_rsi is not None and rsi < prev_rsi
-        if rsi > 75:
-            score += weights["rsi_overbought"]
-            signals.append(f"RSI {rsi:.1f} (extremely overbought)")
-        elif 55 <= rsi <= 75:
-            pts = weights["rsi_rollover"] + (8 if rolling_over else 0)
-            signals.append(f"RSI {rsi:.1f} (rollover zone{' ✓ rolling over' if rolling_over else ''})")
-            score += pts
-        elif rsi < 35:
-            score -= 5
-            signals.append(f"RSI {rsi:.1f} (oversold — risky short)")
-
-    # BB
-    if bollinger is not None:
-        bb_range = bollinger["upper"] - bollinger["lower"]
-        if bb_range > 0:
-            bb_percentage = (current_price - bollinger["lower"]) / bb_range
-            if bb_percentage >= 0.90:
-                score += weights["bb_upper_90"]
-                signals.append(f"Price at/above BB upper ({bb_percentage*100:.0f}%) — extreme overbought")
-            elif bb_percentage >= 0.75:
-                score += weights["bb_upper_75"]
-                signals.append(f"Near BB upper ({bb_percentage*100:.0f}%) — overbought")
-            elif bb_percentage >= 0.55:
-                score += 5
-                signals.append(f"Above BB mid ({bb_percentage*100:.0f}%)")
-            elif bb_percentage < 0.45:
-                score -= 5
-                signals.append(f"Below BB mid — fading short ({bb_percentage*100:.0f}%)")
-
-    # EMA stretch
-    if ema21 is not None:
-        pct_from_ema = calculate_percentage_change(current_price, ema21)
-        if pct_from_ema > 3.0:
-            score += weights["ema_stretch_3"]
-            signals.append(f"Price {pct_from_ema:.1f}% above EMA21 (mean-reversion opportunity)")
-            if rsi is not None and rsi > 65:
-                score += 5
-                signals.append("Stretch bonus: Deeply overbought RSI + Above EMA21")
-        elif pct_from_ema > 1.0:
-            score += 5
-            signals.append(f"Price {pct_from_ema:.1f}% above EMA21")
-        elif pct_from_ema < -1.0:
-            score -= 10
-            signals.append(f"Price {abs(pct_from_ema):.1f}% below EMA21 (extended)")
-
-    # Volume spike
-    if volume_spike >= 2.0:
-        score += weights["vol_spike_2"]
-        signals.append(f"Volume spike {volume_spike:.1f}x (exhaustion/distribution)")
-    elif volume_spike >= 1.4:
-        score += 7
-        signals.append(f"Elevated volume {volume_spike:.1f}x")
-
-    # 24h change
-    if change_24h > 12:
-        score += 20
-        signals.append(f"+{change_24h:.1f}% pump (overbought fade)")
-    elif 5 <= change_24h <= 12:
-        score += 12
-        signals.append(f"+{change_24h:.1f}% rally (fade opportunity)")
-    elif 2 < change_24h < 5:
-        score += 5
-        signals.append(f"+{change_24h:.1f}% small rally (fade entry)")
-    elif change_24h < -15:
-        signals.append(f"{change_24h:.1f}% crash — already crashed (risky short)")
-
-    # Near 24h high
-    if dist_from_high is not None and dist_from_high < 1.0:
-        score += 12
-        signals.append(f"Near 24h High ({dist_from_high:.1f}% distance) — supply zone")
-    elif dist_from_high is not None and dist_from_high < 2.0:
-        score += 6
-        signals.append(f"Close to 24h High ({dist_from_high:.1f}% distance)")
-
-    # Funding
-    if funding is not None:
-        funding_rate_pct = funding * 100
-        if funding_rate_pct > 0.10:
-            score += weights["funding_high"]
-            signals.append(f"Funding +{funding_rate_pct:.4f}% (heavily crowded longs — fade primed)")
-        elif funding_rate_pct > 0.05:
-            score += 16
-            signals.append(f"Funding +{funding_rate_pct:.4f}% (crowded longs)")
-        elif funding_rate_pct > 0.01:
-            score += 8
-            signals.append(f"Funding +{funding_rate_pct:.4f}% (mild long bias)")
-        elif funding_rate_pct < -0.05:
-            score -= 12
-            signals.append(f"Funding {funding_rate_pct:.4f}% (crowded shorts — risky short)")
-
-    return max(int(round(score)), 0), signals
+    return score_func(data)
 
 # ─────────────────────────────────────────────────────────────────────
 # Trade dataclass
@@ -781,6 +339,10 @@ def backtest_symbol(
     Simulates a walk-forward backtest for a single symbol.
     Iterates through historical candles, calculates scores, and manages simulated trades.
     """
+    # Reset predictive engine normalizers for this symbol
+    feature_builder_long.reset_normalizers()
+    feature_builder_short.reset_normalizers()
+
     if len(candles) < window + 2:
         return []
 
@@ -824,11 +386,9 @@ def backtest_symbol(
         vols_window   = [x[4] for x in window_data]
 
         long_score, long_signals = (0, []) if direction_upper == "SHORT" else \
-            score_long_window(closes_window, highs_window, lows_window, vols_window,
-                              rsi_1h, funding, None, spread)
+            score_window_unified(symbol, window_data, "LONG", rsi_1h, funding, spread)
         short_score, short_signals = (0, []) if direction_upper == "LONG" else \
-            score_short_window(closes_window, highs_window, lows_window, vols_window,
-                               rsi_1h, funding, None, spread)
+            score_window_unified(symbol, window_data, "SHORT", rsi_1h, funding, spread)
 
         best_score = max(long_score, short_score)
         
@@ -989,8 +549,8 @@ def backtest_symbol(
                             # 1 unit entry
                             unit_margin = margin
                             # Compute dynamic leverage for this unit
-                            atr_w = _calc_atr_simple(highs_window, lows_window, closes_window, 14)
-                            vol_s = vol_spike_ratio(vols_window)
+                            atr_w = pc.calc_atr(highs_window, lows_window, closes_window, 14)
+                            vol_s = pc.calc_volume_spike(vols_window)
                             unit_lev = pick_sim_leverage(atr_w / next_open * 100.0 if atr_w else None, vol_s, is_low_liq)
                             
                             unit_notional = unit_margin * unit_lev
@@ -1033,11 +593,9 @@ def backtest_symbol(
         vols_window   = [x[4] for x in window_data]
 
         long_score, long_signals = (0, []) if direction_upper == "SHORT" else \
-            score_long_window(closes_window, highs_window, lows_window, vols_window,
-                              rsi_1h, funding, None, spread)
+            score_window_unified(symbol, window_data, "LONG", rsi_1h, funding, spread)
         short_score, short_signals = (0, []) if direction_upper == "LONG" else \
-            score_short_window(closes_window, highs_window, lows_window, vols_window,
-                               rsi_1h, funding, None, spread)
+            score_window_unified(symbol, window_data, "SHORT", rsi_1h, funding, spread)
 
         best_score = max(long_score, short_score)
         if best_score < eff_min_score:
@@ -1062,7 +620,7 @@ def backtest_symbol(
 
         # ── Upgrade #6: Volatility filter on ATR / price ─────────────────────
         # Compute ATR on the current window for filtering and stop sizing
-        atr_window = _calc_atr_simple(highs_window, lows_window, closes_window, 14)
+        atr_window = pc.calc_atr(highs_window, lows_window, closes_window, 14)
         mid_price = current_close
         if atr_window and mid_price > 0:
             vol_ratio = atr_window / mid_price
@@ -1075,7 +633,7 @@ def backtest_symbol(
             continue
 
         # ── Dynamic Leverage (Ported from core.sim_bot) ───────────────────────────
-        vol_s = vol_spike_ratio(vols_window)
+        vol_s = pc.calc_volume_spike(vols_window)
         active_leverage = pick_sim_leverage(atr_window / next_open * 100.0 if atr_window else None, vol_s, is_low_liq)
 
         # ── Upgrade #2: ATR-based stop-loss (with fallback to trail_pct) ──────
@@ -1662,16 +1220,16 @@ def main():
     if args.sweep:
         print(Fore.CYAN + Style.BRIGHT + f"  🔍 PARAMETER SWEEP ({args.direction})\n")
         if args.timeframe in ["4H", "6H", "8H", "12H", "1D"]:
-            trail_pcts  = [0.01, 0.02, 0.03, 0.04]
-            sl_pcts     = [0.0, 0.04, 0.06]
-            tp_pcts     = [0.0, 0.05, 0.1, 0.15]
+            trail_pcts  = [0.01, 0.02]
+            sl_pcts     = [0.0, 0.05]
+            tp_pcts     = [0.0]
         else:
-            trail_pcts  = [0.003, 0.005, 0.008, 0.012]
-            sl_pcts     = [0.015, 0.02, 0.03, 0.0]
-            tp_pcts     = [0.0, 0.02, 0.04, 0.06]
+            trail_pcts  = [0.01, 0.02]
+            sl_pcts     = [0.0, 0.05]
+            tp_pcts     = [0.0]
 
-        min_scores  = [110, 120, 130, 140]
-        leverages   = [20, 30]
+        min_scores  = [100, 110, 120]
+        leverages   = [30]
 
         # Remove parameters that are part of the sweep grid to avoid multiple values
         sweep_kwargs = bt_kwargs.copy()
