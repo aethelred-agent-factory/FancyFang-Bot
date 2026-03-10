@@ -55,6 +55,8 @@ import core.phemex_common as pc
 import core.phemex_long as scanner_long
 import core.phemex_short as scanner_short
 import core.ui as ui
+from core.ui_textual import FancyBotApp
+import core.web_bridge as web_bridge
 import modules.animations as animations
 import modules.hardware_bridge as hw
 from modules.banner import BANNER
@@ -390,6 +392,92 @@ def _manual_tg_scan(args) -> str:
         return "\n".join(lines)
     except Exception as e:
         return f"Scan failed: {e}"
+
+
+def _get_session_chart() -> Optional[str]:
+    """Generates a PnL chart using matplotlib and returns the file path."""
+    try:
+        import matplotlib.pyplot as plt
+        import os
+
+        # For sim_bot, we might need to track equity history if not already tracked
+        # but for now we'll use a placeholder or pull from storage
+        with state.lock:
+            # Simple placeholder: just use current balance if history is empty
+            data = [state.balance]
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(data, marker='o', linestyle='-', color='g')
+        plt.title(f"Sim Session Equity ({datetime.datetime.now().strftime('%Y-%m-%d %H:%M')})")
+        plt.xlabel("Points")
+        plt.ylabel("Equity (USDT)")
+        plt.grid(True)
+
+        logs_dir = Path(SCRIPT_DIR).parent / "data" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        chart_path = logs_dir / f"sim_session_chart_{int(time.time())}.png"
+        plt.savefig(chart_path)
+        plt.close()
+
+        return str(chart_path)
+    except Exception as e:
+        logger.error(f"Failed to generate sim chart: {e}")
+        return None
+
+
+def _run_manual_backtest(text: str, args) -> str:
+    """Parses backtest command and runs a mini backtest."""
+    import research.backtest as bt
+
+    parts = text.split()
+    # /backtest [symbol] [timeframe] [candles]
+    symbol = parts[1].upper() if len(parts) > 1 else "BTCUSDT"
+    tf = parts[2] if len(parts) > 2 else args.timeframe
+    candles = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 300
+
+    try:
+        # Fetch data for backtest
+        ohlc_rows = bt.get_candles(symbol, timeframe=tf, limit=candles)
+        spread = bt.get_spread_pct(symbol)
+        funding = bt.get_funding(symbol)
+        rsi_1h = bt.get_htf_rsi(symbol)
+
+        if not ohlc_rows or len(ohlc_rows) < 110:
+            return f"❌ Insufficient data for {symbol} ({len(ohlc_rows)} candles)"
+
+        trades = bt.backtest_symbol(
+            symbol, ohlc_rows, spread, funding, rsi_1h,
+            min_score=args.min_score, trail_pct=args.trail_pct, leverage=args.leverage,
+            margin=args.margin, max_margin=150.0,
+            direction=args.direction
+        )
+
+        if not trades:
+            return f"No trades triggered for {symbol} ({tf}, {candles} candles)."
+
+        # Format brief report
+        win_trades = [t for t in trades if t.pnl_usdt > 0]
+        total_pnl = sum(t.pnl_usdt for t in trades)
+
+        report = [
+            f"🧪 *SIM Backtest Results: {symbol}*",
+            f"Period: `{candles}` candles (`{tf}`)",
+            f"Trades: `{len(trades)}`",
+            f"Win Rate: `{len(win_trades)/len(trades)*100:.1f}%`",
+            f"Total PnL: `{total_pnl:+.4f} USDT`",
+            "",
+            "Recent Trades:"
+        ]
+
+        for t in trades[-5:]:
+            emoji = "✅" if t.pnl_usdt > 0 else "❌"
+            report.append(f"{emoji} {t.direction} | PnL: `{t.pnl_usdt:+.2f}`")
+
+        return "\n".join(report)
+    except Exception as e:
+        logger.error(f"Sim backtest callback error: {e}")
+        return f"Error: {e}"
+
 
 
 def play_animation(anim_fn):
@@ -2176,6 +2264,9 @@ def main() -> None:
     parser.add_argument("--no-ai",          action="store_true")
     parser.add_argument("--no-entity",      action="store_true")
     parser.add_argument("--no-dynamic",     action="store_true")
+    parser.add_argument("--textual",        action="store_true", help="Use modern Textual TUI dashboard")
+    parser.add_argument("--web",            action="store_true", help="Enable web dashboard backend")
+    parser.add_argument("--web-port",       type=int, default=8000, help="Port for web dashboard backend")
     parser.add_argument("--no-tui",         action="store_true", help="Run without the full-screen TUI dashboard")
     args = parser.parse_args()
 
@@ -2205,21 +2296,34 @@ def main() -> None:
             get_positions_fn   = get_sim_positions,
             get_session_pnl_fn = _session_pnl_fn,
             get_logs_fn        = _get_tui_logs,
-<<<<<<< telegram-remote-control-13797062970821155509
             run_scan_fn        = lambda: _manual_tg_scan(args),
             get_chart_fn       = _get_session_chart,
             run_backtest_fn    = lambda txt: _run_manual_backtest(txt, args)
-=======
-            run_scan_fn        = lambda: _manual_tg_scan(args)
->>>>>>> main
         )
         logger.info("telegram_controller: started")
 
+    # ── Web Bridge ────────────────────────────────────────────────────────────
+    if args.web:
+        web_bridge.start_bridge_thread(state, _bot_logs, port=args.web_port)
+        logger.info(f"web_bridge: started on port {args.web_port}")
+
     try:
-        sim_bot_loop(args)
+        if args.textual and not args.no_tui:
+            # Run bot loop in a background thread, while Textual takes the main thread
+            bot_thread = threading.Thread(target=sim_bot_loop, args=(args,), daemon=True)
+            bot_thread.start()
+            
+            # Launch Textual App (blocking)
+            app = FancyBotApp(bot_state=state, bot_logs=_bot_logs, initial_balance=INITIAL_BALANCE)
+            app.run()
+            
+            # If app.run() returns, the user quit the UI
+            _running = False
+        else:
+            sim_bot_loop(args)
     finally:
-        if not _running:
-            print(Fore.YELLOW + "\n  Bot stopped by user. Shutting down...")
+        if not _running or _shutdown_requested:
+            print(Fore.YELLOW + "\n  Bot stopped. Shutting down...")
             # Signal the display thread to stop and wait for it
             with state.lock:
                 if state.display_thread_running:

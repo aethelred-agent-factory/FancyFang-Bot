@@ -97,11 +97,8 @@ _shutdown_requested = False
 _session_wins = 0
 _session_losses = 0
 _session_total_pnl = 0.0
-<<<<<<< telegram-remote-control-13797062970821155509
 _session_equity_history = []
 _equity_lock = threading.Lock()
-=======
->>>>>>> main
 
 def handle_exit(signum, frame):
     """Force an immediate exit on signal, ensuring loops are terminated."""
@@ -926,14 +923,10 @@ def _cache_refresher():
                                 _session_losses += 1
                             _session_total_pnl += realized_pnl
 
-<<<<<<< telegram-remote-control-13797062970821155509
                             with _equity_lock:
                                 with _cache_lock:
                                     current_equity = _cached_balance + sum(p.get("pnl", 0.0) for p in _cached_positions)
                                 _session_equity_history.append(current_equity)
-
-=======
->>>>>>> main
                             log_trade({
                                 "timestamp": now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
                                 "symbol": sym,
@@ -1054,7 +1047,6 @@ def _get_tui_logs() -> str:
     """Returns the last 15 lines of system logs as a single string."""
     return "\n".join(list(_bot_logs)[-15:])
 
-<<<<<<< telegram-remote-control-13797062970821155509
 def _get_session_chart() -> Optional[str]:
     """Generates a PnL chart using matplotlib and returns the file path."""
     try:
@@ -1140,8 +1132,6 @@ def _run_manual_backtest(text: str) -> str:
         return f"Error: {e}"
 
 
-=======
->>>>>>> main
 def _manual_tg_scan() -> str:
     """Triggers a manual dual-direction scan and returns a formatted report for Telegram."""
     # Use current bot config
@@ -2546,13 +2536,9 @@ def bot_loop(args):
             get_positions_fn   = _get_live_positions,
             get_session_pnl_fn = _get_live_stats,
             get_logs_fn        = _get_tui_logs,
-<<<<<<< telegram-remote-control-13797062970821155509
             run_scan_fn        = _manual_tg_scan,
             get_chart_fn       = _get_session_chart,
             run_backtest_fn    = _run_manual_backtest
-=======
-            run_scan_fn        = _manual_tg_scan
->>>>>>> main
         )
         logger.info("[TG] Telegram controller started")
 
