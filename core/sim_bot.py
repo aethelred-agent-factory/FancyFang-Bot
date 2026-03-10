@@ -2224,6 +2224,7 @@ def sim_bot_loop(args) -> None:
 
 def main() -> None:
     """Parses arguments and starts the simulation bot."""
+    global _running, _shutdown_requested
     parser = argparse.ArgumentParser(description="Phemex Sim Bot (Paper Trading)")
     parser.add_argument("--interval",       type=int,   default=300)
     parser.add_argument("--min-score",      type=int,   default=120)
