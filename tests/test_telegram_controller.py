@@ -43,9 +43,11 @@ def test_handle_status(mock_requests):
     telegram_controller._get_balance = lambda: 1000.0
     telegram_controller._get_positions = lambda: [{}, {}]
     
-    with patch("modules.drawdown_guard.get_status", return_value={
-        "daily_pnl": 10.0, "loss_pct": 0.01, "killed": False, "remaining": 90.0
-    }):
+    with (patch("modules.drawdown_guard.get_status", return_value={
+            "daily_pnl": 10.0, "loss_pct": 0.01, "killed": False, "remaining": 90.0
+          }),
+          patch("modules.telegram_controller.TG_BOT_TOKEN", "token"),
+          patch("modules.telegram_controller.TG_CHAT_ID", "chat_id")):
         telegram_controller._handle_status("chat_id")
         mock_post.assert_called()
         text = mock_post.call_args[1]["json"]["text"]
@@ -56,10 +58,12 @@ def test_handle_profit(mock_requests):
     mock_get, mock_post = mock_requests
     telegram_controller._get_session_pnl = lambda: {"wins": 2, "losses": 1, "total_pnl": 15.0}
     
-    telegram_controller._handle_profit("chat_id")
-    text = mock_post.call_args[1]["json"]["text"]
-    assert "Win rate: `66.7%`" in text
-    assert "Total PnL: `+15.0000`" in text
+    with (patch("modules.telegram_controller.TG_BOT_TOKEN", "token"),
+          patch("modules.telegram_controller.TG_CHAT_ID", "chat_id")):
+        telegram_controller._handle_profit("chat_id")
+        text = mock_post.call_args[1]["json"]["text"]
+        assert "Win rate: `66.7%`" in text
+        assert "Total PnL: `+15.0000`" in text
 
 def test_handle_positions(mock_requests):
     mock_get, mock_post = mock_requests
@@ -67,10 +71,12 @@ def test_handle_positions(mock_requests):
         {"symbol": "BTCUSDT", "side": "Buy", "entry": 50000, "pnl": 100, "entry_score": 150}
     ]
     
-    telegram_controller._handle_positions("chat_id")
-    text = mock_post.call_args[1]["json"]["text"]
-    assert "BTCUSDT" in text
-    assert "PnL: `+100.0000`" in text
+    with (patch("modules.telegram_controller.TG_BOT_TOKEN", "token"),
+          patch("modules.telegram_controller.TG_CHAT_ID", "chat_id")):
+        telegram_controller._handle_positions("chat_id")
+        text = mock_post.call_args[1]["json"]["text"]
+        assert "BTCUSDT" in text
+        assert "PnL: `+100.0000`" in text
 
 def test_poll_loop_iteration(mock_requests):
     mock_get, mock_post = mock_requests

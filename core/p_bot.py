@@ -59,6 +59,7 @@ import json
 import logging
 import math
 import os
+import queue
 import sys
 import time
 import threading
@@ -77,12 +78,15 @@ import random
 import requests
 import sys
 import signal
+import blessed
 from websocket import WebSocketApp
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from colorama import init, Fore, Style
 from dotenv import load_dotenv
 import core.phemex_common as pc
+import core.ui as ui
+import modules.animations as animations
 from modules.storage_manager import StorageManager
 
 # ── Global Control ───────────────────────────────────────────────────
@@ -262,6 +266,28 @@ _slot_available_event = threading.Event()
 _display_paused = threading.Event()
 _display_thread_running = False
 _ws_connected = False # New flag to track WebSocket connection status
+
+_animation_queue = queue.Queue()
+
+def play_animation(anim_fn):
+    """Queues a cinematic animation to be played safely."""
+    _animation_queue.put(anim_fn)
+
+def _process_animations():
+    """Processes any queued animations. Should be called from a safe thread context (main loop)."""
+    while not _animation_queue.empty():
+        anim_fn = _animation_queue.get()
+        _display_paused.set()
+        time.sleep(0.5) # Let TUI finish its last frame
+        animations.clear()
+        try:
+            anim_fn()
+        except Exception as e:
+            logger.error(f"Animation failed: {e}")
+        finally:
+            animations.clear()
+            _display_paused.clear()
+            _animation_queue.task_done()
 
 _fast_track_opened: set[str] = set()
 _fast_track_lock = threading.RLock()
@@ -871,7 +897,14 @@ def _cache_refresher():
                             side_to_log = old_p['side'] if old_p else ("Buy" if direction == "LONG" else "Sell")
 
                             msg = f"🔔 *TRADE CLOSED (Exchange Stop)* — {symbol_to_log} {side_to_log} | PnL: {realized_pnl:+.4f} | Duration: {dur_str}"
-                            print(Fore.RED + f"\n {msg}")
+
+                            # Animation and Hardware signal on exit
+                            if realized_pnl > 0:
+                                if realized_pnl > 10.0: play_animation(animations.big_win)
+                                else: play_animation(animations.win)
+                            else:
+                                play_animation(animations.loss)
+
                             send_telegram_message(msg)
                             logger.info(msg)
 
@@ -983,159 +1016,159 @@ def _subscribe_symbol(symbol):
     threading.Thread(target=_do_sub, daemon=True).start()
 
 
+_pnl_histories: Dict[str, List[float]] = {}
+def _update_pnl_history(symbol: str, current_upnl: float):
+    if symbol not in _pnl_histories:
+        _pnl_histories[symbol] = []
+    _pnl_histories[symbol].append(current_upnl)
+    if len(_pnl_histories[symbol]) > 200:
+        _pnl_histories[symbol].pop(0)
+
 def _live_pnl_display():
-    """Dashboard refresh daemon. Exits when _display_thread_running is cleared."""
+    """Full-screen TUI dashboard using blessed."""
+    term = blessed.Terminal()
     global _display_thread_running
-    # [T1-FIX] Use existing flag as loop guard instead of while True
-    while _display_thread_running:
-        if _display_paused.is_set():
-            time.sleep(1)
-            continue
 
-        # We read from cache here, which is updated in the bot_loop
-        with _cache_lock:
-            balance = _cached_balance
-            positions = _cached_positions
+    with term.fullscreen(), term.hidden_cursor():
+        while _display_thread_running:
+            if _display_paused.is_set():
+                time.sleep(1)
+                continue
 
-        # Load history for stats
-        all_trades = _read_trade_log()
-        history = [t for t in all_trades if t.get("status") == "closed" or "pnl" in t and t["pnl"] != 0]
+            with _cache_lock:
+                balance = _cached_balance
+                positions = _cached_positions[:]
 
-        # Clear screen
-        sys.stdout.write("\033[2J\033[H")
-        
-        left_column_lines = []
-        right_column_lines = []
+            all_trades = _read_trade_log()
+            closed_trades = [t for t in all_trades if t.get("status") == "closed" or "pnl" in t and t["pnl"] != 0]
 
-        # --- Populate Left Column (existing dashboard content) ---
-        left_column_lines.append(Fore.CYAN + pc.BANNER + Style.RESET_ALL)
-        # REF: [Tier 2] UTC Standardisation
-        left_column_lines.append(Fore.CYAN + Style.BRIGHT + f" 📊 LIVE PRODUCTION DASHBOARD | {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}" + Style.RESET_ALL)
-        left_column_lines.append(Fore.CYAN + "─" * 70 + Style.RESET_ALL)
+            print(term.clear)
 
-        total_upnl = 0.0
-        if not positions:
-            left_column_lines.append(Fore.WHITE + " (No active positions)" + Style.RESET_ALL)
-        else:
+            # --- Header ---
+            banner_lines = pc.BANNER.split("\n")
+            for i, line in enumerate(banner_lines):
+                print(term.move_xy(2, i+1) + term.cyan(line))
+
+            header_y = len(banner_lines) + 1
+            print(term.move_xy(2, header_y) + ui.hr_double(Fore.MAGENTA))
+            curr_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
+            print(term.move_xy(2, header_y + 1) + term.bold_white(f" 📊 LIVE PRODUCTION DASHBOARD | {curr_time} UTC"))
+
+            # --- Layout Constants ---
+            max_w = term.width - 4
+            left_w = int(max_w * 0.65)
+            right_w = max_w - left_w - 2
+            start_y = header_y + 3
+
+            # --- Left Column: Wallet & Positions ---
+            y = start_y
+
+            # 1. Account Summary Panel
+            total_upnl = 0.0
             for pos in positions:
                 sym = pos["symbol"]
                 with _prices_lock:
                     now = _live_prices.get(sym)
-                    if now is None:
-                        left_column_lines.append(f" {pos['side']:4} {sym:<12} | Entry: {pos['entry']:.6g} | Waiting for price..." + Style.RESET_ALL)
-                        continue
+                    if now:
+                        upnl = (now - pos['entry']) * pos['size'] if pos['side'] == "Buy" else (pos['entry'] - now) * pos['size']
+                        total_upnl += upnl
+                        _update_pnl_history(sym, upnl)
+
+            equity = balance + total_upnl
+            halt_status = f" {Fore.RED}[HALTED]{Style.RESET_ALL}" if _account_trading_halted else ""
+            summary_lines = [
+                f" Wallet: {Fore.GREEN}{balance:.2f} USDT{Style.RESET_ALL} | uPnL: {ui.pnl_color(total_upnl)}{total_upnl:+.4f} USDT{Style.RESET_ALL}",
+                f" Equity: {Style.BRIGHT}{equity:.2f} USDT{Style.RESET_ALL}{halt_status}",
+                f" Peak:   ${_account_high_water:.2f} | Stop: ${_account_trail_stop:.2f}",
+                f" Max Positions: {get_dynamic_max_positions(balance)}"
+            ]
+
+            # Blacklist/Cooldowns
+            with _blacklist_lock:
+                bl_active = {s: exp for s, exp in SYMBOL_BLACKLIST.items() if time.time() < exp}
+                if bl_active:
+                    bl_str = ", ".join(f"{s}({int((e-time.time())/60)}m)" for s, e in bl_active.items())
+                    summary_lines.append(f" {Fore.YELLOW}🚫 COOLDOWN: {bl_str[:left_w-15]}{Style.RESET_ALL}")
+
+            print(term.move_xy(2, y) + ui.modern_panel("ACCOUNT SUMMARY", summary_lines, color=Fore.CYAN, width=left_w))
+            y += len(summary_lines) + 3
+
+            # 2. Active Positions Panel
+            pos_y = y
+            if not positions:
+                print(term.move_xy(2, pos_y) + ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (No active positions)"], width=left_w))
+                y += 4
+            else:
+                for pos in positions:
+                    sym = pos["symbol"]
+                    with _prices_lock:
+                        now = _live_prices.get(sym)
+
+                    if not now:
+                        print(term.move_xy(2, y) + ui.modern_panel(sym, [Fore.WHITE + "Waiting for price..."], width=left_w))
+                        y += 4; continue
 
                     side = pos["side"]
-                    entry = pos["entry"]
-                    size = float(pos["size"])
-                    upnl = (now - entry) * size if side == "Buy" else (entry - now) * size
-                    total_upnl += upnl
+                    upnl = (now - pos['entry']) * pos['size'] if side == "Buy" else (pos['entry'] - now) * pos['size']
 
-                    # Stop Distance calculation
-                    stop_dist_str = ""
-                    local_state = _local_stop_states.get(sym)
-                    if local_state and "stop_price" in local_state:
-                        stop_px = local_state["stop_price"]
-                        if side == "Buy":
-                            stop_dist = (now - stop_px) / now * 100
-                        else:
-                            stop_dist = (stop_px - now) / now * 100
-                        stop_dist_str = f" | Stop dist: {stop_dist:.2f}%"
+                    # Mini chart and stats
+                    hist = _pnl_histories.get(sym, [0.0])
+                    chart_lines = ui.render_pnl_chart(hist, width=left_w-20, height=3)
 
-                    # Duration calculation
+                    pnl_str = f"{ui.pnl_color(upnl)}{upnl:+.4f} USDT{Style.RESET_ALL}"
+                    dir_badge = f"{Fore.GREEN}▲ LONG{Style.RESET_ALL}" if side == "Buy" else f"{Fore.RED}▼ SHORT{Style.RESET_ALL}"
+
+                    # Duration
                     dur_str = ""
-                    if sym in _local_stop_states:
-                        ls = _local_stop_states[sym]
-                        et = ls.get("entry_time")
-                        if et:
-                            if et.tzinfo is None:
-                                et = et.replace(tzinfo=datetime.timezone.utc)
-                            diff = datetime.datetime.now(datetime.timezone.utc) - et
-                            tot_sec = int(diff.total_seconds())
-                            if tot_sec < 60:
-                                dur_str = f"({tot_sec}s)"
-                            elif tot_sec < 3600:
-                                dur_str = f"({tot_sec // 60}m)"
-                            else:
-                                dur_str = f"({tot_sec // 3600}h {(tot_sec % 3600) // 60}m)"
-                    dur_badge = Fore.WHITE + f"{dur_str}" + Style.RESET_ALL
+                    with _stop_states_lock:
+                        ls = _local_stop_states.get(sym, {})
+                    et = ls.get("entry_time")
+                    if et:
+                        if et.tzinfo is None: et = et.replace(tzinfo=datetime.timezone.utc)
+                        diff = datetime.datetime.now(datetime.timezone.utc) - et
+                        tot = int(diff.total_seconds())
+                        dur_str = f"({tot//60}m {tot%60}s)"
 
-                    dir_sym = "▲" if side == "Buy" else "▼"
-                    dir_color = Fore.GREEN if side == "Buy" else Fore.RED
-                    pnl_color = Fore.GREEN if upnl >= 0 else Fore.RED
-                    left_column_lines.append(f" {dir_color}{dir_sym}{Style.RESET_ALL} {sym:<12} | Entry: {entry:.6g} | Now: {now:.6g} | "
-                                            f"uPnL: {pnl_color}{upnl:+.4f} USDT{Style.RESET_ALL}{stop_dist_str} | {dur_badge}")
+                    pos_header = f"{dir_badge} {term.bold_white(sym)} {pnl_str} {dur_str}"
+                    pos_info = [
+                        f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Size: {pos['size']}",
+                        f" {chart_lines[0]}",
+                        f" {chart_lines[1]}",
+                        f" {chart_lines[2]}"
+                    ]
+                    print(term.move_xy(2, y) + ui.modern_panel(pos_header, pos_info, width=left_w, color=Fore.MAGENTA))
+                    y += len(pos_info) + 2
 
-        equity = balance + total_upnl
-        left_column_lines.append(Fore.CYAN + "─" * 70 + Style.RESET_ALL)
-        halt_status = f" | {Fore.RED}HALTED{Style.RESET_ALL}" if _account_trading_halted else ""
-        left_column_lines.append(f" Wallet: {balance:.2f} USDT | uPnL: {total_upnl:+.4f} USDT | {Style.BRIGHT}Equity: {equity:.2f} USDT{halt_status}")
+            # 3. System Logs
+            log_y = y
+            log_lines = list(_bot_logs)[-5:]
+            while len(log_lines) < 5: log_lines.insert(0, "")
+            print(term.move_xy(2, log_y) + ui.modern_panel("SYSTEM LOGS", log_lines, width=left_w, color=Fore.WHITE))
 
-        dynamic_max_pos = get_dynamic_max_positions(balance)
-        left_column_lines.append(f" Account Peak: ${ _account_high_water:.2f} | Account Stop: ${_account_trail_stop:.2f} | Max Positions: {dynamic_max_pos}")
+            # --- Right Column: Trade History ---
+            hist_y = start_y
+            hist_lines = []
 
-        # Show active blacklist
-        with _blacklist_lock:
-            bl_active = {sym: expiry for sym, expiry in SYMBOL_BLACKLIST.items() if time.time() < expiry}
-            if bl_active:
-                bl_strs = ", ".join(f"{sym}({(exp-time.time())/60:.0f}m)" for sym, exp in bl_active.items())
-                left_column_lines.append(Fore.YELLOW + f" 🚫 COOLDOWN: {bl_strs}" + Style.RESET_ALL)
+            # Stats Summary at top of history
+            if closed_trades:
+                wins = len([t for t in closed_trades if t.get("pnl", 0) > 0])
+                wr = (wins / len(closed_trades) * 100)
+                tot_pnl = sum(t.get("pnl", 0) for t in closed_trades)
+                hist_lines.append(f"{Fore.WHITE}Wins: {Fore.GREEN}{wins}{Style.RESET_ALL} | Loss: {Fore.RED}{len(closed_trades)-wins}{Style.RESET_ALL} | WR: {wr:.1f}%")
+                hist_lines.append(f"Total PnL: {ui.pnl_color(tot_pnl)}{tot_pnl:+.2f} USDT{Style.RESET_ALL}")
+                hist_lines.append(ui.hr_dash())
 
-        # Stats Line
-        if history:
-            # REF: [Tier 3] Descriptive Naming
-            wins_list = [trade for trade in history if trade.get("pnl", 0) > 0]
-            losses_list = [trade for trade in history if trade.get("pnl", 0) <= 0]
-            win_rate = (len(wins_list) / len(history) * 100) if history else 0
-            total_closed_pnl = sum(trade.get("pnl", 0) for trade in history)
-            left_column_lines.append(Fore.CYAN + "─" * 70 + Style.RESET_ALL)
-            left_column_lines.append(f" TRADES: {len(history)} | {Fore.GREEN}WINS: {len(wins_list)}{Style.RESET_ALL} | {Fore.RED}LOSS: {len(losses_list)}{Style.RESET_ALL} | Win Rate: {win_rate:.1f}%")
-            pnl_color_badge = Fore.GREEN if total_closed_pnl >= 0 else Fore.RED
-            left_column_lines.append(f" {pnl_color_badge}{Style.BRIGHT}TOTAL REALIZED PNL: {total_closed_pnl:+.4f} USDT{Style.RESET_ALL}")
+            # Recent trades
+            for t in reversed(closed_trades[-15:]):
+                p = t.get('pnl', 0)
+                ts = t['timestamp'][11:16]
+                sym = t['symbol'].replace('USDT', '')
+                hist_lines.append(f" {ts} {sym:<6} {ui.pnl_color(p)}{p:+.2f}{Style.RESET_ALL}")
 
-        # Recent Logs (New section)
-        if _bot_logs:
-            left_column_lines.append(Fore.CYAN + "─" * 70 + Style.RESET_ALL)
-            left_column_lines.append(Fore.CYAN + Style.BRIGHT + " 📝 RECENT SYSTEM LOGS:" + Style.RESET_ALL)
-            # Deque is thread-safe, but we can convert to list for slicing/reversing if needed
-            for log in list(_bot_logs)[-8:]:
-                left_column_lines.append(f" {log}")
+            print(term.move_xy(left_w + 4, hist_y) + ui.modern_panel("TRADE HISTORY", hist_lines, width=right_w, color=Fore.CYAN))
 
-        # --- Populate Right Column (all trades history) ---
-        right_column_lines.append(f"{Fore.CYAN}{Style.BRIGHT} 📜 TRADE HISTORY ({len(all_trades)} total):{Style.RESET_ALL}")
-        if not all_trades:
-            right_column_lines.append(f" (No trades recorded yet)")
-        else:
-            for t in reversed(all_trades):
-                held_secs = t.get("hold_time_seconds", 0)
-                m, s = divmod(int(held_secs), 60)
-                p_color = Fore.GREEN if t.get("pnl", 0) > 0 else Fore.RED
-                direction = t.get("direction", "?")
-                trade_status = t.get("status", "closed")
-                line = (f" {t['timestamp'][11:16]} {t['symbol']:<14} | {direction:5} | "
-                        f"PnL: {p_color}{t.get('pnl', 0):+.4f} USDT{Style.RESET_ALL} | Held: {m}m {s}s | {trade_status.upper()}")
-                right_column_lines.append(line)
-
-        # --- Combine and Print ---
-        left_col_width = 70
-        num_left_lines = len(left_column_lines)
-        num_right_lines = len(right_column_lines)
-
-        max_total_lines = max(num_left_lines, num_right_lines)
-        
-        # Extend the shorter list with empty strings for even iteration
-        if num_left_lines < max_total_lines:
-            left_column_lines.extend([""] * (max_total_lines - num_left_lines))
-        if num_right_lines < max_total_lines:
-            right_column_lines.extend([""] * (max_total_lines - num_right_lines))
-
-        for l_line, r_line in zip(left_column_lines, right_column_lines):
-            stripped_l_line = strip_ansi(l_line)
-            padding = " " * (left_col_width - len(stripped_l_line))
-            print(f"{l_line}{padding}  {r_line}")
-
-        sys.stdout.flush()
-        time.sleep(2)
+            sys.stdout.flush()
+            time.sleep(1)
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -1785,6 +1818,9 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
 
     tui_log(f"EXECUTING {arrow} {symbol} | Predictive Score: {predictive_score:.2f} | Price: {price:.4g} | Qty: {qty_str} | Margin: ${active_margin} | Lev: {active_leverage}x", event_type="EXEC")
 
+    # --- Entry Cinematic ---
+    play_animation(animations.long if direction == "LONG" else animations.short)
+
     # --- Entity API: Trade Intent ---
     trade_id = f"tr-{symbol}-{int(time.time())}"
     make_entity_request("trade", data={
@@ -2330,6 +2366,7 @@ def bot_loop(args):
     # ── Main Bot Execution Loop ──────────────────────────────────────
     while _running:
         try:
+            _process_animations()
             # ── Time-of-day Profitability Filter ──
             if pc.is_hour_blocked():
                 curr_hour = datetime.datetime.now(datetime.timezone.utc).hour
@@ -3009,6 +3046,9 @@ def main():
     elif args.command == "run":
         testnet = "testnet" in BASE_URL
         env_label = Fore.YELLOW + "⚠ TESTNET" if testnet else Fore.RED + "🚨 MAINNET — REAL MONEY"
+
+        if not args.no_ai:
+            play_animation(animations.boot)
 
         print(Fore.CYAN + Style.BRIGHT + "\n 🤖 Phemex Trading Bot Starting")
         print(f" Exchange  : {env_label}{Style.RESET_ALL} ({BASE_URL})")

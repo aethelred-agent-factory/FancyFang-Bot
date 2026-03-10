@@ -1752,16 +1752,7 @@ def unified_analyse(
             logger.error(f"  {symbol}: Indicator calculation failed: {e}")
             return None
 
-        # 4. Expensive API calls
-        # [T1-02] Use get_order_book_with_volumes (Upgrade #10 imbalance) — was get_order_book
-        best_bid, best_ask, spread, depth, ob_imbalance = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
-
-        # ── Spread Filter (Upgrade #1) ──────────────────────────────────────
-        spread_ok, _ = check_spread_filter(spread, symbol, max_pct=cfg.get("spread_max_pct"))
-        if not spread_ok:
-            return None
-
-        # 5. Volume Profile
+        # 3b. Intermediate Data for Pre-score
         poc_price, nodes = calc_volume_profile(ohlc, vols, bins=20)
         dist_to_node_below, dist_to_node_above = None, None
         if nodes and last > 0:
@@ -1772,7 +1763,6 @@ def unified_analyse(
             if nodes_above:
                 dist_to_node_above = abs(pct_change(last, min(nodes_above)))
 
-        # 6. HTF Context (Upgrade #5 — 1H + 4H RSI alignment)
         rsi_1h, rsi_4h = None, None
         c1h = get_candles(symbol, timeframe="1H", limit=50, rps=cfg.get("RATE_LIMIT_RPS"))
         if c1h:
@@ -1786,25 +1776,44 @@ def unified_analyse(
             if cl4h:
                 rsi_4h, _, _ = calc_rsi(cl4h)
 
-        # 7. Pattern & Divergence detection
         raw_patterns = detect_patterns_func(ohlc)
         has_div = detect_div_func(closes, rsi_hist)
 
-        # 8. Data Aggregation — full TickerData with all upgrade fields populated
-        data = TickerData(
+        # 3c. Pre-score gate (Upgrade #15)
+        # Avoid expensive API calls if indicators already look weak.
+        pre_data = TickerData(
             inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
             change_24h=pct_change(last, open24), funding_rate=funding_rate, patterns=raw_patterns,
             dist_low_pct=pct_change(last, low24), dist_high_pct=pct_change(last, high24),
             vol_spike=vol_spike, has_div=has_div, rsi_1h=rsi_1h, rsi_4h=rsi_4h,
-            fr_change=funding_rate_change or 0.0, spread=spread,
+            fr_change=funding_rate_change or 0.0, spread=0.0,
             dist_to_node_below=dist_to_node_below, dist_to_node_above=dist_to_node_above,
             ema_slope=ema_slope, slope_change=slope_change,
-            raw_ohlc=ohlc[-10:], vol_24h=vol24,
-            regime=regime, entropy=entropy, kalman_slope=kalman_slope,
-            ema200=ema200,
+            raw_ohlc=ohlc[-10:], vol_24h=vol24, regime=regime, entropy=entropy,
+            kalman_slope=kalman_slope, ema200=ema200,
         )
+        pre_score, _ = score_func(pre_data)
 
-        # 9. Scoring
+        gate_val = cfg.get("pre_score_gate", _PRE_SCORE_GATE_DEFAULT)
+        if pre_score < gate_val:
+            logger.debug("  %s: pre-score %d < gate %d, skipping expensive calls.", symbol, pre_score, gate_val)
+            return None
+
+        # 4. Expensive API calls
+        # [T1-02] Use get_order_book_with_volumes (Upgrade #10 imbalance) — was get_order_book
+        best_bid, best_ask, spread, depth, ob_imbalance = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+
+        # ── Spread Filter (Upgrade #1) ──────────────────────────────────────
+        spread_ok, _ = check_spread_filter(spread, symbol, max_pct=cfg.get("spread_max_pct"))
+        if not spread_ok:
+            return None
+
+        # 8. Data Aggregation — update spread and ob_imbalance
+        data = pre_data
+        data.spread = spread
+        data.ob_imbalance = ob_imbalance
+
+        # 9. Final Scoring
         try:
             score, signals = score_func(data)
         except Exception as e:

@@ -67,6 +67,8 @@ try:
     import core.phemex_common as pc
     import core.phemex_long as scanner_long
     import core.phemex_short as scanner_short
+    import core.ui as ui
+    import modules.animations as animations
     import modules.event_filter as event_filter
 except ImportError as e:
     print(Fore.RED + f"[ERROR] Could not import scanner modules: {e}")
@@ -171,22 +173,23 @@ def print_direction_results(
     limit: int,
 ):
     dir_color = Fore.GREEN if direction == "LONG" else Fore.RED
+    dir_label = "BULLISH" if direction == "LONG" else "BEARISH"
     arrow = "▲ LONG SETUPS" if direction == "LONG" else "▼ SHORT SETUPS"
-    funding_label = "Neg=Bullish" if direction == "LONG" else "Pos=Bearish"
+    funding_label = "Neg=Bull" if direction == "LONG" else "Pos=Bear"
 
     sorted_results = sorted(results, key=lambda x: x["score"], reverse=True)
     top = [scan_res for scan_res in sorted_results[:limit] if scan_res["score"] >= cfg["MIN_SCORE"]]
 
-    print(dir_color + Style.BRIGHT + hr("═"))
-    print(dir_color + Style.BRIGHT + f"  {arrow}  ({cfg['TIMEFRAME']} | {len(top)} shown | MinScore: {cfg['MIN_SCORE']})")
-    print(dir_color + Style.BRIGHT + hr("═"))
+    print("\n" + ui.section(f"{arrow} ({dir_label})", color=dir_color))
+    print(Fore.WHITE + f"  Timeframe: {cfg['TIMEFRAME']} | Results: {len(top)} | Min Score: {cfg['MIN_SCORE']}\n")
 
     if not top:
-        print(Fore.YELLOW + "  No setups pass the minimum score threshold.\n")
+        print(ui.modern_panel("", [Fore.YELLOW + "No setups pass the minimum score threshold."], color=Fore.YELLOW))
         return
 
     for i, scan_res in enumerate(top, 1):
-        g, gc = grade(scan_res["score"])
+        score = scan_res['score']
+        g, gc = grade(score)
         conf = scan_res.get("confidence", "N/A")
         cc = scan_res.get("conf_color", Fore.WHITE)
 
@@ -203,53 +206,49 @@ def print_direction_results(
 
         rsi_val = scan_res.get("rsi")
         rsi_str = f"{rsi_val:.1f}" if rsi_val is not None else "N/A"
+        rsi_gauge = ui.score_gauge(int(rsi_val or 0), width=15) if rsi_val else ""
 
-        print(gc + Style.BRIGHT + f"  {'─'*88}")
-        print(gc + Style.BRIGHT +
-              f"  #{i:02d}  {scan_res['inst_id']:<16} Grade: {g}  Score: {scan_res['score']:>3}  "
-              f"Price: {scan_res['price']:.4g}  "
-              f"Change: {scan_res.get('change_24h', 0):+.2f}%")
+        # Build card lines
+        title_line = (
+            f"#{i:02d} {Fore.WHITE}{Style.BRIGHT}{scan_res['inst_id']:<14}{Style.RESET_ALL} "
+            f"Grade: {ui.grade_badge(score)} {gc}{score:>3}{Style.RESET_ALL} "
+            f"Price: {Fore.CYAN}{scan_res['price']:.5g}{Style.RESET_ALL} "
+            f"Chg: {ui.pnl_color(scan_res.get('change_24h', 0))}{scan_res.get('change_24h', 0):+.2f}%"
+        )
 
-        print(f"       RSI: {rsi_str:<8}  "
-              f"Funding: {fp_color}{fp_str}{Style.RESET_ALL} ({funding_label})  "
-              f"Vol 24h: {pc.fmt_vol(scan_res.get('vol_24h', 0))}  "
-              f"Confidence: {cc}{conf}{Style.RESET_ALL}")
+        stat_line = (
+            f" RSI: {rsi_str:<5} {rsi_gauge}   "
+            f"Fund: {fp_color}{fp_str}{Style.RESET_ALL} ({funding_label})  "
+            f"Vol: {Fore.WHITE}{pc.fmt_vol(scan_res.get('vol_24h', 0))}{Style.RESET_ALL}"
+        )
 
-        # BB / EMA line
         bb_pct = scan_res.get("bb_pct")
-        ema21 = scan_res.get("ema21")
-        bb_str = f"BB%: {bb_pct:.1f}" if bb_pct is not None else ""
-        ema_str = f"EMA21: {ema21:.4g}" if ema21 is not None else ""
+        bb_str = f"BB%: {Fore.YELLOW}{bb_pct:.1f}{Style.RESET_ALL}" if bb_pct is not None else ""
         vol_spike = scan_res.get("vol_spike", 1.0)
         atr_stop = scan_res.get("atr_stop_pct")
-        extras = "  ".join(filter(None, [
+
+        extra_line = "  ".join(filter(None, [
             bb_str,
             f"BB Width: {scan_res.get('bb_width', 0):.2f}%" if scan_res.get("bb_width") else None,
-            ema_str,
-            f"Vol Spike: {vol_spike:.2f}x",
-            f"ATR Stop: {atr_stop:.2f}%" if atr_stop else None,
+            f"Vol Spike: {Fore.MAGENTA}{vol_spike:.2f}x{Style.RESET_ALL}",
+            f"ATR Stop: {Fore.RED}{atr_stop:.2f}%{Style.RESET_ALL}" if atr_stop else None,
+            f"Conf: {cc}{conf}{Style.RESET_ALL}"
         ]))
-        if extras:
-            print(f"       {extras}")
 
-        # Flags
-        if scan_res.get("conf_notes"):
-            print(Fore.YELLOW + f"       ⚑  {', '.join(scan_res['conf_notes'])}")
+        card_lines = [title_line, stat_line, extra_line]
 
         # Key signals (top 5)
         signals = scan_res.get("signals", [])
         if signals:
-            print(dir_color + "       Signals:")
-            for sig in signals[:5]:
-                print(dir_color + f"         • {sig}")
-            if len(signals) > 5:
-                print(dir_color + f"         … +{len(signals)-5} more")
+            sig_str = f"{Fore.CYAN}Signals:{Style.RESET_ALL} " + ", ".join(signals[:4])
+            if len(signals) > 4: sig_str += f" (+{len(signals)-4})"
+            card_lines.append(sig_str)
 
         # News
         if scan_res.get("news_count", 0) > 0 and scan_res.get("news_titles"):
-            print(Fore.YELLOW + f"       📰 {scan_res['news_count']} news items: {scan_res['news_titles'][0][:70]}")
+            card_lines.append(f"{Fore.YELLOW}📰 {scan_res['news_count']} news items: {scan_res['news_titles'][0][:65]}...")
 
-        print()
+        print(ui.modern_panel("", card_lines, color=gc, width=90))
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -327,14 +326,14 @@ def print_summary(long_results: List[dict], short_results: List[dict], elapsed: 
     lg = grade_counts(long_results)
     sg = grade_counts(short_results)
 
-    # print(f"  Avg Score: L: {avg_long:.1f} S: {avg_short:.1f}")
+    print("\n" + ui.section("SCAN SUMMARY", color=Fore.WHITE))
 
-    print(Fore.WHITE + Style.BRIGHT + hr("═"))
-    print(Fore.WHITE + Style.BRIGHT + "  SCAN SUMMARY")
-    print(Fore.WHITE + Style.BRIGHT + hr("─"))
-    print(f"  Timeframe : {cfg['TIMEFRAME']}     Min Volume: {pc.fmt_vol(cfg['MIN_VOLUME'])} USDT     "
-          f"Completed: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  Elapsed   : {elapsed:.1f}s\n")
+    summary_lines = [
+        f"Timeframe: {Fore.CYAN}{cfg['TIMEFRAME']}{Style.RESET_ALL}  Min Vol: {Fore.CYAN}{pc.fmt_vol(cfg['MIN_VOLUME'])} USDT{Style.RESET_ALL}",
+        f"Completed: {Fore.WHITE}{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC{Style.RESET_ALL}",
+        f"Elapsed:   {Fore.YELLOW}{elapsed:.1f}s{Style.RESET_ALL}",
+        ""
+    ]
 
     for label, results, lc, gc_list in [
         ("LONG  ▲", long_results,  Fore.GREEN, lg),
@@ -349,25 +348,20 @@ def print_summary(long_results: List[dict], short_results: List[dict], elapsed: 
         gc_c = Fore.YELLOW if gc_list["C"] else Fore.WHITE
         gc_d = Fore.RED if gc_list["D"] else Fore.WHITE
 
-        print(lc + Style.BRIGHT + f"  {label}:")
-        print(f"    Hits  : {total_dir}   Avg Score: {avg:.1f}   "
-              f"Grades → "
-              f"{gc_a}A:{gc_list['A']}{Style.RESET_ALL}  "
-              f"{gc_b}B:{gc_list['B']}{Style.RESET_ALL}  "
-              f"{gc_c}C:{gc_list['C']}{Style.RESET_ALL}  "
-              f"{gc_d}D:{gc_list['D']}{Style.RESET_ALL}")
+        summary_lines.append(f"{lc}{Style.BRIGHT}{label}:{Style.RESET_ALL}")
+        summary_lines.append(f"  Hits: {total_dir:<4} Avg: {avg:.1f}")
+        summary_lines.append(f"  Grades: {gc_a}A:{gc_list['A']}{Style.RESET_ALL}  {gc_b}B:{gc_list['B']}{Style.RESET_ALL}  {gc_c}C:{gc_list['C']}{Style.RESET_ALL}  {gc_d}D:{gc_list['D']}{Style.RESET_ALL}")
+
         if best:
             g, gc = grade(best["score"])
-            print(f"    Best  : {gc}{best['inst_id']}{Style.RESET_ALL}  "
-                  f"Score {gc}{best['score']}{Style.RESET_ALL}  Grade {gc}{g}{Style.RESET_ALL}  "
-                  f"RSI {best.get('rsi', 0) or 0:.1f}  "
-                  f"Funding {best.get('funding_pct') or 0:+.4f}%")
-        print()
+            summary_lines.append(f"  Best: {gc}{best['inst_id']}{Style.RESET_ALL} Score:{best['score']} Grade:{g}")
+        summary_lines.append("")
 
-    print(Fore.WHITE + Style.BRIGHT + hr("─"))
+    print(ui.modern_panel("PERFORMANCE & HITS", summary_lines, color=Fore.WHITE, width=90))
+
     print(Fore.YELLOW + "  ⚠  Scanner output is NOT financial advice.")
     print(Fore.YELLOW + "     Confirm all setups on the chart with proper risk management.")
-    print(Fore.WHITE + Style.BRIGHT + hr("═"))
+    print(ui.hr_double(Fore.WHITE))
     print()
 
 
@@ -416,17 +410,24 @@ def main():
     run_long  = not args.short_only
     run_short = not args.long_only
 
-    print(Fore.CYAN + Style.BRIGHT + hr("═"))
+    if not args.debug:
+        animations.boot()
+
+    banner_text = "FANCYFANG PHEMEX DUAL SCANNER"
+    print("\n" + ui.gradient_text(banner_text.center(92), (0, 255, 255), (255, 0, 255)))
+    print(ui.hr_double(Fore.MAGENTA))
+
     print(Fore.CYAN + Style.BRIGHT +
-          f"  ⚡ PHEMEX DUAL SCANNER  |  {args.timeframe}  |  "
-          f"MinVol: {pc.fmt_vol(args.min_vol)} USDT  |  "
-          f"{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}")
+          f"  MODE: {args.timeframe}  |  "
+          f"VOL: {pc.fmt_vol(args.min_vol)} USDT  |  "
+          f"UTC: {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}")
+
     dirs_running = " + ".join(filter(None, [
         "▲ LONG" if run_long else None,
         "▼ SHORT" if run_short else None,
     ]))
-    print(Fore.CYAN + Style.BRIGHT + f"  Directions: {dirs_running}")
-    print(Fore.CYAN + Style.BRIGHT + hr("═"))
+    print(Fore.CYAN + Style.BRIGHT + f"  DIRECTIONS: {dirs_running}")
+    print(ui.hr_double(Fore.MAGENTA))
     print()
 
     # ── Estimation ────────────────────────────────────────────────────
