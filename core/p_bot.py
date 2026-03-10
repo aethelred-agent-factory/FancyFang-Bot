@@ -928,7 +928,6 @@ def _cache_refresher():
                                 with _cache_lock:
                                     current_equity = _cached_balance + sum(p.get("pnl", 0.0) for p in _cached_positions)
                                 _session_equity_history.append(current_equity)
-
                             log_trade({
                                 "timestamp": now_utc.isoformat(), # REF: Tier 3: Temporal Inconsistency
                                 "symbol": sym,
@@ -2562,7 +2561,7 @@ def bot_loop(args):
             get_logs_fn        = _get_tui_logs,
             run_scan_fn        = _manual_tg_scan,
             get_chart_fn       = _get_session_chart,
-            run_backtest_fn    = _run_manual_backtest,
+            run_backtest_fn    = _run_manual_backtest
         )
         logger.info("[TG] Telegram controller started")
 
