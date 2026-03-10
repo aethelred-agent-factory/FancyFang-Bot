@@ -67,7 +67,7 @@ try:
     import core.phemex_common as pc
     import core.phemex_long as scanner_long
     import core.phemex_short as scanner_short
-    import modules.event_filter
+    import modules.event_filter as event_filter
 except ImportError as e:
     print(Fore.RED + f"[ERROR] Could not import scanner modules: {e}")
     sys.exit(1)
@@ -178,7 +178,7 @@ def print_direction_results(
     top = [scan_res for scan_res in sorted_results[:limit] if scan_res["score"] >= cfg["MIN_SCORE"]]
 
     print(dir_color + Style.BRIGHT + hr("═"))
-    print(dir_color + Style.BRIGHT + f"  {arrow}  ({cfg['TIMEFRAME']} | {len(top)} shown of {len(results)} hits)")
+    print(dir_color + Style.BRIGHT + f"  {arrow}  ({cfg['TIMEFRAME']} | {len(top)} shown | MinScore: {cfg['MIN_SCORE']})")
     print(dir_color + Style.BRIGHT + hr("═"))
 
     if not top:
@@ -464,7 +464,13 @@ def main():
         print(Fore.YELLOW + f"  ⚠️  ENTRY SUPPRESSED: {reason}. Skipping scan.")
         sys.exit(0)
 
-    raw_tickers = pc.get_tickers(rps=cfg["RATE_LIMIT_RPS"])
+    # Apply high-speed funding gate at the ticker fetch stage
+    # If short-only or long-only, we can pass that to get_tickers
+    direction_pref = None
+    if args.short_only: direction_pref = "SHORT"
+    elif args.long_only: direction_pref = "LONG"
+
+    raw_tickers = pc.get_tickers(rps=cfg["RATE_LIMIT_RPS"], direction_filter=direction_pref)
     filtered = [
         t for t in raw_tickers
         if float(t.get("turnoverRv") or 0.0) >= cfg["MIN_VOLUME"]
@@ -491,16 +497,29 @@ def main():
     elapsed = time.time() - start
     print()
 
+    # Calculate adaptive thresholds if multiple results exist
+    eff_min_long = cfg["MIN_SCORE"]
+    eff_min_short = cfg["MIN_SCORE"]
+    if long_results:
+        eff_min_long = pc.calc_dynamic_threshold([r["score"] for r in long_results], cfg["MIN_SCORE"])
+    if short_results:
+        eff_min_short = pc.calc_dynamic_threshold([r["score"] for r in short_results], cfg["MIN_SCORE"])
+
     # ── Per-direction results ─────────────────────────────────────────
     if run_long:
-        print_direction_results(long_results, "LONG", cfg, limit=args.top)
+        cfg_long = dict(cfg, MIN_SCORE=eff_min_long)
+        print_direction_results(long_results, "LONG", cfg_long, limit=args.top)
 
     if run_short:
-        print_direction_results(short_results, "SHORT", cfg, limit=args.top)
+        cfg_short = dict(cfg, MIN_SCORE=eff_min_short)
+        print_direction_results(short_results, "SHORT", cfg_short, limit=args.top)
 
     # ── Combined table ───────────────────────────────────────────────
     if run_long and run_short and args.combined > 0:
-        print_combined(long_results, short_results, args.combined, cfg)
+        # Use the average of effective minimums for combined table
+        combined_min = (eff_min_long + eff_min_short) // 2
+        cfg_combined = dict(cfg, MIN_SCORE=combined_min)
+        print_combined(long_results, short_results, args.combined, cfg_combined)
 
     # ── Summary ───────────────────────────────────────────────────────
     print_summary(long_results, short_results, elapsed, cfg)

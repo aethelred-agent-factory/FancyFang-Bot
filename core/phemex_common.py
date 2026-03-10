@@ -687,7 +687,7 @@ def calc_kelly_margin(
     # Hard cap at 10% bankroll to prevent massive drawdowns from single trade outliers
     return round(min(margin, bankroll * 0.1), 2)
 
-def calc_volume_profile(ohlc: List[Tuple[float, float, float, float]], volumes: List[float], bins: int = 20) -> Tuple[Optional[float], List[float]]:
+def calc_volume_profile(ohlc: List[Tuple[float, float, float, float, float]], volumes: List[float], bins: int = 20) -> Tuple[Optional[float], List[float]]:
     """
     Calculates the volume profile and identifies Point of Control (POC) and value nodes.
     REF: [Tier 3] Descriptive Naming
@@ -702,7 +702,7 @@ def calc_volume_profile(ohlc: List[Tuple[float, float, float, float]], volumes: 
         return min_price, []
     bin_size = (max_price - min_price) / bins
     profile = [0.0] * bins
-    for (_, high, low, _), volume in zip(ohlc, volumes):
+    for (_, high, low, _, _), volume in zip(ohlc, volumes):
         low_bin = max(0, int((low - min_price) / bin_size))
         high_bin = min(bins - 1, int((high - min_price) / bin_size))
         bin_span = max(1, high_bin - low_bin + 1)
@@ -1005,9 +1005,10 @@ def check_volatility_filter(
         return True, ""   # no data → allow
     vol_ratio = atr / price
     
+    # Use min_ratio if provided (even if 0.0), otherwise use global constant
     limit = min_ratio if min_ratio is not None else VOLATILITY_FILTER_MIN
     
-    if vol_ratio < limit:
+    if limit > 0 and vol_ratio < limit:
         reason = (
             f"volatility {vol_ratio:.5f} < min {limit:.5f} "
             f"for {symbol}"
@@ -1266,7 +1267,7 @@ def _resolve_resolution(timeframe: str) -> int:
     """Resolve a timeframe string (e.g. '15m') to its API resolution integer."""
     return TIMEFRAME_MAP.get(timeframe, 900)
 
-def get_tickers(rps: float = None) -> List[Dict[str, Any]]:
+def get_tickers(rps: float = None, direction_filter: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Fetch all USDT-M perpetual 24hr tickers.
     Endpoint: GET /md/v3/ticker/24hr/all
@@ -1289,10 +1290,20 @@ def get_tickers(rps: float = None) -> List[Dict[str, Any]]:
         if not isinstance(ticker, dict):
             continue
         symbol = ticker.get("symbol", "")
-        if not symbol.endswith("USDT"):
+        if not symbol.endswith("USDT") or symbol.startswith("s"):
             continue
-        if symbol.startswith("s"):
-            continue
+
+        # [T1-02] High-speed funding gate (if filter is enabled)
+        if direction_filter and FUNDING_FILTER_ENABLED:
+            fr_raw = ticker.get("fundingRateRr", "0")
+            try:
+                fr = float(fr_raw)
+                if direction_filter.upper() == "SHORT" and fr < 0:
+                    continue # Skip negative funding for shorts
+                if direction_filter.upper() == "LONG" and fr > 0:
+                    continue # Skip positive funding for longs (optional, but consistent)
+            except Exception:
+                pass
 
         filtered.append(ticker)
 
@@ -1322,18 +1333,30 @@ def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: floa
 
     url = f"{BASE_URL}/exchange/public/md/v2/kline/last"
     params = {"symbol": api_symbol, "resolution": resolution, "limit": api_limit}
-
+    
+    logger.debug("get_candles: requesting %s with params %s", url, params)
+    
     try:
         resp = safe_request("GET", url, params=params, rps=rps)
         if not resp:
             logger.error(f"get_candles: No response for {symbol} {timeframe}")
             return []
         data = resp.json()
-
+        
         if data.get("code") == 0:
             rows = data.get("data", {}).get("rows", [])
             if not rows:
-                logger.warning(f"get_candles: No rows in data for {symbol} {timeframe}. Full response: {data}")
+                # ── Recursive Retry Logic ──
+                # If we asked for many and got 0, try the next smallest allowed limit
+                current_idx = allowed_limits.index(api_limit)
+                if current_idx > 0:
+                    smaller_limit = allowed_limits[current_idx - 1]
+                    logger.debug("get_candles: %s %s returned 0 rows for limit %d. Retrying with limit %d...", 
+                                 symbol, timeframe, api_limit, smaller_limit)
+                    time.sleep(0.05) # small backoff
+                    return get_candles(symbol, timeframe, smaller_limit, rps)
+                
+                logger.warning(f"get_candles: No rows in data for {symbol} {timeframe} even at minimum limit. Full response: {data}")
                 return []
 
             rows_sorted = sorted(rows, key=lambda r: r[0])
@@ -1556,7 +1579,6 @@ def unified_analyse(
     enable_ai: bool = True,
     enable_entity: bool = True,
     scan_id: Optional[str] = None,
-    pre_score_threshold: int = _PRE_SCORE_GATE_DEFAULT,
 ) -> Optional[dict]:
     """
     Unified analysis engine for both LONG and SHORT scanners.
@@ -1565,11 +1587,6 @@ def unified_analyse(
     phemex_short.analyse() and phemex_long.analyse() delegate here, passing
     direction-specific callbacks.  All upgrade logic (slippage model, volatility
     filter, order book imbalance) is therefore active on every live scan.
-
-    A two-phase pre-score gate is applied after the cheap indicator pass:
-    symbols whose partial score is below *pre_score_threshold* skip the
-    expensive order-book / HTF-candle / volume-profile API calls, matching
-    the performance behaviour of the former per-scanner implementations.
 
     Args:
         ticker               : raw ticker dict from get_tickers()
@@ -1582,7 +1599,6 @@ def unified_analyse(
         enable_ai            : gate for DeepSeek thesis generation
         enable_entity        : gate for Entity API persistence
         scan_id              : optional external scan correlation ID
-        pre_score_threshold  : skip expensive API calls if partial score < this
     """
     symbol = ticker.get("symbol")
     if not symbol:
@@ -1595,9 +1611,12 @@ def unified_analyse(
         high24 = float(ticker.get("highRp") or last)
         vol24  = float(ticker.get("turnoverRv") or 0.0)
 
-        if vol24 < cfg.get("MIN_VOLUME", 1_000_000):
+        min_vol = cfg.get("MIN_VOLUME", 1_000_000)
+        if vol24 < min_vol:
+            logger.debug("  %s: vol24 %.0f < min_vol %.0f, skipping.", symbol, vol24, min_vol)
             return None
         if last == 0.0:
+            logger.debug("  %s: last price is 0.0, skipping.", symbol)
             return None
 
         # 1. Funding check (direction-specific thresholds handled in score_func or caller)
@@ -1614,9 +1633,12 @@ def unified_analyse(
             return None
 
         # 2. Fetch klines
-        candles = get_candles(symbol, timeframe=cfg["TIMEFRAME"], limit=cfg.get("CANDLES", 100), rps=cfg.get("RATE_LIMIT_RPS"))
+        candles = get_candles(symbol, timeframe=cfg["TIMEFRAME"], limit=cfg.get("CANDLES", 50), rps=cfg.get("RATE_LIMIT_RPS"))
         if not candles:
+            logger.debug("  %s: no candles returned for timeframe %s, skipping.", symbol, cfg["TIMEFRAME"])
             return None
+        
+        logger.debug("  %s: fetched %d candles for timeframe %s", symbol, len(candles), cfg["TIMEFRAME"])
 
         ohlc, highs, lows, closes, vols = [], [], [], [], []
         for candle in candles:
@@ -1634,7 +1656,7 @@ def unified_analyse(
                 continue
 
         if not closes:
-            logger.error(f"  {symbol}: No valid close prices parsed from candles.")
+            logger.debug("  %s: no valid close prices parsed from candles, skipping.", symbol)
             return None
 
         # 3. Indicator calculation (cheap — always executed)
@@ -1647,8 +1669,9 @@ def unified_analyse(
             atr = calc_atr(highs, lows, closes)
 
             # ── Volatility Filter (Upgrade #6) ──────────────────────────────────
-            vol_ok, _ = check_volatility_filter(atr, last, symbol, min_ratio=cfg.get("vol_min"))
+            vol_ok, vol_reason = check_volatility_filter(atr, last, symbol, min_ratio=cfg.get("vol_min"))
             if not vol_ok:
+                logger.debug("  %s: volatility filter failed: %s, skipping.", symbol, vol_reason)
                 return None
 
             vol_spike = calc_volume_spike(vols)
@@ -1657,34 +1680,10 @@ def unified_analyse(
             kalman_price  = kalman_series[-1] if kalman_series else None
             kalman_slope  = kalman_series[-1] - kalman_series[-2] if len(kalman_series) >= 2 else 0.0
         except Exception as e:
-            import traceback
             logger.error(f"  {symbol}: Indicator calculation failed: {e}")
-            logger.error(traceback.format_exc())
             return None
 
-        # ── Pre-score gate ─────────────────────────────────────────────────────
-        # Build a partial TickerData with the cheap fields we already have, then
-        # run score_func on it.  If the partial score is below threshold, we skip
-        # the expensive order-book / HTF-candle / volume-profile API calls.
-        # [T1-02] This replicates the performance optimisation from the former
-        # per-scanner analyse() implementations while still using unified logic.
-        pre_data = TickerData(
-            inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
-            change_24h=pct_change(last, open24), funding_rate=funding_rate, patterns=[],
-            dist_low_pct=pct_change(last, low24), dist_high_pct=pct_change(last, high24),
-            vol_spike=vol_spike, has_div=False, rsi_1h=None, rsi_4h=None,
-            fr_change=funding_rate_change or 0.0, spread=None,
-            dist_to_node_below=None, dist_to_node_above=None,
-            ema_slope=ema_slope, slope_change=slope_change,
-            raw_ohlc=ohlc[-10:], vol_24h=vol24,
-            regime=regime, entropy=entropy, kalman_slope=kalman_slope,
-        )
-        pre_score, _ = score_func(pre_data)
-        if pre_score < pre_score_threshold:
-            logger.debug("  %s: pre-score %d < %d, skipping expensive calls.", symbol, pre_score, pre_score_threshold)
-            return None
-
-        # 4. Expensive API calls — only for symbols that passed the pre-score gate
+        # 4. Expensive API calls
         # [T1-02] Use get_order_book_with_volumes (Upgrade #10 imbalance) — was get_order_book
         best_bid, best_ask, spread, depth, ob_imbalance = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
 
@@ -1736,7 +1735,11 @@ def unified_analyse(
         )
 
         # 9. Scoring
-        score, signals = score_func(data)
+        try:
+            score, signals = score_func(data)
+        except Exception as e:
+            logger.error("  %s: score_func FAILED: %s", symbol, e)
+            return None
 
         # 10. Result construction
         bb_pct = None
