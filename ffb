@@ -8,18 +8,19 @@
 BOT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 show_help() {
-    echo "FancyFangBot (ffb) CLI"
-    echo "Usage: ffb <command> [options]"
+    python3 -c "from modules.banner import get_gradient_banner; from core.ui import gradient_text; print('\n' + get_gradient_banner() + '\n' + gradient_text('  FancyFangBot (ffb) CLI'.center(92), (0, 255, 255), (255, 0, 255)) + '\n')"
+    echo "  Usage: ffb <command> [options]"
     echo ""
-    echo "Commands:"
-    echo "  run       - Run the live trading bot (core/p_bot.py run)"
-    echo "  sim       - Run the simulation/paper bot (core/sim_bot.py)"
-    echo "  scan      - Run the market scanner (core/phemex_scanner.py)"
-    echo "  backtest  - Run the backtester (research/backtest.py)"
-    echo "  overfit   - Run the overfit diagnostics (research/overfit_test.py)"
-    echo "  optimize  - Run the parameter optimizer (research/param_optimizer.py)"
-    echo "  test      - Run the test suite (pytest)"
-    echo "  -h, --help - Show this help message"
+    echo "  Commands:"
+    echo "    run       - Run the live trading bot (core/p_bot.py run)"
+    echo "    sim       - Run the simulation/paper bot (core/sim_bot.py)"
+    echo "    scan      - Run the market scanner (core/phemex_scanner.py)"
+    echo "    backtest  - Run the backtester (research/backtest.py)"
+    echo "    overfit   - Run the overfit diagnostics (research/overfit_test.py)"
+    echo "    optimize  - Run the parameter optimizer (research/param_optimizer.py)"
+    echo "    test      - Run the test suite (pytest)"
+    echo "    -h, --help - Show this help message"
+    echo ""
 }
 
 # Ensure we're running from the root for relative imports to work correctly

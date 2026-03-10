@@ -329,3 +329,74 @@ def render_price_line(
     full_line = f"{Fore.RED}[X]{Style.RESET_ALL} {Fore.CYAN}{left_dash}{Style.RESET_ALL}{mid_label}{Fore.CYAN}{right_dash}{Style.RESET_ALL} {Fore.GREEN}[$]{Style.RESET_ALL}"
     return full_line
 
+# ── Advanced Visual Primitives ────────────────────────────────────────────────
+
+def braille_progress_bar(pct: float, width: int = 20) -> str:
+    """High-resolution progress bar using braille characters (2 dots per cell)."""
+    pct = max(0, min(100, pct))
+    total_steps = width * 2
+    filled_steps = int((pct / 100) * total_steps)
+
+    out = ""
+    for i in range(width):
+        left_idx = i * 2
+        right_idx = i * 2 + 1
+
+        left_filled = left_idx < filled_steps
+        right_filled = right_idx < filled_steps
+
+        bits = 0
+        if left_filled:
+            bits |= (0x01 | 0x02 | 0x04 | 0x40)
+        if right_filled:
+            bits |= (0x08 | 0x10 | 0x20 | 0x80)
+
+        out += chr(0x2800 + bits)
+
+    # Dynamic RGB color: Red (0%) -> Yellow (50%) -> Green (100%)
+    if pct < 50:
+        r, g, b = 255, int(255 * (pct / 50)), 0
+    else:
+        r, g, b = int(255 * (1 - (pct - 50) / 50)), 255, 0
+
+    return f"\033[38;2;{r};{g};{b}m{out}{Style.RESET_ALL}"
+
+def glow_panel(title: str, lines: list, color_rgb: tuple = (0, 255, 255), width: int = W) -> str:
+    """Stylized panel with a truecolor 'glowing' border."""
+    r, g, b = color_rgb
+    def get_rgb(r, g, b): return f"\033[38;2;{r};{g};{b}m"
+
+    out = []
+    inner_w = width - 4
+    border_color = get_rgb(r, g, b)
+
+    # Top border with title
+    title_str = f" {title} " if title else ""
+    side_bars = (width - 4 - len(strip_ansi(title_str))) // 2
+    top = border_color + "💠" + "━" * side_bars + Style.BRIGHT + title_str + Style.NORMAL + "━" * (width - 4 - side_bars - len(strip_ansi(title_str))) + "💠" + Style.RESET_ALL
+    out.append(top)
+
+    for line in lines:
+        visible_len = len(strip_ansi(line))
+        padding = " " * max(0, inner_w - visible_len)
+        out.append(border_color + "┃ " + Style.RESET_ALL + line + padding + border_color + " ┃" + Style.RESET_ALL)
+
+    # Bottom border
+    bottom = border_color + "┗" + "━" * (width - 2) + "┛" + Style.RESET_ALL
+    out.append(bottom)
+
+    return "\n".join(out)
+
+def cyber_telemetry(label: str, value: float, target: float, unit: str = "") -> str:
+    """Compact stylized telemetry indicator with label, bar and value."""
+    pct = (value / target * 100) if target != 0 else 0
+    bar = braille_progress_bar(pct, width=10)
+
+    color = pnl_color(value)
+    if unit == "$":
+        val_display = f"${abs(value):.2f}"
+        if value < 0: val_display = "-" + val_display
+    else:
+        val_display = f"{value:.2f}{unit}"
+
+    return f"{Fore.CYAN}{label.upper():<10}{Style.RESET_ALL} [{bar}] {color}{val_display:>10}{Style.RESET_ALL}"

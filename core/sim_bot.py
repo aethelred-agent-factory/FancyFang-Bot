@@ -930,13 +930,14 @@ def _live_pnl_display() -> None:
             
             # --- Header ---
             curr_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
+            pulse = "●" if int(time.time()) % 2 == 0 else " "
             banner_lines = BANNER.split("\n")
             for i, line in enumerate(banner_lines):
-                print(term.move_xy(2, i+1) + term.cyan(line))
+                print(term.move_xy(2, i+1) + ui.gradient_text(line, (0, 255, 255), (255, 0, 255)))
             
             header_y = len(banner_lines) + 1
             print(term.move_xy(2, header_y) + ui.hr_double(Fore.MAGENTA))
-            print(term.move_xy(2, header_y + 1) + term.bold_white(f" 🤖 SIMULATION DASHBOARD | {curr_time} UTC"))
+            print(term.move_xy(2, header_y + 1) + term.bold_white(f" {Fore.MAGENTA}{pulse}{Style.RESET_ALL} SIMULATION DASHBOARD | {curr_time} UTC"))
 
             # --- Layout ---
             max_w = term.width - 4
@@ -960,23 +961,23 @@ def _live_pnl_display() -> None:
             
             equity = balance + locked_margin + current_upnl
             summary_lines = [
-                f" Wallet: {Fore.GREEN}{balance:.1f}{Style.RESET_ALL} | Margin: {Fore.YELLOW}{locked_margin:.1f}{Style.RESET_ALL}",
-                f" uPnL:  {ui.pnl_color(current_upnl)}{current_upnl:+.4f}{Style.RESET_ALL}",
-                f" Equity: {Style.BRIGHT}${equity:.2f}{Style.RESET_ALL}",
+                ui.cyber_telemetry("Wallet", balance, INITIAL_BALANCE * 2, "$"),
+                ui.cyber_telemetry("uPnL", current_upnl, INITIAL_BALANCE * 0.2, "$"),
+                f" Equity: {Style.BRIGHT}${equity:.2f}{Style.RESET_ALL} | Margin: {Fore.YELLOW}${locked_margin:.1f}{Style.RESET_ALL}",
                 f" Entropy Penalty: {Fore.MAGENTA}{state.entropy_penalty:.2f}{Style.RESET_ALL}"
             ]
             
-            draw_panel(2, y, ui.modern_panel("ACCOUNT", summary_lines, width=left_w))
+            draw_panel(2, y, ui.glow_panel("SYSTEM CORE", summary_lines, color_rgb=(0, 255, 255), width=left_w))
             y += len(summary_lines) + 3
 
             # 2. Positions
             if not positions:
-                draw_panel(2, y, ui.modern_panel("POSITIONS", [Fore.WHITE + " Idle..."], width=left_w))
+                draw_panel(2, y, ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (Monitoring for signals...)"], width=left_w))
                 y += 4
             else:
                 # Calculate how many positions we can show
                 remaining_h = (term.height - 2) - y - 10 # 10 lines for logs and footer
-                pos_h = 8 # Height of a position card + gap
+                pos_h = 9 # Height of a position card + gap
                 max_show = max(1, remaining_h // pos_h)
                 
                 for pos in positions[:max_show]:
@@ -990,10 +991,17 @@ def _live_pnl_display() -> None:
                     hist = state.pnl_histories.get(sym, [0.0])
                     chart = ui.render_pnl_chart(hist, width=left_w-24, height=2)
 
+                    # Calculate stop distance percentage
+                    stop_px = pos.get("stop_price", pos['entry'])
+                    total_range = abs(pos['entry'] - stop_px) or 1e-10
+                    dist_to_stop = abs(now - stop_px)
+                    stop_pct = (dist_to_stop / total_range) * 100
+                    stop_bar = ui.braille_progress_bar(stop_pct, width=15)
+
                     # Price Line System
                     price_line = ui.render_price_line(
                         current_price=now,
-                        stop_price=pos.get("stop_price", pos['entry']*0.9),
+                        stop_price=stop_px,
                         take_profit=pos.get("take_profit", pos['entry']*1.1),
                         pnl_val=upnl,
                         width=left_w-4
@@ -1014,7 +1022,7 @@ def _live_pnl_display() -> None:
                     
                     info = [
                         f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Lev: {pos.get('leverage','?')}x",
-                        f" {rsi_str} | {adx_str} | {spr_str}",
+                        f" {rsi_str} | {adx_str} | Stop Guard: [{stop_bar}]",
                         f" {chart[0]}", f" {chart[1]}",
                         f" {price_line}"
                     ]
@@ -1023,7 +1031,7 @@ def _live_pnl_display() -> None:
                         dist_poc = (now - poc_px) / poc_px * 100.0
                         info.insert(2, f" POC: {poc_px:.5g} (Dist: {dist_poc:+.2f}%)")
 
-                    draw_panel(2, y, ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA))
+                    draw_panel(2, y, ui.glow_panel(header, info, width=left_w, color_rgb=(255, 0, 255)))
                     y += len(info) + 2
 
                 if len(positions) > max_show:
