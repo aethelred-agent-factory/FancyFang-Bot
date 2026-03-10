@@ -96,6 +96,21 @@ def _send(text: str) -> None:
         logger.debug(f"tg_controller: send error — {e}")
 
 
+def _send_photo(photo_path: str, caption: str = "") -> None:
+    if not TG_BOT_TOKEN or not TG_CHAT_ID:
+        return
+    try:
+        with open(photo_path, "rb") as photo:
+            requests.post(
+                f"{_BASE}/sendPhoto",
+                data={"chat_id": TG_CHAT_ID, "caption": caption, "parse_mode": "Markdown"},
+                files={"photo": photo},
+                timeout=20,
+            )
+    except Exception as e:
+        logger.debug(f"tg_controller: sendPhoto error — {e}")
+
+
 def _get_updates() -> List[dict]:
     global _offset
     with _lock:

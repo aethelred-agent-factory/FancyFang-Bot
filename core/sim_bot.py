@@ -44,6 +44,8 @@ from typing import Any, Dict, List, Optional, Tuple
 if sys.platform != "win32":
     pass
 
+import matplotlib
+matplotlib.use('Agg')
 import blessed
 import requests
 import websocket
@@ -248,6 +250,7 @@ class SimBotState:
     
     # System Control
     is_running: bool = True
+    no_tui: bool = False
     display_thread_running: bool = False
     ws_app: Optional[websocket.WebSocketApp] = None
     ws_thread: Optional[threading.Thread] = None
@@ -1160,12 +1163,23 @@ def check_opposite_signal(symbol: str, side: str, ticker: Optional[dict] = None)
     return False, 0
 
 
-def update_pnl_and_stops() -> None:
+def update_pnl_and_stops(args) -> None:
     """
     Polls live prices for all open positions, updates PnL, and evaluates
     trailing-stop and take-profit levels.
     """
-    _process_animations()
+    if not state.no_tui:
+        _process_animations()
+
+    # Update equity history for charting even in --no-tui mode
+    with state.lock:
+        balance = state.balance
+        locked_margin = sum(p.get("margin", 0.0) for p in state.positions)
+        current_upnl = sum(p.get("pnl", 0.0) for p in state.positions)
+        equity = balance + locked_margin + current_upnl
+        state.equity_history.append(equity)
+        if len(state.equity_history) > 100:
+            state.equity_history.pop(0)
 
     # Initialize outside lock to avoid UnboundLocalError
     ticker_map: Dict[str, Any] = {}
@@ -1953,6 +1967,7 @@ def sim_bot_loop(args) -> None:
     Exits gracefully when the global _running flag is False.
     """
     global COOLDOWN_SECONDS
+    state.no_tui = getattr(args, 'no_tui', False)
 
     # Calculate dynamic cooldown based on timeframe and cooldown argument (T3-16)
     tf_sec = p_bot.get_tf_seconds(args.timeframe)
@@ -1973,8 +1988,15 @@ def sim_bot_loop(args) -> None:
     state.load_account()
     load_sim_cooldowns()
 
+    with state.lock:
+        balance = state.balance
+        locked_margin = sum(p.get("margin", 0.0) for p in state.positions)
+        current_upnl = sum(p.get("pnl", 0.0) for p in state.positions)
+        state.equity_history.append(balance + locked_margin + current_upnl)
+
     # --- Cinematic Boot ---
-    play_animation(animations.boot)
+    if not state.no_tui:
+        play_animation(animations.boot)
     hw.bridge.signal('START')
 
     with state.lock:
@@ -2012,7 +2034,7 @@ def sim_bot_loop(args) -> None:
                     time.sleep(60)
                     continue
 
-            update_pnl_and_stops()
+            update_pnl_and_stops(args)
 
             # Recompute dynamic max positions and available slots
             # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)
@@ -2183,7 +2205,13 @@ def main() -> None:
             get_positions_fn   = get_sim_positions,
             get_session_pnl_fn = _session_pnl_fn,
             get_logs_fn        = _get_tui_logs,
+<<<<<<< telegram-remote-control-13797062970821155509
+            run_scan_fn        = lambda: _manual_tg_scan(args),
+            get_chart_fn       = _get_session_chart,
+            run_backtest_fn    = lambda txt: _run_manual_backtest(txt, args)
+=======
             run_scan_fn        = lambda: _manual_tg_scan(args)
+>>>>>>> main
         )
         logger.info("telegram_controller: started")
 
