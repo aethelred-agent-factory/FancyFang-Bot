@@ -1251,12 +1251,17 @@ def _live_pnl_display():
             y += len(summary_lines) + 3
 
             # 2. Active Positions Panel
+            # Calculate how many positions we can show
+            remaining_h = (term.height - 2) - y - 10 # 10 lines for logs and footer
+            pos_h = 9 # Height of a position card + gap
+            max_show = max(1, remaining_h // pos_h)
+
             pos_y = y
             if not positions:
                 draw_panel(2, pos_y, ui.modern_panel("ACTIVE POSITIONS", [Fore.WHITE + " (Awaiting entry signals...)"], width=left_w))
                 y += 4
             else:
-                for pos in positions:
+                for pos in positions[:max_show]:
                     sym = pos["symbol"]
                     with _prices_lock:
                         now = _live_prices.get(sym)
@@ -1305,6 +1310,10 @@ def _live_pnl_display():
                     draw_panel(2, y, ui.glow_panel(pos_header, pos_info, width=left_w, color_rgb=(255, 0, 255)))
                     y += len(pos_info) + 2
 
+                if len(positions) > max_show:
+                    print(term.move_xy(2, y) + term.italic_white(f"  ... and {len(positions) - max_show} more positions hidden"))
+                    y += 2
+
             # 3. System Logs
             log_y = y
             log_lines = list(_bot_logs)[-5:]
@@ -1328,7 +1337,7 @@ def _live_pnl_display():
 
             radar_y = thesis_y + 8
             if sector_viz:
-                print(term.move_xy(2, radar_y) + ui.modern_panel("SECTOR MOMENTUM", sector_viz[:4], width=left_w, color=Fore.YELLOW))
+                draw_panel(2, radar_y, ui.modern_panel("SECTOR MOMENTUM", sector_viz[:4], width=left_w, color=Fore.YELLOW))
 
             # --- Right Column: Trade History ---
             hist_y = start_y
