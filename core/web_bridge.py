@@ -5,11 +5,17 @@ import datetime
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from typing import List, Dict, Any, Optional
+import os
 
 app = FastAPI(title="FancyBot Web Bridge")
 
-# CORS for React frontend (localhost:5173 or localhost:3000)
+# Get path to web directory
+WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
+
+# CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,6 +32,15 @@ def inject_state(state, logs):
     global _bot_state, _bot_logs
     _bot_state = state
     _bot_logs = logs
+
+@app.get("/")
+async def get_index():
+    """Serve the main dashboard HTML."""
+    return FileResponse(os.path.join(WEB_DIR, "index.html"))
+
+# Mount static files if needed (for CSS/JS in subfolders)
+if os.path.exists(WEB_DIR):
+    app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 @app.get("/api/summary")
 async def get_summary():
