@@ -220,25 +220,34 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
         return None
     return pc.make_entity_request(entity_name, method=method, data=data, entity_id=entity_id)
 
+# Strategy parameters
+MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "25.0"))   # $ margin per trade
+LEVERAGE       = int(os.getenv("BOT_LEVERAGE", "50"))          # leverage multiplier
 TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.05"))     # 5% trailing stop
 TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.50")) # 50% take profit
 SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "300"))    # seconds between scans
-# Base gating thresholds — if score < MIN_SCORE, candidate is discarded.
+
+# Base gating thresholds
 MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "5"))
 MIN_SCORE_GAP  = int(os.getenv("BOT_MIN_SCORE_GAP", "0"))
 MIN_SCORE_HTF_BYPASS = int(os.getenv("BOT_MIN_SCORE_HTF", "5"))
 MIN_SCORE_LOW_LIQ = int(os.getenv("BOT_MIN_SCORE_LOW_LIQ", "5"))
 
-# New predictive score thresholds (float values for the new prediction engine)
-MIN_PREDICTIVE_SCORE = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE", "0.1")) # Default threshold for predictive score
-MIN_PREDICTIVE_SCORE_HTF_BYPASS = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_HTF", "0.1")) # Lower bar if HTF aligned
-MIN_PREDICTIVE_SCORE_LOW_LIQ = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_LOW_LIQ", "0.1")) # Higher bar for low-liq assets
-MIN_PREDICTIVE_SCORE_GAP = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_GAP", "0.0")) # minimum gap between long/short predictive scores
-FAST_TRACK_PREDICTIVE_SCORE = float(os.getenv("BOT_FAST_TRACK_PREDICTIVE_SCORE", "0.5")) # immediate-entry threshold
+# Low-Liquidity Adjusted Parameters
+LOW_LIQ_LEVERAGE = int(os.getenv("BOT_LOW_LIQ_LEVERAGE", "10"))
+LOW_LIQ_TRAIL_PCT = float(os.getenv("BOT_LOW_LIQ_TRAIL", "0.05")) # Keep 5% even for low-liq in Reaper mode
+LOW_LIQ_MARGIN = float(os.getenv("BOT_LOW_LIQ_MARGIN", "10.0"))
 
-MAX_POSITIONS  = 999                                           # effectively unlimited, gated by margin/risk
-DIRECTION      = os.getenv("BOT_DIRECTION", "SHORT")           # default to SHORT to match sim_bot.py
-TIMEFRAME      = os.getenv("BOT_TIMEFRAME", "4H")              # match sim_bot.py default
+# Predictive score thresholds
+MIN_PREDICTIVE_SCORE = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE", "0.1"))
+MIN_PREDICTIVE_SCORE_HTF_BYPASS = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_HTF", "0.1"))
+MIN_PREDICTIVE_SCORE_LOW_LIQ = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_LOW_LIQ", "0.1"))
+MIN_PREDICTIVE_SCORE_GAP = float(os.getenv("BOT_MIN_PREDICTIVE_SCORE_GAP", "0.0"))
+FAST_TRACK_PREDICTIVE_SCORE = float(os.getenv("BOT_FAST_TRACK_PREDICTIVE_SCORE", "0.5"))
+
+MAX_POSITIONS  = 999
+DIRECTION      = os.getenv("BOT_DIRECTION", "SHORT")
+TIMEFRAME      = os.getenv("BOT_TIMEFRAME", "4H")
 MAX_WORKERS    = int(os.getenv("BOT_MAX_WORKERS", "30"))
 
 # Position Mode: OneWay (posSide="Merged") or Hedged (posSide="Long"/"Short")
@@ -365,22 +374,6 @@ def is_blacklisted(symbol: str) -> bool:
         if expiry > 0: # expired — clean up
             del SYMBOL_BLACKLIST[symbol]
         return False
-
-# ── Volatility / Liquidity Adjusted Parameters ────────
-# Log analysis: Low-Liquidity trades → 45% of losses, only 22% of wins.
-# For low-liq assets, widen the stop and reduce leverage to avoid the shakeout.
-LOW_LIQ_LEVERAGE = int(os.getenv("BOT_LOW_LIQ_LEVERAGE", "10"))      # 10x for wide-spread assets
-LOW_LIQ_TRAIL_PCT = float(os.getenv("BOT_LOW_LIQ_TRAIL", "0.012"))  # 1.2% trail for low-liq
-LOW_LIQ_MARGIN = float(os.getenv("BOT_LOW_LIQ_MARGIN", "5.0"))      # $5 margin for low-liq (smaller bet)
-
-# ── Minimum Viable Score ──────────────────────────────
-# Log analysis: avg win score = 126.0, avg loss score = 126.7 — score alone is NOT predictive.
-# Best total PnL occurs at score >= 130. HTF Alignment present in 33% of wins, 0% of losses.
-# The new gating logic: base score >= 130 OR (score >= 120 AND HTF_aligned).
-# Without HTF, Low-Liquidity assets must score >= 145 to offset the noise penalty.
-# MIN_SCORE (defined in config block above) is the canonical threshold for all comparisons.
-MIN_SCORE_HTF_BYPASS = int(os.getenv("BOT_MIN_SCORE_HTF", "120")) # lower bar if HTF aligned
-MIN_SCORE_LOW_LIQ = int(os.getenv("BOT_MIN_SCORE_LOW_LIQ", "145")) # higher bar for low-liq
 
 # ── Dynamic Scaling ───────────────────────────────────
 # At $26 fuel, run max 2 concurrent positions to protect capital.
