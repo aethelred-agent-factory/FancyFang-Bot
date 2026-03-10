@@ -52,6 +52,7 @@ from colorama import Fore, Style, init
 import core.phemex_common as pc
 import core.phemex_long as scanner_long
 import core.phemex_short as scanner_short
+import core.ui as ui
 import modules.animations as animations
 import modules.hardware_bridge as hw
 from modules.storage_manager import StorageManager
@@ -313,132 +314,6 @@ _SPARK_CHARS = "▁▂▃▄▅▆▇█"
 # TUI log buffer
 _bot_logs: deque[str] = deque(maxlen=100)
 
-# Braille dot patterns for 2x4 resolution per cell
-BRAILLE_MAP = [
-    [0x01, 0x08],
-    [0x02, 0x10],
-    [0x04, 0x20],
-    [0x40, 0x80],
-]
-
-def _to_braille(left_row: int, right_row: int) -> str:
-    """Convert two column bit patterns into a braille unicode char."""
-    bits = 0
-    for row in range(4):
-        if left_row & (1 << row):
-            bits |= BRAILLE_MAP[row][0]
-        if right_row & (1 << row):
-            bits |= BRAILLE_MAP[row][1]
-    return chr(0x2800 + bits)
-
-def render_pnl_chart(
-    pnl_history: list,      # list of floats, e.g. [-0.5, -0.3, 0.1, 0.4, 0.8]
-    width: int  = 40,       # character width of chart
-    height: int = 8,        # character height of chart
-    label: str  = "",       # e.g. "ENAUSDT"
-    term  = None,           # blessed terminal instance
-    y: int = 0,             # screen row to render at
-    x: int = 0,             # screen col to render at
-) -> list:
-    """
-    Renders a smooth braille PnL line chart.
-    Returns list of strings (one per row) — print them or pass term for positioned render.
-    """
-    if not pnl_history:
-        pnl_history = [0.0]
-
-    # Pad or trim to fit width*2 data points (2 per char cell)
-    points = pnl_history[-(width * 2):]
-    while len(points) < width * 2:
-        points = [points[0]] * (width * 2 - len(points)) + points
-
-    lo  = min(points)
-    hi  = max(points)
-    span = (hi - lo) or 1e-10
-    rows = height * 4  # braille gives 4 vertical dots per char row
-
-    # Map each data point to a row index 0..rows-1
-    def to_row(v):
-        return int((v - lo) / span * (rows - 1))
-
-    scaled = [to_row(p) for p in points]
-
-    # Build the 2D braille grid
-    grid = [[[0, 0] for _ in range(width)] for _ in range(height)]
-
-    for col_idx in range(width):
-        left_val  = scaled[col_idx * 2]
-        right_val = scaled[col_idx * 2 + 1]
-
-        for val, side in [(left_val, 0), (right_val, 1)]:
-            char_row  = height - 1 - (val // 4)
-            dot_row   = val % 4
-            char_row  = max(0, min(height - 1, char_row))
-            grid[char_row][col_idx][side] |= (1 << dot_row)
-
-    # Render rows into strings
-    zero_char_row = height - 1 - (to_row(0.0) // 4)
-    lines = []
-
-    for row_idx in range(height):
-        line = ""
-        for col_idx in range(width):
-            left_dots, right_dots = grid[row_idx][col_idx]
-            line += _to_braille(left_dots, right_dots)
-        lines.append(line)
-
-    current_pnl = pnl_history[-1]
-    if term:
-        chart_color  = term.bright_green if current_pnl >= 0 else term.red
-        zero_color   = term.yellow
-        label_color  = term.cyan
-        reset        = term.normal
-    else:
-        chart_color  = Fore.LIGHTGREEN_EX if current_pnl >= 0 else Fore.RED
-        zero_color   = Fore.YELLOW
-        label_color  = Fore.CYAN
-        reset        = Style.RESET_ALL
-
-    output_lines = []
-
-    # Top label bar
-    pnl_str  = f"{current_pnl:+.4f} USDT"
-    hi_str   = f"▲ {hi:+.4f}"
-    lo_str   = f"▼ {lo:+.4f}"
-    top_bar  = f"{label:<14} {pnl_str:>14}  {hi_str}  {lo_str}"
-
-    output_lines.append(label_color + top_bar + reset)
-
-    # Chart rows
-    for row_idx, line in enumerate(lines):
-        prefix = "│"
-        suffix = "│"
-
-        if row_idx == zero_char_row:
-            output_lines.append(
-                zero_color + prefix + reset +
-                chart_color + line + reset +
-                zero_color + suffix + reset +
-                " 0.00"
-            )
-        else:
-            output_lines.append(zero_color + prefix + reset + chart_color + line + reset + zero_color + suffix + reset)
-
-    # Bottom axis
-    axis = "└" + "─" * width + "┘"
-    time_label = "  entry" + " " * (width - 14) + "now  "
-    output_lines.append(zero_color + axis + reset)
-    output_lines.append(label_color + time_label + reset)
-
-    # Render to screen if term provided
-    if term:
-        for i, l_content in enumerate(output_lines):
-            print(term.move_xy(x, y + i) + l_content)
-    else:
-        for l_content in output_lines:
-            print(l_content)
-
-    return output_lines
 
 def update_pnl_history(symbol: str, current_pnl: float):
     """Adds a new PnL data point to the history for the given symbol."""
@@ -983,608 +858,125 @@ def _log_closed_trade(
 # TUI — Drawing Helpers  (v2)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── String helpers ────────────────────────────────────────────────────────────
+def _live_pnl_display() -> None:
+    """Full-screen TUI dashboard using blessed."""
+    term = blessed.Terminal()
+    global _display_thread_running
 
-def _vlen(s: str) -> int:
-    """Visible length of a string — strips ANSI/escape codes."""
-    return len(re.sub(r"\x1b\[[0-9;]*[mKHJ]", "", s))
+    with term.fullscreen(), term.hidden_cursor():
+        while _display_thread_running:
+            if state.display_paused_event.is_set():
+                time.sleep(0.5)
+                continue
 
+            with state.lock:
+                balance = state.balance
+                positions = state.positions[:]
+                live_prices = state.live_prices.copy()
 
-def _rpad(s: str, width: int, char: str = " ") -> str:
-    """Right-pad a styled string to exact visible `width`."""
-    return s + char * max(0, width - _vlen(s))
+            with state.file_io_lock:
+                history = state.storage.get_trade_history(limit=200)
 
+            print(term.clear)
+            
+            # --- Header ---
+            curr_time = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
+            banner_lines = pc.BANNER.split("\n")
+            for i, line in enumerate(banner_lines):
+                print(term.move_xy(2, i+1) + term.cyan(line))
+            
+            header_y = len(banner_lines) + 1
+            print(term.move_xy(2, header_y) + ui.hr_double(Fore.MAGENTA))
+            print(term.move_xy(2, header_y + 1) + term.bold_white(f" 🤖 SIMULATION DASHBOARD | {curr_time} UTC"))
 
-# ── Box/panel primitives ──────────────────────────────────────────────────────
+            # --- Layout ---
+            max_w = term.width - 4
+            left_w = int(max_w * 0.65)
+            right_w = max_w - left_w - 2
+            start_y = header_y + 3
 
-def _box_top(title: str, width: int, right_tag: str = "") -> str:
-    """Single-line top border: ┌─ TITLE ──────────── right_tag ┐"""
-    inner = width - 2
-    if title:
-        lbl = f"─ {title} "
-        if right_tag:
-            gap = inner - _vlen(lbl) - _vlen(right_tag) - 1
-            return f"┌{lbl}{'─' * max(gap, 1)}{right_tag}┐"
-        return f"┌{lbl}{'─' * (inner - _vlen(lbl))}┐"
-    return f"┌{'─' * inner}┐"
+            # --- Left Column ---
+            y = start_y
 
+            # 1. Account Summary
+            current_upnl = 0.0
+            locked_margin = 0.0
+            for p in positions:
+                locked_margin += p.get("margin", 0.0)
+                now = live_prices.get(p["symbol"])
+                if now:
+                    upnl = (now - p['entry']) * p['size'] if p['side'] == "Buy" else (p['entry'] - now) * p['size']
+                    current_upnl += upnl
+                    update_pnl_history(p["symbol"], upnl)
+            
+            equity = balance + locked_margin + current_upnl
+            summary_lines = [
+                f" Wallet: {Fore.GREEN}{balance:.1f}{Style.RESET_ALL} | Margin: {Fore.YELLOW}{locked_margin:.1f}{Style.RESET_ALL}",
+                f" uPnL:  {ui.pnl_color(current_upnl)}{current_upnl:+.4f}{Style.RESET_ALL}",
+                f" Equity: {Style.BRIGHT}${equity:.2f}{Style.RESET_ALL}",
+                f" Entropy Penalty: {Fore.MAGENTA}{state.entropy_penalty:.2f}{Style.RESET_ALL}"
+            ]
+            print(term.move_xy(2, y) + ui.modern_panel("ACCOUNT", summary_lines, width=left_w))
+            y += len(summary_lines) + 3
 
-def _box_bot(width: int) -> str:
-    return f"└{'─' * (width - 2)}┘"
-
-
-def _box_row(term: blessed.Terminal, content: str, width: int) -> str:
-    """│ content (padded) │  — content is already styled."""
-    inner = width - 4
-    padded = _rpad(content, inner)
-    return term.cyan("│") + " " + padded + term.normal + " " + term.cyan("│")
-
-
-def _box_empty(term: blessed.Terminal, width: int) -> str:
-    return term.cyan("│") + " " * (width - 2) + term.cyan("│")
-
-
-# ── Sparkline ─────────────────────────────────────────────────────────────────
-
-def sparkline(data: List[float], width: int) -> str:
-    """Returns a unicode sparkline of `width` characters from the given data."""
-    if not data:
-        return "▁" * width
-    data = data[-width:]
-    lo, hi = min(data), max(data)
-    rng = hi - lo if hi != lo else 1.0
-    return "".join(_SPARK_CHARS[min(int((v - lo) / rng * 7), 7)] for v in data)
-
-
-# ── Header ────────────────────────────────────────────────────────────────────
-
-def _draw_header(term: blessed.Terminal, current_time: str, max_width: int = 80) -> None:
-    """Draws the top header: double outer box, title left, clock right."""
-    w = max_width
-    title     = "PHEMEX SIM BOT"
-    badge     = "◈ PAPER"
-    # Raw visible widths for gap calculation
-    left_raw  = f"  ⚡ {title}  {badge}"
-    right_raw = f"{current_time}  "
-    gap       = max(0, w - 2 - len(left_raw) - len(right_raw))
-
-    left_styled  = (
-        "  ⚡ "
-        + term.bold_cyan(title)
-        + "  "
-        + term.yellow(badge)
-    )
-    right_styled = term.bold_white(current_time) + "  "
-    body = term.cyan("║") + left_styled + " " * gap + right_styled + term.cyan("║")
-
-    print(term.move_xy(2, 1) + term.cyan("╔" + "═" * (w - 2) + "╗"))
-    print(term.move_xy(2, 2) + body)
-    print(term.move_xy(2, 3) + term.cyan("╠" + "═" * (w - 2) + "╣"))
-
-
-# ── Positions ─────────────────────────────────────────────────────────────────
-
-def _draw_positions_section(
-    term: blessed.Terminal,
-    positions: List[Dict[str, Any]],
-    current_prices: Dict[str, float],
-    start_row: int,
-    max_width: int = 80,
-) -> int:
-    """Renders the active-positions panel."""
-    w   = max_width
-    row = start_row
-    n   = len(positions)
-
-    slot_tag = f"─ {n} open " if n else "─ idle "
-    print(term.move_xy(2, row) + term.cyan(_box_top("OPEN POSITIONS", w, slot_tag)))
-    row += 1
-
-    if not positions:
-        msg = term.white("  Waiting for qualifying setups") + term.cyan(" ·")
-        print(term.move_xy(2, row) + _box_row(term, _rpad(msg, w - 4), w))
-        row += 1
-    else:
-        for pos in positions:
-            sym        = pos["symbol"]
-            side       = pos["side"]
-            entry      = float(pos["entry"])
-            size       = float(pos["size"])
-            stop       = float(pos.get("stop_price", 0))
-            tp         = float(pos.get("take_profit", 0))
-            orig_stop  = float(pos.get("original_stop", stop))
-            score      = pos.get("entry_score", 0)
-            now        = current_prices.get(sym)
-            is_long    = side == "Buy"
-
-            upnl = 0.0
-            if now:
-                upnl = (now - entry) * size if is_long else (entry - now) * size
-
-            # Direction badge
-            dir_badge = (
-                term.bold_green("▲ LONG ") if is_long else term.bold_red("▼ SHORT")
-            )
-            now_str = f"{now:.5g}" if now else "·······"
-            if now:
-                pnl_str = (
-                    term.bold_green(f"+{upnl:.4f}")
-                    if upnl >= 0 else term.bold_red(f"{upnl:.4f}")
-                )
+            # 2. Positions
+            if not positions:
+                print(term.move_xy(2, y) + ui.modern_panel("POSITIONS", [Fore.WHITE + " Idle..."], width=left_w))
+                y += 4
             else:
-                pnl_str = term.white("·······")
+                for pos in positions:
+                    sym = pos["symbol"]
+                    now = live_prices.get(sym)
+                    if not now:
+                        print(term.move_xy(2, y) + ui.modern_panel(sym, ["Waiting for price..."], width=left_w))
+                        y += 4; continue
 
-            margin_s = term.cyan(f"M: ${pos.get('margin', 0.0):.1f}")
-            lev_s    = term.yellow(f"L: {pos.get('leverage', '??')}x")
-            spread_s = term.white(f"S: {pos.get('spread', 0.0):.2f}%")
-            # ── Row 1: direction · symbol · entry → now · pnl · score ──────
-            score_badge = term.yellow(f"[{score}]")
-            arrow       = term.white("──▶")
-            entry_s     = term.white(f"{entry:.5g}")
-            now_s       = term.white(now_str)
-            sym_s       = term.bold_white(f"{sym:<12}")
+                    upnl = (now - pos['entry']) * pos['size'] if pos['side'] == "Buy" else (pos['entry'] - now) * pos['size']
+                    hist = state.pnl_histories.get(sym, [0.0])
+                    chart = ui.render_pnl_chart(hist, width=left_w-20, height=3)
 
-            # Duration
-            dur_str = "???"
-            entry_time_str = pos.get("entry_time")
-            if entry_time_str:
-                try:
-                    entry_dt = datetime.datetime.fromisoformat(entry_time_str)
-                    if entry_dt.tzinfo is None:
-                        entry_dt = entry_dt.replace(tzinfo=datetime.timezone.utc)
-                    diff = datetime.datetime.now(datetime.timezone.utc) - entry_dt
-                    tot_sec = int(diff.total_seconds())
-                    if tot_sec < 60:
-                        dur_str = f"{tot_sec}s"
-                    elif tot_sec < 3600:
-                        dur_str = f"{tot_sec // 60}m"
-                    else:
-                        dur_str = f"{tot_sec // 3600}h {(tot_sec % 3600) // 60}m"
-                except Exception:
-                    pass
-            dur_badge = term.white(f"({dur_str})")
+                    header = f"{'▲' if pos['side']=='Buy' else '▼'} {sym} {ui.pnl_color(upnl)}{upnl:+.4f}{Style.RESET_ALL}"
+                    info = [
+                        f" Entry: {pos['entry']:.5g} | Now: {now:.5g} | Lev: {pos.get('leverage','?')}x",
+                        f" {chart[0]}", f" {chart[1]}", f" {chart[2]}"
+                    ]
+                    print(term.move_xy(2, y) + ui.modern_panel(header, info, width=left_w, color=Fore.MAGENTA))
+                    y += len(info) + 2
 
-            line1 = f" {dir_badge} {sym_s} {entry_s} {arrow} {now_s}  {margin_s}  {lev_s}  {spread_s}  {pnl_str}  {score_badge} {dur_badge}"
-            print(term.move_xy(2, row) + _box_row(term, line1, w))
-            row += 1
+            # 3. Logs
+            log_lines = list(_bot_logs)[-5:]
+            while len(log_lines) < 5: log_lines.insert(0, "")
+            print(term.move_xy(2, y) + ui.modern_panel("LOGS", log_lines, width=left_w, color=Fore.WHITE))
 
-            # ── Row 2: price-position bar ────────────────────────────────────
-            if now:
-                bar_w = w - 16
-                pts   = [orig_stop, stop, entry, now, tp]
-                lo    = min(pts)
-                hi    = max(pts)
-                rng   = (hi - lo) if hi != lo else 1.0
+            # --- Right Column: History ---
+            hist_lines = []
+            if history:
+                wins = len([t for t in history if float(t["pnl"]) > 0])
+                wr = (wins / len(history) * 100)
+                tot = sum(float(t["pnl"]) for t in history)
+                hist_lines.append(f"Trades: {len(history)} | WR: {wr:.0f}%")
+                hist_lines.append(f"PnL: {ui.pnl_color(tot)}{tot:+.2f}{Style.RESET_ALL}")
+                hist_lines.append(ui.hr_dash())
+                for t in reversed(history[-18:]):
+                    p = float(t['pnl'])
+                    ts = t['timestamp'][11:16]
+                    s = t['symbol'].replace('USDT','')
+                    hist_lines.append(f"{ts} {s:<6} {ui.pnl_color(p)}{p:+.2f}{Style.RESET_ALL}")
 
-                def gp(v: float) -> int:
-                    return max(0, min(bar_w - 1, int((v - lo) / rng * (bar_w - 1))))
+            print(term.move_xy(left_w + 4, start_y) + ui.modern_panel("HISTORY", hist_lines, width=right_w))
 
-                bar = list("─" * bar_w)
-                bar[gp(orig_stop)] = term.red("╳")
-                bar[gp(stop)]      = term.bold_red("S")
-                bar[gp(entry)]     = term.yellow("E")
-                bar[gp(tp)]        = term.bold_green("T")
-                bar[gp(now)]       = term.bold_white("●")
+            # --- Footer ---
+            footer = f" [O] Scan  [S] Close All  [Q] Quit | Status: {'RUNNING' if _running else 'STOPPED'}"
+            print(term.move_xy(2, term.height-1) + ui.hr_thin(Fore.MAGENTA))
+            print(term.move_xy(2, term.height) + term.bold_white(footer))
 
-                sl_s  = term.red(f"{stop:.4g}")
-                tp_s  = term.green(f"{tp:.4g}")
-                label = f"    ╰ SL {sl_s}  TP {tp_s}  " + term.cyan("[") + "".join(bar) + term.cyan("]")
-                print(term.move_xy(2, row) + _box_row(term, label, w))
-                row += 1
-
-    print(term.move_xy(2, row) + term.cyan(_box_bot(w)))
-    row += 1
-    return row
-
-
-# ── Account + Session (two columns) ──────────────────────────────────────────
-
-def _draw_account_session_section(
-    term: blessed.Terminal,
-    balance: float,
-    locked_margin: float,
-    current_upnl: float,
-    equity: float,
-    total_trades: int,
-    wins: int,
-    losses: int,
-    win_rate: float,
-    total_closed_pnl: float,
-    start_row: int,
-    max_width: int = 80,
-    equity_history: List[float] = None
-) -> int:
-    """Two-column panel: wallet left, session stats right."""
-    w   = max_width
-    lw  = int(w * 0.48)
-    gap = 2
-    rw  = w - lw - gap
-
-    eq_delta   = equity - INITIAL_BALANCE
-    eq_color   = term.bold_green  if eq_delta  >= 0 else term.bold_red
-    upnl_color = term.green       if current_upnl >= 0 else term.red
-    rpnl_color = term.bold_green  if total_closed_pnl >= 0 else term.bold_red
-
-    # ── Left panel: wallet ────────────────────────────────────────────────────
-    left_lines: List[str] = []
-    left_lines.append(term.cyan(_box_top("WALLET", lw)))
-    left_lines.append(_box_row(term, " Avail " + term.bold_white(f"${balance:.1f}"), lw))
-    left_lines.append(_box_row(term, " Lock  " + term.yellow(f"${locked_margin:.1f}"), lw))
-    left_lines.append(_box_row(term, " uPnL  " + upnl_color(f"{current_upnl:+.2f}"), lw))
-    left_lines.append(_box_row(term, " Equity" + eq_color(f"${equity:.1f}"), lw))
-    left_lines.append(term.cyan(_box_bot(lw)))
-
-    # ── Right panel: statistics ───────────────────────────────────────────────
-    right_lines: List[str] = []
-    right_lines.append(term.cyan(_box_top("STATS", rw)))
-    right_lines.append(_box_row(term, " Trades " + term.bold_white(str(total_trades)), rw))
-    right_lines.append(_box_row(term, f" {term.bold_green(f'{wins}W')} {term.bold_red(f'{losses}L')} {term.yellow(f'{win_rate:.0f}%')}", rw))
-    right_lines.append(_box_row(term, " Realiz " + rpnl_color(f"{total_closed_pnl:+.2f}"), rw))
-    right_lines.append(_box_empty(term, rw))
-    right_lines.append(term.cyan(_box_bot(rw)))
-
-    row = start_row
-    for l_line, r_line in zip(left_lines, right_lines):
-        print(term.move_xy(2, row) + l_line + " " * gap + r_line)
-        row += 1
-    return row
-
-
-# ── Trade history ─────────────────────────────────────────────────────────────
-
-def _draw_history_section(
-    term: blessed.Terminal,
-    history: List[Dict[str, Any]],
-    start_row: int,
-    x: int = 2,
-    max_width: int = 80,
-) -> int:
-    """Vertical list of all closed trades (full height)."""
-    w      = max_width
-    row    = start_row
-    # history is already ordered DESC (newest first) from storage
-    all_h  = history
-
-    print(term.move_xy(x, row) + term.cyan(_box_top("HISTORY", w, f" {len(all_h)} ")))
-    row += 1
-
-    # Fill exactly to bottom of screen
-    bottom_row = term.height - 2
-    while row <= bottom_row:
-        idx = row - start_row - 1
-        if idx < len(all_h):
-            t = all_h[idx]
-            pnl   = float(t["pnl"])
-            c     = term.bold_green if pnl > 0 else term.bold_red
-            badge = "▲" if pnl > 0 else "▼"
-            ts    = t["timestamp"][11:16]
-            sym   = t["symbol"].replace("USDT", "")[:6]
-            
-            # Compact: 12:34 BTC ▲ +1.23
-            content = f"{term.white(ts)} {term.bold_white(f'{sym:<6}')} {badge} {c(f'{pnl:+.2f}')}"
-            print(term.move_xy(x, row) + _box_row(term, content, w))
-        else:
-            print(term.move_xy(x, row) + _box_empty(term, w))
-        row += 1
-
-    print(term.move_xy(x, row) + term.cyan(_box_bot(w)))
-    return row
-
-def _draw_equity_chart_section(
-    term: blessed.Terminal,
-    equity_history: List[float],
-    start_row: int,
-    max_width: int = 120,
-) -> int:
-    """Full-width block-bar equity performance chart."""
-    w   = max_width
-    row = start_row
-    h   = 3  # Taller/thicker (3 rows of blocks)
-
-    inner_w = w - 8
-    if not equity_history:
-        chart_lines = [" " * inner_w] * h
-    else:
-        # Prepare data
-        data = equity_history[-inner_w:]
-        while len(data) < inner_w:
-            data = ([data[0]] if data else [0.0]) + data
-
-        lo, hi = min(data), max(data)
-        rng = hi - lo if hi != lo else 1.0
-
-        chart_lines = []
-        # We'll use the _SPARK_CHARS: "▁▂▃▄▅▆▇█"
-        # Since it has 8 chars, each row has 8 levels of granularity.
-        for r in range(h - 1, -1, -1):
-            line = ""
-            for v in data:
-                # Scale v to 0 .. (h * 8 - 1)
-                scaled = int((v - lo) / rng * (h * 8 - 1))
-                # Determine how many 'units' are in THIS specific row
-                row_units = scaled - (r * 8)
-
-                if row_units >= 7:
-                    line += "█"
-                elif row_units < 0:
-                    line += " "
-                else:
-                    # Map 0..6 to the spark chars (avoiding the full block █ which is row_units >= 7)
-                    line += _SPARK_CHARS[max(0, row_units)]
-            chart_lines.append(line)
-
-    print(term.move_xy(2, row) + term.cyan(_box_top("EQUITY PERFORMANCE", w)))
-    row += 1
-
-    # Determine color based on trend
-    color = term.green if (equity_history and equity_history[-1] >= INITIAL_BALANCE) else term.red
-
-    for line in chart_lines:
-        print(term.move_xy(2, row) + _box_row(term, color(line), w))
-        row += 1
-
-    print(term.move_xy(2, row) + term.cyan(_box_bot(w)))
-    row += 1
-    return row
-
-def _draw_consolidated_positions(
-    term: blessed.Terminal,
-    positions: List[Dict[str, Any]],
-    current_prices: Dict[str, float],
-    start_row: int,
-    x_offset: int = 2,
-    total_width: int = 120,
-) -> int:
-    """
-    Renders open positions in a 2-column grid.
-    """
-    if not positions:
-        return start_row
-
-    box_w = (total_width // 2) - 1
-    chart_h = 3
-    box_h = chart_h + 6
-    
-    row = start_row
-    for i in range(0, len(positions), 2):
-        pair = positions[i:i+2]
-        if row + box_h > term.height - 2:
-            break
-            
-        for sub_idx, pos in enumerate(pair):
-            x = x_offset + (sub_idx * (box_w + 2))
-            sym        = pos["symbol"]
-            side       = pos["side"]
-            entry      = float(pos["entry"])
-            size       = float(pos["size"])
-            stop       = float(pos.get("stop_price", 0))
-            tp         = float(pos.get("take_profit", 0))
-            margin     = float(pos.get("margin", 0))
-            now        = current_prices.get(sym)
-            is_long    = side == "Buy"
-
-            hist = state.pnl_histories.get(sym, [0.0])
-            upnl = 0.0
-            if now:
-                upnl = (now - entry) * size if is_long else (entry - now) * size
-
-            dir_badge = term.bold_green("▲") if is_long else term.bold_red("▼")
-            pnl_color = term.bold_green if upnl >= 0 else term.bold_red
-
-            dur_str = "?"
-            entry_time_str = pos.get("entry_time")
-            if entry_time_str:
-                try:
-                    entry_dt = datetime.datetime.fromisoformat(entry_time_str)
-                    if entry_dt.tzinfo is None: entry_dt = entry_dt.replace(tzinfo=datetime.timezone.utc)
-                    diff = datetime.datetime.now(datetime.timezone.utc) - entry_dt
-                    tot_sec = int(diff.total_seconds())
-                    if tot_sec < 60: dur_str = f"{tot_sec}s"
-                    elif tot_sec < 3600: dur_str = f"{tot_sec // 60}m"
-                    else: dur_str = f"{tot_sec // 3600}h"
-                except Exception: pass
-
-            header = f" {dir_badge} {term.bold_white(sym.replace('USDT',''))} {term.white(f'{now:.4g}' if now else '...')} ({dur_str})"
-            stats  = f" M:{term.yellow(f'{margin:.0f}')} L:{term.yellow(f'{pos.get('leverage', '?')}')} P:{pnl_color(f'{upnl:+.2f}')}"
-
-            print(term.move_xy(x, row) + term.cyan(_box_top("", box_w)))
-            print(term.move_xy(x + 1, row) + header)
-            
-            curr_row = row + 1
-            print(term.move_xy(x, curr_row) + _box_row(term, stats, box_w))
-            curr_row += 1
-
-            chart_w = box_w - 10
-            chart_lines = render_pnl_chart(pnl_history=hist, width=chart_w, height=chart_h, label="", term=None)
-            core_chart = chart_lines[1:-2]
-            for j, line in enumerate(core_chart):
-                print(term.move_xy(x, curr_row + j) + term.cyan("│ ") + line + term.move_xy(x + box_w - 1, curr_row + j) + term.cyan("│"))
-            curr_row += len(core_chart)
-
-            bar_w = box_w - 10
-            pts = [stop, entry, tp]; (pts.append(now) if now else None)
-            lo, hi = min(pts), max(pts); rng = (hi - lo) or 1.0
-            def gp(v): return max(0, min(bar_w - 1, int((v - lo) / rng * (bar_w - 1))))
-            bar = list("─" * bar_w); bar[gp(stop)]="S"; bar[gp(entry)]="E"; bar[gp(tp)]="T"
-            if now: bar[gp(now)]="●"
-            print(term.move_xy(x, curr_row) + _box_row(term, " [" + "".join(bar) + "]", box_w))
-            curr_row += 1
-
-            print(term.move_xy(x, curr_row) + term.cyan(_box_bot(box_w)))
-        row += box_h
-    return row
-
-# ── System log ────────────────────────────────────────────────────────────────
-
-def _draw_system_logs_section(
-    term: blessed.Terminal,
-    logs: List[str],
-    start_row: int,
-    max_width: int = 80,
-) -> int:
-    """Color-coded scrolling log panel (last 6 entries)."""
-    w   = max_width
-    row = start_row
-
-    print(term.move_xy(2, row) + term.cyan(_box_top("SYSTEM LOG", w)))
-    row += 1
+            key = term.inkey(timeout=0.8)
+            if key.lower() == 'o': state.force_scan_event.set()
+            elif key.lower() == 's': _close_all_positions()
+            elif key.lower() == 'q': break
 
     with state.lock:
-        # deques don't support slicing, convert to list first
-        display_logs = list(logs)[-6:]
-
-    # Always render exactly 6 rows
-    while len(display_logs) < 6:
-        display_logs.append("")
-
-    for entry in display_logs:
-        if not entry:
-            print(term.move_xy(2, row) + _box_empty(term, w))
-        else:
-            # Logs are already formatted with ANSI colors by setup_colored_logging
-            print(term.move_xy(2, row) + _box_row(term, entry, w))
-
-        row += 1
-
-    print(term.move_xy(2, row) + term.cyan(_box_bot(w)))
-    row += 1
-    return row
-
-
-# ── Footer ────────────────────────────────────────────────────────────────────
-
-def _draw_footer(term: blessed.Terminal, row: int, max_width: int = 80) -> None:
-    """Bottom bar with keyboard shortcuts."""
-    w          = max_width
-    left_raw   = "  [O] Scan Now  [S] Close All  [Q] Quit  "
-    right_raw  = "  ⚡ FANCYBOT v2  "
-    gap        = max(0, w - 2 - len(left_raw) - len(right_raw))
-
-    left_part  = (
-        "  "
-        + term.bold_white("[O]") + term.white(" Scan Now")
-        + "  "
-        + term.bold_white("[S]") + term.white(" Close All")
-        + "  "
-        + term.bold_white("[Q]") + term.white(" Quit")
-        + "  "
-    )
-    right_part = "  ⚡ " + term.bold_cyan("FANCYBOT") + term.white(" v2") + "  "
-    inner      = left_part + term.cyan("─" * gap) + right_part
-    line       = term.cyan("╚═") + inner + term.normal + term.cyan("═╝")
-    print(term.move_xy(2, row) + line)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TUI — Main Display Loop
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _live_pnl_display() -> None:
-    """Full-screen TUI dashboard — runs in a dedicated daemon thread."""
-    term         = blessed.Terminal()
-
-    with term.fullscreen(), term.cbreak(), term.hidden_cursor():
-        try:
-            # [T1-FIX] Guard loop with existing running flag for clean shutdown
-            while state.display_thread_running:
-                if state.display_paused_event.is_set():
-                    time.sleep(0.5)
-                    continue
-
-                with state.lock:
-                    balance = state.balance
-                    positions = state.positions[:] # Copy
-                    live_prices = state.live_prices.copy()
-
-                # Get history from storage
-                with state.file_io_lock:
-                    history = state.storage.get_trade_history(limit=200)
-
-                wins             = [t for t in history if float(t["pnl"]) > 0]
-                losses           = [t for t in history if float(t["pnl"]) <= 0]
-                total_trades     = len(history)
-                win_rate         = (len(wins) / total_trades * 100) if total_trades > 0 else 0.0
-                total_closed_pnl = sum(float(t["pnl"]) for t in history)
-                # REF: [Tier 2] UTC Standardisation
-                current_time     = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
-
-                current_upnl = 0.0
-                locked_margin = 0.0
-                for p in positions:
-                    locked_margin += p.get("margin", 0.0)
-                    now = live_prices.get(p["symbol"])
-                    if now:
-                        entry = p["entry"]
-                        size = float(p["size"])
-                        pos_pnl = (now - entry) * size if p["side"] == "Buy" else (entry - now) * size
-                        current_upnl += pos_pnl
-                        update_pnl_history(p["symbol"], pos_pnl)
-
-                equity = balance + locked_margin + current_upnl
-
-                # Update equity history here (state mutation), strictly outside render function
-                with state.lock:
-                    state.equity_history.append(equity)
-                    if len(state.equity_history) > 50: # _max_history
-                        state.equity_history.pop(0)
-
-                # Dynamic terminal scaling
-                term_w = term.width
-                term_h = term.height
-                max_w  = term_w - 4
-                
-                # History on the right takes ~34 chars
-                right_w = 34
-                left_w  = max_w - right_w - 2
-
-                print(term.clear)
-                _draw_header(term, current_time, max_w)
-
-                # 1. Right Column: Full-Height Trade History
-                _draw_history_section(term, history, 4, x=left_w + 4, max_width=right_w)
-
-                # 2. Left Column: Flowing sections
-                row = 4
-                row = _draw_account_session_section(
-                    term, balance, locked_margin, current_upnl, equity,
-                    total_trades, len(wins), len(losses),
-                    win_rate, total_closed_pnl, row, left_w,
-                    state.equity_history
-                )
-                row = _draw_equity_chart_section(term, state.equity_history, row, left_w)
-                row = _draw_system_logs_section(term, _bot_logs, row, left_w)
-
-                # Open Positions (Grid)
-                row = _draw_consolidated_positions(term, positions, live_prices, row, 2, left_w)
-
-                # Footer at terminal bottom
-                _draw_footer(term, term_h - 1, max_w)
-
-                key = term.inkey(timeout=0.8)
-                if key.lower() == "o":
-                    state.force_scan_event.set()
-                    tui_log("MANUAL SCAN REQUESTED", event_type="INPUT")
-                elif key.lower() == "s":
-                    state.display_paused_event.set()
-                    confirm_row = row + 1
-                    print(
-                        term.move_xy(4, confirm_row)
-                        + term.on_red(term.bold_white("  ⚠  CLOSE ALL TRADES?  "))
-                        + term.bold_yellow("  (Y / N)  "),
-                        end="", flush=True,
-                    )
-                    if term.inkey().lower() == "y":
-                        _close_all_positions()
-                        time.sleep(1)
-                    state.display_paused_event.clear()
-                elif key.lower() == "q":
-                    break
-
-        except KeyboardInterrupt:
-            pass
-        finally:
-            with state.lock:
-                state.display_thread_running = False
+        state.display_thread_running = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────

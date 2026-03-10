@@ -22,7 +22,17 @@ Shared terminal display primitives used across all FancyFangBot scripts.
 Import with:  import core.ui
 """
 
+import re
 from colorama import Fore, Style
+
+# Regex to strip ANSI escape codes for accurate string length calculation
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+def strip_ansi(s):
+    """Strip ANSI escape sequences from a string."""
+    if not isinstance(s, str):
+        return str(s)
+    return ANSI_ESCAPE.sub('', s)
 
 # phemex_common.grade is imported at module level to avoid per-call import lookups.
 # If the import fails (e.g. during isolated unit tests), grade_badge falls back gracefully.
@@ -148,5 +158,121 @@ def box_bot(w=W):
 def box_row(text, w=W):
     """Return a single row of a box containing text."""
     inner = w - 4
-    return Fore.CYAN + "│ " + Style.RESET_ALL + f"{text:<{inner}}" + Fore.CYAN + " │" + Style.RESET_ALL
+    visible_len = len(strip_ansi(text))
+    padding = " " * max(0, inner - visible_len)
+    return Fore.CYAN + "│ " + Style.RESET_ALL + text + padding + Fore.CYAN + " │" + Style.RESET_ALL
+
+# ── Modern Panel ──────────────────────────────────────────────────────────────
+def modern_panel(title: str, lines: list, color=Fore.CYAN, width: int = W) -> str:
+    """Return a stylized box panel with a title and content lines."""
+    out = []
+    inner_w = width - 4
+
+    # Top border with title
+    title_str = f" {title} " if title else ""
+    side_bars = (width - 4 - len(strip_ansi(title_str))) // 2
+    top = color + "┏" + "━" * side_bars + title_str + "━" * (width - 2 - side_bars - len(strip_ansi(title_str))) + "┓" + Style.RESET_ALL
+    out.append(top)
+
+    for line in lines:
+        visible_len = len(strip_ansi(line))
+        padding = " " * max(0, inner_w - visible_len)
+        out.append(color + "┃ " + Style.RESET_ALL + line + padding + color + " ┃" + Style.RESET_ALL)
+
+    # Bottom border
+    out.append(color + "┗" + "━" * (width - 2) + "┛" + Style.RESET_ALL)
+    return "\n".join(out)
+
+# ── Truecolor Gradients ────────────────────────────────────────────────────────
+def gradient_text(text: str, start_rgb: tuple, end_rgb: tuple) -> str:
+    """Return text with a horizontal truecolor gradient."""
+    if not text:
+        return ""
+    r1, g1, b1 = start_rgb
+    r2, g2, b2 = end_rgb
+    n = len(text)
+    out = ""
+    for i, char in enumerate(text):
+        if n > 1:
+            r = int(r1 + (r2 - r1) * i / (n - 1))
+            g = int(g1 + (g2 - g1) * i / (n - 1))
+            b = int(b1 + (b2 - b1) * i / (n - 1))
+        else:
+            r, g, b = r1, g1, b1
+        out += f"\033[38;2;{r};{g};{b}m{char}"
+    return out + Style.RESET_ALL
+
+# ── Braille PnL Chart ─────────────────────────────────────────────────────────
+BRAILLE_MAP = [
+    [0x01, 0x08],
+    [0x02, 0x10],
+    [0x04, 0x20],
+    [0x40, 0x80],
+]
+
+def _to_braille(left_row: int, right_row: int) -> str:
+    """Convert two column bit patterns into a braille unicode char."""
+    bits = 0
+    for row in range(4):
+        if left_row & (1 << row):
+            bits |= BRAILLE_MAP[row][0]
+        if right_row & (1 << row):
+            bits |= BRAILLE_MAP[row][1]
+    return chr(0x2800 + bits)
+
+def render_pnl_chart(
+    pnl_history: list,
+    width: int = 40,
+    height: int = 4,
+    label: str = "",
+) -> list:
+    """
+    Renders a smooth braille PnL line chart.
+    Returns list of strings (one per row).
+    """
+    if not pnl_history:
+        pnl_history = [0.0]
+
+    # Pad or trim to fit width*2 data points (2 per char cell)
+    points = pnl_history[-(width * 2):]
+    while len(points) < width * 2:
+        points = [points[0]] * (width * 2 - len(points)) + points
+
+    lo = min(points)
+    hi = max(points)
+    span = (hi - lo) or 1e-10
+    rows = height * 4
+
+    def to_row(v):
+        return int((v - lo) / span * (rows - 1))
+
+    scaled = [to_row(p) for p in points]
+    grid = [[[0, 0] for _ in range(width)] for _ in range(height)]
+
+    for col_idx in range(width):
+        left_val  = scaled[col_idx * 2]
+        right_val = scaled[col_idx * 2 + 1]
+        for val, side in [(left_val, 0), (right_val, 1)]:
+            char_row  = height - 1 - (val // 4)
+            dot_row   = val % 4
+            char_row  = max(0, min(height - 1, char_row))
+            grid[char_row][col_idx][side] |= (1 << dot_row)
+
+    zero_char_row = height - 1 - (to_row(0.0) // 4)
+    lines = []
+    current_pnl = pnl_history[-1]
+    chart_color = Fore.LIGHTGREEN_EX if current_pnl >= 0 else Fore.RED
+
+    for row_idx in range(height):
+        row_str = ""
+        for col_idx in range(width):
+            row_str += _to_braille(grid[row_idx][col_idx][0], grid[row_idx][col_idx][1])
+
+        prefix = Fore.CYAN + "│" + Style.RESET_ALL
+        if row_idx == zero_char_row:
+            lines.append(prefix + chart_color + row_str + Style.RESET_ALL + Fore.YELLOW + " 0.00" + Style.RESET_ALL)
+        else:
+            lines.append(prefix + chart_color + row_str + Style.RESET_ALL)
+
+    return lines
 
