@@ -1000,7 +1000,7 @@ def _live_pnl_display() -> None:
                 tot = sum(float(t["pnl"]) for t in history)
                 hist_lines.append(f"Trades: {len(history)} | WR: {wr:.0f}%")
                 hist_lines.append(f"PnL: {ui.pnl_color(tot)}{tot:+.2f}{Style.RESET_ALL}")
-                hist_lines.append(ui.hr_dash())
+                hist_lines.append(ui.hr_dash(width=right_w-4))
                 # Limit history lines to terminal height
                 avail_h = term.height - start_y - 10
                 for t in reversed(history[-avail_h:]):

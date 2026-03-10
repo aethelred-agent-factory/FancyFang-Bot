@@ -44,21 +44,21 @@ except ImportError:
 W = 96  # standard terminal width
 
 # ── Horizontal rules ──────────────────────────────────────────────────────────
-def hr_double(color=Fore.CYAN):
+def hr_double(color=Fore.CYAN, width: int = W):
     """Return a double-line horizontal rule string."""
-    return color + "═" * W + Style.RESET_ALL
+    return color + "═" * width + Style.RESET_ALL
 
-def hr_thin(color=Fore.CYAN):
+def hr_thin(color=Fore.CYAN, width: int = W):
     """Return a thin horizontal rule string."""
-    return color + "─" * W + Style.RESET_ALL
+    return color + "─" * width + Style.RESET_ALL
 
-def hr_dash(color=""):
+def hr_dash(color="", width: int = W):
     """Return a dashed horizontal rule string."""
-    return color + "┄" * W + Style.RESET_ALL
+    return color + "┄" * width + Style.RESET_ALL
 
-def hr_heavy():
+def hr_heavy(width: int = W):
     """Return a heavy horizontal rule string."""
-    return Fore.WHITE + Style.BRIGHT + "━" * W + Style.RESET_ALL
+    return Fore.WHITE + Style.BRIGHT + "━" * width + Style.RESET_ALL
 
 # ── Score gauge ───────────────────────────────────────────────────────────────
 def score_gauge(score: int, width: int = 24) -> str:
