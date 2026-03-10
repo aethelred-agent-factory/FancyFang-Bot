@@ -228,10 +228,10 @@ TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.50")) # 50% take pro
 SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "300"))    # seconds between scans
 
 # Base gating thresholds
-MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "5"))
+MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "120"))
 MIN_SCORE_GAP  = int(os.getenv("BOT_MIN_SCORE_GAP", "0"))
-MIN_SCORE_HTF_BYPASS = int(os.getenv("BOT_MIN_SCORE_HTF", "5"))
-MIN_SCORE_LOW_LIQ = int(os.getenv("BOT_MIN_SCORE_LOW_LIQ", "5"))
+MIN_SCORE_HTF_BYPASS = int(os.getenv("BOT_MIN_SCORE_HTF", "110"))
+MIN_SCORE_LOW_LIQ = int(os.getenv("BOT_MIN_SCORE_LOW_LIQ", "135"))
 
 # Low-Liquidity Adjusted Parameters
 LOW_LIQ_LEVERAGE = int(os.getenv("BOT_LOW_LIQ_LEVERAGE", "10"))
@@ -1594,48 +1594,85 @@ def _read_trade_log() -> list:
             except Exception as e:
                 logger.warning(f"Legacy trade log migration failed: {e}")
     return trades
-def verify_candidate(symbol: str, direction: str, original_score: int, wait_seconds: int = 15) -> Optional[dict]:
+def verify_candidate(symbol: str, direction: str, original_score: int, wait_seconds: int = 30) -> Optional[dict]:
     """
-    Waits, then re-scans a single symbol to verify the signal is still valid.
+    Iterative 3-step verification over wait_seconds to confirm signal validity.
+    Checks price stability and score consistency before execution.
     """
-    tui_log(f"VERIFY: {symbol} in {wait_seconds}s...", event_type="WAIT")
-    time.sleep(wait_seconds)
+    steps = 3
+    step_wait = wait_seconds / steps
+    initial_price = None
+    last_result = None
 
-    # Fetch fresh ticker
-    tickers = pc.get_tickers(rps=RATE_LIMIT_RPS)
-    ticker = next((t for t in tickers if t["symbol"] == symbol), None)
-    if not ticker:
-        tui_log(f"FAIL: {symbol} ticker not found during verification.", event_type="FAIL")
+    tui_log(f"VERIFY: {symbol} ({direction}) for {wait_seconds}s...", event_type="WAIT")
+
+    for i in range(steps):
+        time.sleep(step_wait)
+
+        # Fetch fresh ticker
+        try:
+            tickers = pc.get_tickers(rps=RATE_LIMIT_RPS)
+            ticker = next((t for t in tickers if t["symbol"] == symbol), None)
+        except Exception as e:
+            tui_log(f"FAIL: {symbol} ticker fetch error: {e}", event_type="FAIL")
+            return None
+
+        if not ticker:
+            tui_log(f"FAIL: {symbol} ticker not found during verification.", event_type="FAIL")
+            return None
+
+        current_price = float(ticker.get("lastRp") or ticker.get("closeRp") or 0.0)
+        if initial_price is None:
+            initial_price = current_price
+
+        # Price movement check (avoid entries moving too fast against us)
+        price_change = pc.pct_change(current_price, initial_price)
+        if direction == "LONG" and price_change < -0.8:
+            tui_log(f"FAIL: {symbol} dropping during verify: {price_change:+.2f}%", event_type="FAIL")
+            return None
+        elif direction == "SHORT" and price_change > 0.8:
+            tui_log(f"FAIL: {symbol} pumping during verify: {price_change:+.2f}%", event_type="FAIL")
+            return None
+
+        # Re-scan using the appropriate scanner module
+        scanner = scanner_long if direction == "LONG" else scanner_short
+        cfg = {
+            "TIMEFRAME": TIMEFRAME,
+            "MIN_VOLUME": MIN_VOLUME,
+            "RATE_LIMIT_RPS": RATE_LIMIT_RPS,
+            "CANDLES": 500
+        }
+
+        fresh_result = scanner.analyse(ticker, cfg, enable_ai=False, enable_entity=False)
+        if not fresh_result:
+            tui_log(f"FAIL: {symbol} no longer qualifies at step {i+1}", event_type="FAIL")
+            return None
+
+        fresh_score = fresh_result["score"]
+
+        # Spread check
+        current_spread = fresh_result.get("spread")
+        spread_ok, spread_reason = pc.check_spread_filter(current_spread, symbol)
+        if not spread_ok:
+            tui_log(f"FAIL: {symbol} spread too wide: {spread_reason}", event_type="FAIL")
+            return None
+
+        # Score stability check (allow 10% degradation)
+        if fresh_score < original_score * 0.90:
+            tui_log(f"FAIL: {symbol} score degraded: {original_score}->{fresh_score}", event_type="FAIL")
+            return None
+
+        last_result = fresh_result
+        tui_log(f"  Step {i+1}/{steps}: {symbol} score {fresh_score} ({price_change:+.2f}%)", event_type="VERIFY")
+
+    # Final overextension check
+    final_change = pc.pct_change(last_result["price"], initial_price)
+    if abs(final_change) > 2.0:
+        tui_log(f"FAIL: {symbol} overextended ({final_change:+.2f}%) during wait.", event_type="FAIL")
         return None
 
-    # Re-scan using the appropriate scanner module
-    scanner = scanner_long if direction == "LONG" else scanner_short
-
-    # Minimal config for re-scan
-    cfg = {
-        "TIMEFRAME": TIMEFRAME,
-        "MIN_VOLUME": MIN_VOLUME,
-        "RATE_LIMIT_RPS": RATE_LIMIT_RPS,
-        "CANDLES": 100
-    }
-
-    tui_log(f"RE-SCAN: Re-analysing {symbol}...", event_type="SCAN")
-    fresh_result = scanner.analyse(ticker, cfg, enable_ai=False, enable_entity=False)
-
-    if not fresh_result:
-        tui_log(f"FAIL: {symbol} no longer qualifies after wait.", event_type="FAIL")
-        return None
-
-    fresh_score = fresh_result["score"]
-    diff = fresh_score - original_score
-    diff_str = f"{diff:+.0f}" if diff != 0 else "0"
-
-    if fresh_score < original_score * 0.9: # Allow 10% score degradation
-        tui_log(f"FAIL: {symbol} score dropped too much: {original_score} -> {fresh_score}", event_type="FAIL")
-        return None
-
-    tui_log(f"VERIFIED: {symbol} score: {fresh_score} (Change: {diff_str})", event_type="VERIFY")
-    return fresh_result
+    tui_log(f"VERIFIED: {symbol} ready for execution.", event_type="VERIFY")
+    return last_result
 
 def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
     """
@@ -2206,7 +2243,7 @@ def bot_loop(args):
     cfg = {
         "MIN_VOLUME": args.min_vol,
         "TIMEFRAME":  args.timeframe,
-        "CANDLES":    100,
+        "CANDLES":    500,
         "TOP_N":      50,    # scan wide, filter later
         "MIN_SCORE":  0,     # don't filter in scanner, we'll do it here
         "MAX_WORKERS": args.workers,
@@ -2575,7 +2612,7 @@ def one_shot(args):
     cfg = {
         "MIN_VOLUME": args.min_vol,
         "TIMEFRAME":  args.timeframe,
-        "CANDLES":    100,
+        "CANDLES":    500,
         "TOP_N":      50,
         "MIN_SCORE":  0,
         "MAX_WORKERS": args.workers,
@@ -2696,7 +2733,7 @@ def deploy_once(args):
     cfg = {
         "MIN_VOLUME": args.min_vol,
         "TIMEFRAME":  args.timeframe,
-        "CANDLES":    100,
+        "CANDLES":    500,
         "TOP_N":      50,
         "MIN_SCORE":  0,
         "MAX_WORKERS": args.workers,

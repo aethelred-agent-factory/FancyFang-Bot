@@ -268,6 +268,9 @@ class TickerData:
     entropy: float = 0.0
     kalman_slope: float = 0.0
     ob_imbalance: Optional[float] = None
+    ema200: Optional[float] = None
+    adx: Optional[float] = None
+    poc_price: Optional[float] = None
 
 # ----------------------------
 # Thread-local session
@@ -309,6 +312,68 @@ _rate_lock = threading.Lock()
 _last_request_time_global = 0.0
 _global_backoff_until = 0.0  # Timestamp until which all requests are paused
 
+class TokenBucket:
+    """Simple thread-safe token bucket implementation."""
+    def __init__(self, capacity: float, fill_rate: float):
+        self.capacity = capacity
+        self.fill_rate = fill_rate
+        self.tokens = capacity
+        self.last_update = time.time()
+        self._lock = threading.Lock()
+
+    def consume(self, weight: float = 1.0) -> float:
+        with self._lock:
+            now = time.time()
+            elapsed = now - self.last_update
+            self.tokens = min(self.capacity, self.tokens + elapsed * self.fill_rate)
+            self.last_update = now
+
+            if self.tokens >= weight:
+                self.tokens -= weight
+                return 0.0
+            else:
+                wait_time = (weight - self.tokens) / self.fill_rate
+                return wait_time
+
+class WeightedRateLimiter:
+    """Manages separate rate limits for different API groups (Contract vs Others)."""
+    def __init__(self):
+        # Initialise buckets with Phemex-aligned defaults
+        self.buckets = {
+            "CONTRACT": TokenBucket(capacity=40, fill_rate=20), # Private/Trading (e.g., /g-orders)
+            "MARKET":   TokenBucket(capacity=60, fill_rate=30), # Public MD (e.g., /md/v2/orderbook)
+            "DEFAULT":  TokenBucket(capacity=20, fill_rate=10),
+        }
+
+    def _get_category(self, url: str) -> str:
+        u = url.lower()
+        if "/g-" in u or "/contract" in u:
+            return "CONTRACT"
+        if "/md/" in u or "/public/" in u or "ticker" in u or "kline" in u:
+            return "MARKET"
+        return "DEFAULT"
+
+    def limit(self, url: str, weight: float = 1.0):
+        cat = self._get_category(url)
+        bucket = self.buckets.get(cat, self.buckets["DEFAULT"])
+
+        while True:
+            # Handle global backoff first
+            with _rate_lock:
+                backoff_until = _global_backoff_until
+            now = time.time()
+            if now < backoff_until:
+                time.sleep(backoff_until - now)
+                continue
+
+            wait_time = bucket.consume(weight)
+            if wait_time <= 0:
+                break
+            time.sleep(wait_time)
+
+# Global instance for shared limiting across threads
+RATE_LIMITER = WeightedRateLimiter()
+
 def throttle(rps: float) -> None:
     """Sleep as needed to respect the global requests-per-second limit and backoff."""
     if not rps or rps <= 0:
@@ -346,6 +411,10 @@ def safe_request(method: str, url: str, params: dict = None, json_data: dict = N
                  stream: bool = False) -> Optional[requests.Response]:
     global _global_backoff_until
     try:
+        # 1. Hierarchical Token-Bucket Limiting (Upgrade)
+        RATE_LIMITER.limit(url)
+
+        # 2. Legacy throttle if RPS is explicitly requested
         if rps:
             throttle(rps)
 
@@ -1721,6 +1790,8 @@ def unified_analyse(
             bb = calc_bb(closes)
             ema_series = calc_ema_series(closes, 21)
             ema21 = ema_series[-1] if ema_series else None
+            ema200_series = calc_ema_series(closes, 200)
+            ema200 = ema200_series[-1] if ema200_series else None
             ema_slope, slope_change = calc_ema_slope(ema_series)
             atr = calc_atr(highs, lows, closes)
 
@@ -1809,6 +1880,9 @@ def unified_analyse(
             adx=adx, poc_price=poc_price,
             raw_ohlc=ohlc[-10:], vol_24h=vol24,
             regime=regime, entropy=entropy, kalman_slope=kalman_slope,
+            ema200=ema200,
+            adx=adx,
+            poc_price=poc_price,
         )
 
         # 9. Scoring
@@ -1844,6 +1918,7 @@ def unified_analyse(
             "rsi_1h": rsi_1h, "rsi_4h": rsi_4h, "scan_timestamp": now_utc_iso,
             "regime": regime, "entropy": entropy, "kalman_price": kalman_price, "kalman_slope": kalman_slope,
             "adx": adx, "poc_price": poc_price,
+            "ema200": ema200, "adx": adx, "poc_price": poc_price,
             # ── Upgrade fields ────────────────────────────────────────────────
             "best_bid":    best_bid,       # Upgrade #1 slippage / #10 imbalance
             "best_ask":    best_ask,
@@ -1861,6 +1936,7 @@ def unified_analyse(
                 "funding_rate": funding_rate,
                 "rsi_1h": rsi_1h,
                 "rsi_4h": rsi_4h,
+                "ema200": ema200,
                 "adx": adx,
                 "poc_price": poc_price
             }

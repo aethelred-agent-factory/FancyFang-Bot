@@ -82,6 +82,7 @@ WEIGHTS = {
     "bb_lower_90": 30,         # price below/at BB lower
     "bb_lower_75": 22,         # price near BB lower
     "ema_stretch_3": 15,       # price significantly below EMA21 (mean reversion)
+    "ema_stretch_200": 25,     # price significantly below EMA200 (Macro divergence)
     "vol_spike_2": 15,         # volume spike (capitulation or demand)
     "funding_negative": 22,    # negative funding = crowded shorts = squeeze fuel
     "htf_align_oversold": 15,  # 1H RSI oversold confirms LTF long
@@ -224,7 +225,7 @@ def detect_patterns(ohlc: List[Tuple[float, float, float, float]]) -> List:
 # ----------------------------
 # Confidence & Scoring — LONG BIASED
 # ----------------------------
-def calc_confidence(rsi, bb_pct, ema21, price, change_24h, funding_rate, patterns, score, dist_low_pct, vol_spike):
+def calc_confidence(rsi, bb_pct, ema21, price, change_24h, funding_rate, patterns, score, dist_low_pct, vol_spike, ema200=None):
     """
     Long-biased confidence: counts bullish agreeing signals vs bearish conflicts.
     """
@@ -255,6 +256,11 @@ def calc_confidence(rsi, bb_pct, ema21, price, change_24h, funding_rate, pattern
             agreeing += 1.0        # price meaningfully below EMA21
         elif pct > 2.0:
             conflicts += 0.5       # already stretched above EMA21
+
+    if ema200 is not None and price is not None:
+        pct_200 = pc.pct_change(price, ema200)
+        if pct_200 < -2.0:
+            agreeing += 1.0
 
     # 24h change — a significant drop is oversold fuel; extreme dump is risky
     if change_24h is not None:
@@ -307,6 +313,7 @@ def _calc_confidence_adapter(data: pc.TickerData, score: int, bb_pct) -> tuple:
         data.rsi, bb_pct, data.ema21, data.price,
         data.change_24h, data.funding_rate, data.patterns,
         score, data.dist_low_pct, data.vol_spike,
+        ema200=data.ema200
     )
 
 
@@ -350,6 +357,12 @@ def score_long(data: TickerData) -> Tuple[int, List[str]]:
         if pct_diff < -3.0:
             score += WEIGHTS["ema_stretch_3"]
             signals.append(f"Mean Reversion Stretch ({pct_diff:.1f}%)")
+
+    if data.ema200 is not None and data.price is not None:
+        pct_diff_200 = pc.pct_change(data.price, data.ema200)
+        if pct_diff_200 < -3.0:
+            score += WEIGHTS["ema_stretch_200"]
+            signals.append(f"Macro Divergence (EMA200 {pct_diff_200:.1f}%)")
 
     # 4. Funding logic
     if data.funding_rate is not None:
