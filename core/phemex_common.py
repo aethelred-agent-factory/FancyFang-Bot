@@ -267,6 +267,8 @@ class TickerData:
     kalman_slope: float = 0.0
     ob_imbalance: Optional[float] = None
     ema200: Optional[float] = None
+    adx: Optional[float] = None
+    poc_price: Optional[float] = None
 
 # ----------------------------
 # Thread-local session
@@ -654,6 +656,69 @@ def calc_atr(highs: List[float], lows: List[float], closes: List[float], period:
     for i in range(period, len(true_range_list)):
         average_true_range = (average_true_range * (period - 1) + true_range_list[i]) / period
     return average_true_range
+
+def calc_adx(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> Optional[float]:
+    """
+    Calculates the Average Directional Index (ADX).
+    REF: [Tier 3] Descriptive Naming
+    """
+    if len(closes) < period * 2:
+        return None
+    
+    highs_arr = np.asarray(highs, dtype=float)
+    lows_arr = np.asarray(lows, dtype=float)
+    closes_arr = np.asarray(closes, dtype=float)
+    
+    tr_list = [0.0]
+    plus_dm = [0.0]
+    minus_dm = [0.0]
+    
+    for i in range(1, len(closes)):
+        tr = max(highs_arr[i] - lows_arr[i], 
+                 abs(highs_arr[i] - closes_arr[i-1]), 
+                 abs(lows_arr[i] - closes_arr[i-1]))
+        tr_list.append(tr)
+        
+        up_move = highs_arr[i] - highs_arr[i-1]
+        down_move = lows_arr[i-1] - lows_arr[i]
+        
+        if up_move > down_move and up_move > 0:
+            plus_dm.append(up_move)
+        else:
+            plus_dm.append(0.0)
+            
+        if down_move > up_move and down_move > 0:
+            minus_dm.append(down_move)
+        else:
+            minus_dm.append(0.0)
+            
+    # Initial SMA values
+    atr_val = sum(tr_list[1:period+1]) / period
+    smooth_plus_dm_val = sum(plus_dm[1:period+1]) / period
+    smooth_minus_dm_val = sum(minus_dm[1:period+1]) / period
+    
+    atr = [atr_val]
+    smooth_plus_dm = [smooth_plus_dm_val]
+    smooth_minus_dm = [smooth_minus_dm_val]
+    
+    for i in range(period + 1, len(closes)):
+        atr_val = (atr_val * (period - 1) + tr_list[i]) / period
+        smooth_plus_dm_val = (smooth_plus_dm_val * (period - 1) + plus_dm[i]) / period
+        smooth_minus_dm_val = (smooth_minus_dm_val * (period - 1) + minus_dm[i]) / period
+        atr.append(atr_val)
+        smooth_plus_dm.append(smooth_plus_dm_val)
+        smooth_minus_dm.append(smooth_minus_dm_val)
+        
+    plus_di = [100 * (dm / a) if a > 0 else 0 for dm, a in zip(smooth_plus_dm, atr)]
+    minus_di = [100 * (dm / a) if a > 0 else 0 for dm, a in zip(smooth_minus_dm, atr)]
+    
+    dx = [100 * abs(p - m) / (p + m) if (p + m) > 0 else 0 for p, m in zip(plus_di, minus_di)]
+    
+    adx_val = sum(dx[:period]) / period
+    for i in range(period, len(dx)):
+        adx_val = (adx_val * (period - 1) + dx[i]) / period
+        
+    return float(adx_val)
 
 def calc_market_regime(closes: List[float], period: int = 20) -> Tuple[str, float]:
     """
@@ -1748,6 +1813,7 @@ def unified_analyse(
             kalman_series = calc_kalman_series(closes)
             kalman_price  = kalman_series[-1] if kalman_series else None
             kalman_slope  = kalman_series[-1] - kalman_series[-2] if len(kalman_series) >= 2 else 0.0
+            adx = calc_adx(highs, lows, closes)
         except Exception as e:
             logger.error(f"  {symbol}: Indicator calculation failed: {e}")
             return None
@@ -1802,6 +1868,8 @@ def unified_analyse(
             raw_ohlc=ohlc[-10:], vol_24h=vol24,
             regime=regime, entropy=entropy, kalman_slope=kalman_slope,
             ema200=ema200,
+            adx=adx,
+            poc_price=poc_price,
         )
 
         # 9. Scoring
@@ -1836,7 +1904,7 @@ def unified_analyse(
             "ema_slope": ema_slope, "slope_change": slope_change, "fr_change": funding_rate_change,
             "rsi_1h": rsi_1h, "rsi_4h": rsi_4h, "scan_timestamp": now_utc_iso,
             "regime": regime, "entropy": entropy, "kalman_price": kalman_price, "kalman_slope": kalman_slope,
-            "ema200": ema200,
+            "ema200": ema200, "adx": adx, "poc_price": poc_price,
             # ── Upgrade fields ────────────────────────────────────────────────
             "best_bid":    best_bid,       # Upgrade #1 slippage / #10 imbalance
             "best_ask":    best_ask,
@@ -1852,7 +1920,10 @@ def unified_analyse(
                 "ob_imbalance": ob_imbalance,
                 "funding_rate": funding_rate,
                 "rsi_1h": rsi_1h,
-                "rsi_4h": rsi_4h
+                "rsi_4h": rsi_4h,
+                "ema200": ema200,
+                "adx": adx,
+                "poc_price": poc_price
             }
         }
 
