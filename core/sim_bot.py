@@ -1163,34 +1163,7 @@ def _live_pnl_display() -> None:
             if key.lower() == 'o': state.force_scan_event.set()
             elif key.lower() == 's': _close_all_positions()
             elif key.lower() == 'q': break
-
-            # --- Right Column: History ---
-            hist_lines = []
-            if history:
-                wins = len([t for t in history if float(t["pnl"]) > 0])
-                wr = (wins / len(history) * 100)
-                tot = sum(float(t["pnl"]) for t in history)
-                hist_lines.append(f"Trades: {len(history)} | WR: {wr:.0f}%")
-                hist_lines.append(f"PnL: {ui.pnl_color(tot)}{tot:+.2f}{Style.RESET_ALL}")
-                hist_lines.append(ui.hr_dash())
-                for t in reversed(history[-18:]):
-                    p = float(t['pnl'])
-                    ts = t['timestamp'][11:16]
-                    s = t['symbol'].replace('USDT','')
-                    hist_lines.append(f"{ts} {s:<6} {ui.pnl_color(p)}{p:+.2f}{Style.RESET_ALL}")
-
-            print(term.move_xy(left_w + 4, start_y) + ui.modern_panel("HISTORY", hist_lines, width=right_w))
-
-            # --- Footer ---
-            footer = f" [O] Scan  [S] Close All  [Q] Quit | Status: {'RUNNING' if _running else 'STOPPED'}"
-            print(term.move_xy(2, term.height-1) + ui.hr_thin(Fore.MAGENTA))
-            print(term.move_xy(2, term.height) + term.bold_white(footer))
-
-            key = term.inkey(timeout=0.8)
-            if key.lower() == 'o': state.force_scan_event.set()
-            elif key.lower() == 's': _close_all_positions()
-            elif key.lower() == 'q': break
-
+    
     with state.lock:
         state.display_thread_running = False
 
@@ -2266,7 +2239,7 @@ def main() -> None:
     parser.add_argument("--no-dynamic",     action="store_true")
     parser.add_argument("--textual",        action="store_true", help="Use modern Textual TUI dashboard")
     parser.add_argument("--web",            action="store_true", help="Enable web dashboard backend")
-    parser.add_argument("--web-port",       type=int, default=8000, help="Port for web dashboard backend")
+    parser.add_argument("--web-port",       type=int, default=8080, help="Port for web dashboard backend")
     parser.add_argument("--no-tui",         action="store_true", help="Run without the full-screen TUI dashboard")
     args = parser.parse_args()
 

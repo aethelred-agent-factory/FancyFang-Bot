@@ -105,10 +105,13 @@ async def get_positions():
 async def get_logs():
     return list(_bot_logs)[-50:]
 
-def run_bridge(host="0.0.0.0", port=8000):
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+def run_bridge(host="0.0.0.0", port=8080):
+    print(f"\n  🚀 FANCYBOT WEB SERVER ACTIVE")
+    print(f"  🌐 INTERFACE: http://localhost:{port}")
+    print(f"  📡 API BASE:  http://localhost:{port}/api\n")
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
-def start_bridge_thread(state, logs, port=8000):
+def start_bridge_thread(state, logs, port=8080):
     inject_state(state, logs)
     t = threading.Thread(target=run_bridge, kwargs={"port": port}, daemon=True)
     t.start()
