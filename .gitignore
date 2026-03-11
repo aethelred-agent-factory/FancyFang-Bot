@@ -30,3 +30,4 @@ data/backtest_results/
 .DS_Store
 .vscode/
 .idea/
+research/master_results.json

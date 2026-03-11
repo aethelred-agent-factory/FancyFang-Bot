@@ -272,3 +272,14 @@ def load_best_params() -> Optional[ParamSet]:
     except Exception as e:
         logger.warning(f"optimizer: could not load best params — {e}")
     return None
+
+if __name__ == "__main__":
+    # Demo/Test mode: generate dummy results if run directly
+    def mock_backtest(params, data):
+        # Deterministic dummy PnL based on params
+        pnl = (params.atr_stop_mult * 10) + (params.score_threshold / 5) - (params.spread_max_pct * 100)
+        return [pnl, pnl * 1.1, pnl * 0.9]
+
+    print("[optimizer] Running demo grid search...")
+    run_grid_search(mock_backtest, ["dummy_data"], top_n=5)
+    print("[optimizer] Demo complete.")

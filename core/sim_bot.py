@@ -291,6 +291,30 @@ class SimBotState:
             except Exception as error:
                 logging.getLogger("sim_bot").error(f"Failed to save paper account: {error}")
 
+    def to_snapshot(self) -> Dict[str, Any]:
+        """Serializes the minimal state required to fully recover the simulation bot."""
+        with self.lock:
+            return {
+                "balance": self.balance,
+                "positions": self.positions[:],
+                "entropy_penalty": self.entropy_penalty,
+                "equity_history": self.equity_history[:],
+                "last_exit_info": dict(self.last_exit_info),
+                "fast_track_cooldowns": dict(self.fast_track_cooldowns),
+            }
+
+    def restore_from_snapshot(self, snapshot: Dict[str, Any]):
+        """Restores in-memory state from a previously saved snapshot."""
+        if not snapshot:
+            return
+        with self.lock:
+            self.balance = snapshot.get("balance", self.balance)
+            self.positions = snapshot.get("positions", self.positions)
+            self.entropy_penalty = snapshot.get("entropy_penalty", self.entropy_penalty)
+            self.equity_history = snapshot.get("equity_history", self.equity_history)
+            self.last_exit_info = snapshot.get("last_exit_info", self.last_exit_info)
+            self.fast_track_cooldowns = snapshot.get("fast_track_cooldowns", self.fast_track_cooldowns)
+
     def update_price(self, symbol: str, price: float):
         """Thread-safe update of live prices."""
         with self.lock:
@@ -2046,7 +2070,18 @@ def sim_bot_loop(args) -> None:
     }
 
     _ensure_ws_started()
-    state.load_account()
+    # Attempt full state recovery from the sovereign ledger first
+    try:
+        snapshot = state.storage.load_latest_sim_state()
+    except Exception as e:
+        logger.error(f"Failed to load sim_state snapshot, falling back to account-only load: {e}")
+        snapshot = None
+
+    if snapshot:
+        state.restore_from_snapshot(snapshot)
+        logger.info("Restored SimBotState from latest sim_state snapshot.")
+    else:
+        state.load_account()
     load_sim_cooldowns()
 
     with state.lock:
@@ -2096,6 +2131,12 @@ def sim_bot_loop(args) -> None:
                     continue
 
             update_pnl_and_stops(args)
+            # Persist a lightweight snapshot of state each cycle for crash recovery
+            try:
+                snapshot = state.to_snapshot()
+                state.storage.save_sim_state(snapshot)
+            except Exception as snap_err:
+                logger.debug(f"Failed to persist sim_state snapshot: {snap_err}")
 
             # Recompute dynamic max positions and available slots
             # REF: Tier 3: Non-Descriptive Variable Naming (acc -> account)

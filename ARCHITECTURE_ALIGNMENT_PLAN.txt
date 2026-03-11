@@ -1,0 +1,49 @@
+# FancyBot: Architecture Alignment & Evolution Plan
+
+This document outlines the gap analysis between the current production FancyBot and the "Cleanroom Simulator" architecture (Single-Page Simulator model) and provides a roadmap for 1:1 parity.
+
+## 1. System Comparison: Current vs. Target
+
+| Feature | The Simulator Architecture | Current FancyBot Production |
+| :--- | :--- | :--- |
+| **Data Engine** | **Synthetic:** Generates prices in-browser. | **Real-Time:** Phemex API/WebSockets. |
+| **Correlation** | **Family-Based:** (Meme, L1, DeFi, etc.) | **Symbol-Based:** Checks specific overlap. |
+| **Verification** | **Instant:** Signal -> Trade immediately. | **Cautious:** 20s "Wait-and-Confirm" loop. |
+| **Persistence** | **LocalStorage:** Browser serialization. | **SQLite/JSON:** Persistent DB ledger. |
+| **Regime Logic** | **Formal:** TRENDING / RANGING / VOLATILE. | **Implicit:** Math exists but no "modes." |
+| **UI** | **Web-Based:** HTML/JS/CSS Dashboard. | **Terminal-Based:** Python Rich/Textual. |
+
+## 2. The "Missing Links" for 1:1 Parity
+
+To match the target architecture exactly, the following components must be implemented:
+
+### 🏗 Link A: Family-Based Correlation Manager
+* **Goal:** Group symbols into market sectors (Meme, L1, L2, DeFi, AI).
+* **Rule:** If the bot holds N positions in the "Meme" family, it must block the N+1 entry even if the score is high. This prevents sector-wide wipeouts.
+
+### 🏗 Link B: Formal Regime Sentinel
+* **Goal:** Convert `entropy` and `regime` math into a global System State.
+* **Rule:** Explicitly classify the market as `TRENDING`, `RANGING`, or `VOLATILE`. If `VOLATILE`, automatically double stop distances and halve position sizes.
+
+### 🏗 Link C: Scorer Normalization (0–200 / 140 Fast-Track)
+* **Goal:** Re-calibrate `score_long` and `score_short` to a strict 0–200 scale.
+* **Rule:** Implement the "Fast-Track" ⚡ threshold at 140. Scores ≥ 140 bypass the 20-second verification loop for instant entry.
+
+### 🏗 Link D: Full State Persistence Sync
+* **Goal:** Serialize the entire engine state (history, config, blacklists) to the SQLite backend.
+* **Rule:** On restart, the bot should restore the previous scan history and PnL sparklines so the UI doesn't "reset" to zero.
+
+## 3. Implementation Roadmap
+
+### Phase 1: "Match the Risk" (Immediate Priority)
+1. **Sector Mapping:** Categorize all Phemex USDT-M symbols into families.
+2. **Correlation Logic:** Update `modules/correlation_manager.py` to enforce sector-based limits.
+3. **Regime Toggles:** Implement formal mode-switching based on 4H/1D entropy.
+
+### Phase 2: "Match the Math"
+1. **Score Normalization:** Audit and update scoring heuristics.
+2. **Fast-Track Logic:** Enable instant entry for high-conviction signals.
+
+### Phase 3: "Match the State"
+1. **SQLite Migration:** Finalize move of `bot_blacklist.json` and `p_bot.py` settings into the database.
+2. **UI Persistence:** Ensure terminal sparklines persist across sessions.

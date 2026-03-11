@@ -1,292 +1,933 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FancyBot | Advanced Terminal Dashboard</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <style>
-        :root {
-            --bg-deep: #000b1e;
-            --bg-panel: #00122e;
-            --cyan: #00ffff;
-            --magenta: #ff00ff;
-            --green: #00ff00;
-            --red: #ff0000;
-            --yellow: #ffff00;
-            --white: #ffffff;
-            --dim: rgba(255, 255, 255, 0.4);
-            --border: rgba(0, 255, 255, 0.2);
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: var(--bg-deep);
-            color: var(--white);
-            font-family: 'Courier New', Courier, monospace;
-            overflow: hidden;
-            height: 100vh;
-        }
-
-        #root { height: 100%; display: flex; flex-direction: column; }
-
-        /* Header */
-        header {
-            padding: 10px 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border-bottom: 2px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header-title { color: var(--cyan); font-weight: bold; font-size: 1.2rem; }
-        .header-status { color: var(--green); display: flex; align-items: center; gap: 8px; }
-        .pulse { width: 10px; height: 10px; background: var(--green); border-radius: 50%; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-
-        /* Dashboard Layout */
-        main {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            grid-template-rows: 1fr 200px;
-            gap: 15px;
-            padding: 15px;
-            height: calc(100vh - 50px);
-        }
-
-        .panel {
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .panel-header {
-            padding: 8px 12px;
-            background: rgba(0, 255, 255, 0.1);
-            color: var(--cyan);
-            font-weight: bold;
-            font-size: 0.9rem;
-            display: flex;
-            justify-content: space-between;
-        }
-        .panel-content { padding: 15px; overflow-y: auto; flex: 1; }
-
-        /* Account Stats */
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 15px; }
-        .stat-label { color: var(--dim); font-size: 0.8rem; text-transform: uppercase; }
-        .stat-value { font-size: 1.1rem; font-weight: bold; }
-        .progress-container { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 5px; overflow: hidden; }
-        .progress-bar { height: 100%; transition: width 0.3s ease; }
-
-        /* Position Table */
-        .pos-card {
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            margin-bottom: 10px;
-            padding: 10px;
-            background: rgba(255,255,255,0.02);
-        }
-        .pos-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .pos-symbol { font-weight: bold; font-size: 1.1rem; }
-        .side-long { color: var(--green); }
-        .side-short { color: var(--red); }
-        .pos-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 0.85rem; }
-
-        /* Logs */
-        .log-line { font-size: 0.8rem; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .log-info { color: var(--cyan); }
-        .log-warn { color: var(--yellow); }
-        .log-error { color: var(--red); }
-        .log-success { color: var(--green); }
-
-        /* Utility */
-        .text-green { color: var(--green); }
-        .text-red { color: var(--red); }
-        .text-cyan { color: var(--cyan); }
-        .text-yellow { color: var(--yellow); }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FancyFangBot | Dashboard</title>
+  <link id="ffb-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Orbitron:wght@400;700;900&display=swap">
+  <style id="ffb-css">
+    *{box-sizing:border-box;margin:0;padding:0}
+    ::-webkit-scrollbar{width:3px;height:3px}
+    ::-webkit-scrollbar-track{background:#06060f}
+    ::-webkit-scrollbar-thumb{background:#00e5ff30;border-radius:2px}
+    ::-webkit-scrollbar-thumb:hover{background:#00e5ff60}
+    @keyframes glow-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+    @keyframes slide-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fade-pg{from{opacity:0;transform:translateX(6px)}to{opacity:1;transform:translateX(0)}}
+    .ffb-page{animation:fade-pg .2s ease}
+    .ffb-log{animation:slide-in .15s ease}
+    input:focus{outline:none!important}
+    button{font-family:inherit!important}
+  </style>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
-    <div id="root">
-        <div style="padding: 50px; text-align: center; color: #00ffff; font-family: monospace;">
-            LOADING_CYBER_INTERFACE...
+  <div id="root"></div>
+  <script type="text/babel" data-type="module">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ── PALETTE ──────────────────────────────────────────────────────────────────
+    const C = {
+      bg:"#06060f", panel:"#09091a", edge:"#141428",
+      cyan:"#00e5ff", cyanD:"#00e5ff18", cyanM:"#00e5ff40",
+      mag:"#ff00aa",  magD:"#ff00aa18",
+      grn:"#00ff88",  grnD:"#00ff8818",
+      red:"#ff3355",  redD:"#ff335518",
+      yel:"#ffcc00",  yelD:"#ffcc0018",
+      ora:"#ff8800",
+      dim:"#20203a", dimT:"#383860",
+      txt:"#9090b8",  bright:"#d0d0f0",
+    };
+
+    // ── MOCK DATA ────────────────────────────────────────────────────────────────
+    const MOCK = {
+      summary:{
+        balance:9537.61, day_pnl:-462.39, open_pnl:946.29, equity:10483.90,
+        entropy:0.141, account_health:7.55, position_load:3, max_positions:8,
+        scans:1, analyzed:70, mode:"SIM", version:"2.0", running:true,
+        stats:{win_rate:0,total_trades:2,wins:0,losses:2,avg_win:0,avg_loss:-231.19,total_pnl:-462.39,profit_factor:0}
+      },
+      positions:[
+        {symbol:"AAVEUSDT",side:"Short",entry:107.598,current:105.050,stop:106.224,target:104.929,pnl:341.98,pnl_pct:23.68,score:110,rsi:76.7,regime:"TRENDING",kalman:"UP",size:1444,tsl:false},
+        {symbol:"CRVUSDT",side:"Long",entry:0.524086,current:0.526886,stop:0.520640,target:0.537081,pnl:68.85,pnl_pct:5.34,score:110,rsi:28.7,regime:"TRENDING",kalman:"DOWN",size:1289,tsl:false},
+        {symbol:"LINKUSDT",side:"Short",entry:16.320,current:15.989,stop:null,target:null,pnl:535.46,pnl_pct:20.30,score:110,rsi:null,regime:null,kalman:null,size:2638,tsl:false},
+      ],
+      logs:[
+        {time:"00:47:12",type:"SYSTEM",msg:"State restored from previous session."},
+        {time:"00:44:58",type:"SYSTEM",msg:"■ Bot STOPPED"},
+        {time:"00:44:33",type:"TRADE",status:"fail",msg:"✗ CLOSE LONG PEPEUSDT @ $0.0000 | PnL: -25.17% ($-266.61) | STOP LOSS"},
+        {time:"00:44:32",type:"TRADE",status:"success",msg:"✓ OPEN SHORT AAVEUSDT @ $107.6195 | Score: 110 | Size: $1444 | SL: $188.7933 | TP: $104.9290"},
+        {time:"00:44:32",type:"SCAN",msg:"Scored 70 coins – 28 candidates (0 fast-track ≥140)"},
+        {time:"00:44:31",type:"SYSTEM",msg:"▶ Bot STARTED — Simulation mode active"},
+      ],
+      scanner:[
+        {symbol:"LINK",price:16.323,score:110,dir:"SHORT",rsi:77.1,bb:"UPPER",regime:"TRENDING",kalman:"UP",entropy:0.060,status:"PASS"},
+        {symbol:"AAVE",price:107.619,score:110,dir:"SHORT",rsi:76.7,bb:"UPPER",regime:"TRENDING",kalman:"UP",entropy:0.140,status:"PASS"},
+        {symbol:"CRV",price:0.523982,score:110,dir:"LONG",rsi:28.7,bb:"LOWER",regime:"TRENDING",kalman:"DOWN",entropy:0.170,status:"PASS"},
+        {symbol:"BTC",price:66397,score:63,dir:"LONG",rsi:62.4,bb:"MIDDLE",regime:"RANGING",kalman:"UP",entropy:0.130,status:"low score"},
+      ],
+    };
+
+    // ── UTILS ─────────────────────────────────────────────────────────────────────
+    const fmtP = p => {
+      if(p == null) return "—";
+      if(p < 0.0001) return p.toFixed(8);
+      if(p < 0.01) return p.toFixed(6);
+      if(p < 1) return p.toFixed(4);
+      if(p < 100) return p.toFixed(3);
+      return p.toFixed(2);
+    };
+    const fmtUsd = n => n >= 0 ? `+$${Math.abs(n).toFixed(2)}` : `-$${Math.abs(n).toFixed(2)}`;
+    const fmtPct = n => n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`;
+    const pnlCol = n => n >= 0 ? C.grn : C.red;
+
+    function fetchWithTimeout(url, ms = 800) {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), ms);
+      return fetch(url, { signal: c.signal }).finally(() => clearTimeout(t));
+    }
+
+    function normalizeSummary(api) {
+      if (!api || api.error) return MOCK.summary;
+      const s = api.stats || {};
+      return {
+        balance: api.balance ?? MOCK.summary.balance,
+        day_pnl: api.day_pnl ?? s.total_pnl ?? 0,
+        open_pnl: api.open_pnl ?? api.upnl ?? 0,
+        equity: api.equity ?? api.balance ?? 0,
+        entropy: api.entropy ?? 0,
+        account_health: api.account_health ?? 50,
+        position_load: api.position_load ?? 0,
+        max_positions: api.max_positions ?? 8,
+        scans: api.scans ?? 0,
+        analyzed: api.analyzed ?? 0,
+        mode: api.mode ?? "SIM",
+        version: api.version ?? "2.0",
+        running: api.running !== false,
+        stats: {
+          win_rate: s.win_rate ?? 0,
+          total_trades: s.total_trades ?? (s.wins + s.losses) ?? 0,
+          wins: s.wins ?? 0,
+          losses: s.losses ?? 0,
+          avg_win: s.avg_win ?? 0,
+          avg_loss: s.avg_loss ?? 0,
+          total_pnl: s.total_pnl ?? 0,
+          profit_factor: s.profit_factor ?? 0,
+        },
+      };
+    }
+
+    function normalizePositions(api) {
+      if (!Array.isArray(api)) return [];
+      return api.map(p => ({
+        symbol: p.symbol,
+        side: p.side === "Buy" ? "Long" : (p.side === "Sell" ? "Short" : p.side),
+        entry: p.entry,
+        current: p.current ?? p.entry,
+        stop: p.stop ?? p.stop_price ?? null,
+        target: p.target ?? p.take_profit ?? null,
+        pnl: p.pnl ?? 0,
+        pnl_pct: p.pnl_pct ?? 0,
+        score: p.score ?? 0,
+        rsi: p.rsi ?? null,
+        regime: p.regime ?? null,
+        kalman: p.kalman ?? null,
+        size: p.size ?? p.margin ?? 0,
+        tsl: p.tsl ?? false,
+      }));
+    }
+
+    function normalizeLogs(api) {
+      if (!Array.isArray(api)) return MOCK.logs;
+      return api.map(l => typeof l === "string" ? { time: "—", type: "SYSTEM", msg: l } : l);
+    }
+
+    function normalizeScanner(api) {
+      if (!Array.isArray(api)) return MOCK.scanner;
+      return api;
+    }
+
+    // ── ATOMS ─────────────────────────────────────────────────────────────────────
+    const Dot = ({color, pulse = false}) => (
+      <div style={{width:6,height:6,borderRadius:"50%",background:color,boxShadow:`0 0 7px ${color}`,
+        animation:pulse?"glow-pulse 1.5s ease infinite":"none",flexShrink:0}} />
+    );
+
+    const Badge = ({text, color = C.cyan}) => (
+      <span style={{padding:"2px 7px",background:color+"22",border:`1px solid ${color}40`,
+        color,borderRadius:2,fontSize:9,fontWeight:700,letterSpacing:"0.12em",textTransform:"uppercase"}}>
+        {text}
+      </span>
+    );
+
+    const Bar = ({val, max = 100, color = C.cyan, label, sub, h = 3}) => {
+      const pct = Math.min(100, Math.max(0, (val / max) * 100));
+      return (
+        <div style={{marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+            <span style={{color:C.dimT,fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em"}}>{label}</span>
+            <span style={{color,fontSize:10}}>{sub}</span>
+          </div>
+          <div style={{height:h,background:C.dim,borderRadius:1,overflow:"hidden"}}>
+            <div style={{width:`${pct}%`,height:"100%",background:color,
+              boxShadow:`0 0 5px ${color}`,transition:"width .5s ease"}} />
+          </div>
         </div>
-    </div>
+      );
+    };
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+    const Panel = ({title, children, right, glow = C.cyan, style = {}}) => (
+      <div style={{background:C.panel,border:`1px solid ${C.edge}`,borderRadius:3,overflow:"hidden",...style}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+          padding:"7px 12px",borderBottom:`1px solid ${C.edge}`,
+          background:`linear-gradient(90deg,${glow}0a,transparent)`}}>
+          <div style={{display:"flex",alignItems:"center",gap:7}}>
+            <Dot color={glow} />
+            <span style={{color:glow,fontSize:9,fontWeight:700,letterSpacing:"0.18em",textTransform:"uppercase"}}>{title}</span>
+          </div>
+          {right}
+        </div>
+        <div style={{padding:12}}>{children}</div>
+      </div>
+    );
 
-        const Dashboard = () => {
-            const [summary, setSummary] = useState(null);
-            const [positions, setPositions] = useState([]);
-            const [logs, setLogs] = useState([]);
-            const [connected, setConnected] = useState(false);
+    const PosCard = ({p}) => {
+      const isL = p.side === "Long";
+      const dc = isL ? C.grn : C.mag;
+      const pc = pnlCol(p.pnl);
+      return (
+        <div style={{borderLeft:`3px solid ${dc}`,background:`linear-gradient(135deg,${dc}08,transparent)`,
+          border:`1px solid ${dc}22`,borderRadius:3,padding:"10px 14px",marginBottom:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <span style={{color:C.bright,fontWeight:700,fontSize:13,letterSpacing:"0.05em"}}>~/{p.symbol}</span>
+              <Badge text={p.side.toUpperCase()} color={dc} />
+              <Badge text="◎ TSL" color={C.dimT} />
+            </div>
+            <span style={{color:pc,fontWeight:700,fontSize:14}}>{fmtUsd(p.pnl)}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:p.regime?8:0}}>
+            {[["Entry",fmtP(p.entry),C.txt],["Current",fmtP(p.current),C.cyan],["PnL%",fmtPct(p.pnl_pct),pc],
+              ["Stop",fmtP(p.stop),C.red],["Target",fmtP(p.target),C.grn],["Score",p.score,C.yel]
+            ].map(([l,v,c]) => (
+              <div key={l}><div style={{color:C.dimT,fontSize:8,textTransform:"uppercase",marginBottom:2}}>{l}</div>
+                <div style={{color:c,fontSize:11,fontWeight:600}}>{v}</div></div>
+            ))}
+          </div>
+          {p.regime && (
+            <div style={{color:C.dimT,fontSize:9,borderTop:`1px solid ${C.edge}`,paddingTop:6}}>
+              Score {p.score} | RSI {p.rsi} | {p.regime} | Kalman {p.kalman}
+            </div>
+          )}
+        </div>
+      );
+    };
 
-            const API_BASE = "/api";
+    const LogLine = ({e}) => {
+      const tc = {TRADE:e.status==="fail"?C.red:C.grn, SCAN:C.cyan, SYSTEM:C.yel, WARN:C.ora, ERROR:C.red}[e.type] || C.txt;
+      return (
+        <div className="ffb-log" style={{display:"flex",gap:8,padding:"3px 0",
+          borderBottom:`1px solid ${C.edge}`,fontSize:10.5}}>
+          <span style={{color:C.dimT,flexShrink:0,width:58,fontSize:9}}>{e.time}</span>
+          <span style={{color:tc,flexShrink:0,width:56,fontSize:8,fontWeight:700,letterSpacing:"0.05em",
+            padding:"1px 4px",background:tc+"18",borderRadius:2,display:"flex",alignItems:"center",
+            justifyContent:"center",height:15,alignSelf:"center"}}>{e.type}</span>
+          <span style={{color:e.status==="fail"?C.red:e.status==="success"?C.grn:C.txt,fontSize:10}}>{e.msg}</span>
+        </div>
+      );
+    };
 
-            const fetchData = async () => {
-                try {
-                    const [sumRes, posRes, logRes] = await Promise.all([
-                        fetch(`${API_BASE}/summary`),
-                        fetch(`${API_BASE}/positions`),
-                        fetch(`${API_BASE}/logs`)
-                    ]);
-                    
-                    if (sumRes.ok) setSummary(await sumRes.json());
-                    if (posRes.ok) setPositions(await posRes.json());
-                    if (logRes.ok) setLogs(await logRes.json());
-                    setConnected(true);
-                } catch (e) {
-                    console.error("API connection failed", e);
-                    setConnected(false);
-                }
-            };
+    const ScanRow = ({r}) => {
+      const isL = r.dir === "LONG";
+      const dc = isL ? C.grn : C.mag;
+      const sc = r.score >= 110 ? C.yel : r.score >= 90 ? C.cyan : r.score >= 80 ? C.txt : C.dimT;
+      const pass = r.status === "PASS";
+      return (
+        <tr style={{borderBottom:`1px solid ${C.edge}30`,cursor:"default"}}
+          onMouseEnter={e => e.currentTarget.style.background = C.cyanD}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+          <td style={{padding:"4px 8px",color:C.bright,fontWeight:700,fontSize:11}}>{r.symbol}</td>
+          <td style={{padding:"4px 8px",color:C.txt,fontSize:10}}>{fmtP(r.price)}</td>
+          <td style={{padding:"4px 8px"}}><span style={{color:sc,fontWeight:700,fontSize:11}}>{r.score}</span></td>
+          <td style={{padding:"4px 8px"}}><span style={{color:dc,fontWeight:600,fontSize:10}}>{isL?"▲":"▼"} {r.dir}</span></td>
+          <td style={{padding:"4px 8px",color:r.rsi>70?C.red:r.rsi<30?C.grn:C.txt,fontSize:10}}>{r.rsi}</td>
+          <td style={{padding:"4px 8px",color:C.dimT,fontSize:9}}>{r.bb}</td>
+          <td style={{padding:"4px 8px"}}><span style={{color:r.regime==="TRENDING"?C.cyan:C.dimT,fontSize:9}}>{r.regime}</span></td>
+          <td style={{padding:"4px 8px"}}><span style={{color:r.kalman==="UP"?C.grn:C.mag,fontSize:9}}>{r.kalman}</span></td>
+          <td style={{padding:"4px 8px",color:C.txt,fontSize:10}}>{r.entropy != null ? r.entropy.toFixed(3) : "—"}</td>
+          <td style={{padding:"4px 8px"}}><span style={{color:pass?C.grn:C.dimT,fontSize:9,fontWeight:600}}>{pass?"✓ PASS":r.status}</span></td>
+        </tr>
+      );
+    };
 
-            useEffect(() => {
-                fetchData();
-                const interval = setInterval(fetchData, 1000);
-                return () => clearInterval(interval);
-            }, []);
+    // ── PAGES ────────────────────────────────────────────────────────────────────
+    const DashboardPage = ({data}) => {
+      const { summary: s, positions, logs, scanner } = data;
+      return (
+        <div className="ffb-page" style={{display:"grid",gridTemplateColumns:"270px 1fr 310px",
+          gap:9,height:"100%",overflow:"hidden"}}>
+          <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:8}}>
+            <Panel title="Cyber Telemetry" glow={C.cyan}>
+              <Bar label="Account Health" sub={`${Number(s.account_health).toFixed(2)}%`} val={s.account_health}
+                color={s.account_health>50?C.grn:s.account_health>20?C.yel:C.red} h={4} />
+              <Bar label="Entropy (Market Chaos)" sub={Number(s.entropy).toFixed(3)} val={s.entropy*100} color={C.cyan} h={4} />
+              <Bar label="Position Load" sub={`${s.position_load}/${s.max_positions}`}
+                val={s.position_load} max={s.max_positions} color={C.mag} h={4} />
+              <Bar label="Win Rate" sub={`${s.stats.win_rate.toFixed(1)}%`} val={s.stats.win_rate} color={C.grn} h={4} />
+              <Bar label="Daily PnL vs Balance"
+                sub={<span style={{color:pnlCol(s.day_pnl)}}>{fmtUsd(s.day_pnl)}</span>}
+                val={Math.abs(s.day_pnl)} max={Math.max(s.balance, 1)} color={pnlCol(s.day_pnl)} h={4} />
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:14,
+                paddingTop:12,borderTop:`1px solid ${C.edge}`}}>
+                {[["Open",positions.length,C.cyan],["Wins",s.stats.wins,C.grn],
+                  ["Loss",s.stats.losses,C.red],["Float",`+$${Number(s.open_pnl).toFixed(0)}`,C.yel]
+                ].map(([l,v,c]) => (
+                  <div key={l} style={{textAlign:"center",padding:8,background:c+"10",
+                    border:`1px solid ${c}22`,borderRadius:3}}>
+                    <div style={{color:C.dimT,fontSize:8,textTransform:"uppercase",marginBottom:3}}>{l}</div>
+                    <div style={{color:c,fontSize:18,fontWeight:700,fontFamily:"Orbitron,monospace"}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+            <Panel title="PnL Sparkline" glow={C.grn} style={{flex:"0 0 110px"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:70,
+                color:C.dimT,fontSize:9,letterSpacing:"0.15em"}}>AWAITING DATA...</div>
+            </Panel>
+            <Panel title="Performance Metrics" glow={C.mag}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[["Win Rate",`${s.stats.win_rate.toFixed(1)}%`,C.txt],
+                  ["Total Trades",s.stats.total_trades,C.txt],
+                  ["Avg Win",`+$${s.stats.avg_win.toFixed(2)}`,C.grn],
+                  ["Avg Loss",`-$${Math.abs(s.stats.avg_loss).toFixed(2)}`,C.red],
+                  ["Open Pos.",positions.length,C.cyan],
+                  ["Entropy",Number(s.entropy).toFixed(3),C.cyan],
+                  ["Day PnL",fmtUsd(s.day_pnl),pnlCol(s.day_pnl)],
+                  ["Scan #",s.scans,C.txt],
+                ].map(([l,v,c]) => (
+                  <div key={l} style={{marginBottom:6}}>
+                    <div style={{color:C.dimT,fontSize:8,textTransform:"uppercase"}}>{l}</div>
+                    <div style={{color:c,fontWeight:600,fontSize:12}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,overflow:"hidden",minHeight:0}}>
+            <Panel title="Open Positions" glow={C.grn}
+              right={<Badge text={`${positions.length} Active`} color={C.grn} />}>
+              {positions.length === 0
+                ? <div style={{color:C.dimT,textAlign:"center",padding:"20px 0",fontSize:10,letterSpacing:"0.15em"}}>SEARCHING_FOR_MARKET_SETUP...</div>
+                : positions.map((p,i) => <PosCard key={i} p={p} />)
+              }
+            </Panel>
+            <Panel title="Decision Log" glow={C.yel}
+              right={<span style={{color:C.dimT,fontSize:9}}>{logs.length} ENTRIES</span>}
+              style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column",minHeight:0}}>
+              <div style={{overflowY:"auto",maxHeight:280,marginTop:-12,paddingTop:12}}>
+                {logs.map((l,i) => <LogLine key={i} e={l} />)}
+              </div>
+            </Panel>
+          </div>
+          <Panel title="Scanner Results" glow={C.cyan}
+            right={<span style={{color:C.dimT,fontSize:9}}>{scanner.length} pairs</span>}
+            style={{overflowY:"auto",display:"flex",flexDirection:"column"}}>
+            <div style={{overflowY:"auto",marginTop:-12,paddingTop:12}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
+                <thead><tr style={{borderBottom:`1px solid ${C.edge}`}}>
+                  {["SYM","PRICE","SCR","DIR","RSI","BB","REGIME","KALMAN","ENTROPY","STATUS"].map(h => (
+                    <th key={h} style={{padding:"3px 6px",color:C.dimT,fontWeight:400,textAlign:"left",
+                      fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em"}}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {scanner.map((r,i) => (
+                    <tr key={i} style={{borderBottom:`1px solid ${C.edge}28`}}>
+                      <td style={{padding:"3px 6px",color:C.bright,fontWeight:700,fontSize:10}}>{r.symbol}</td>
+                      <td style={{padding:"3px 6px",color:C.txt,fontSize:9}}>{fmtP(r.price)}</td>
+                      <td style={{padding:"3px 6px"}}><span style={{color:r.score>=110?C.yel:r.score>=90?C.cyan:C.dimT,fontWeight:700,fontSize:10}}>{r.score}</span></td>
+                      <td style={{padding:"3px 6px"}}><span style={{color:r.dir==="LONG"?C.grn:C.mag,fontSize:9}}>{r.dir==="LONG"?"▲":"▼"} {r.dir}</span></td>
+                      <td style={{padding:"3px 6px",color:r.rsi>70?C.red:r.rsi<30?C.grn:C.txt,fontSize:9}}>{r.rsi != null ? r.rsi : "—"}</td>
+                      <td style={{padding:"3px 6px",color:C.dimT,fontSize:8}}>{r.bb || "—"}</td>
+                      <td style={{padding:"3px 6px"}}><span style={{color:r.regime==="TRENDING"?C.cyan:C.dimT,fontSize:8}}>{r.regime || "—"}</span></td>
+                      <td style={{padding:"3px 6px"}}><span style={{color:r.kalman==="UP"?C.grn:C.mag,fontSize:8}}>{r.kalman || "—"}</span></td>
+                      <td style={{padding:"3px 6px",color:C.txt,fontSize:8}}>{r.entropy != null ? r.entropy.toFixed(3) : "—"}</td>
+                      <td style={{padding:"3px 6px"}}><span style={{color:r.status==="PASS"?C.grn:C.dimT,fontSize:8,fontWeight:600}}>{r.status==="PASS"?"✓":(r.status||"—")}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </div>
+      );
+    };
 
-            return (
-                <React.Fragment>
-                    <header>
-                        <div className="header-title">FANCYBOT // CORE_INTERFACE v4.2</div>
-                        <div className="header-status">
-                            {connected ? (
-                                <React.Fragment>
-                                    <span className="pulse"></span>
-                                    <span>SYSTEM_ONLINE</span>
-                                </React.Fragment>
-                            ) : (
-                                <span className="text-red">SYSTEM_OFFLINE</span>
-                            )}
-                        </div>
-                    </header>
+    const PositionsPage = ({data}) => {
+      const [tab, setTab] = useState("open");
+      const { summary: s, positions } = data;
+      return (
+        <div className="ffb-page" style={{overflowY:"auto",height:"100%"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:10}}>
+            {[
+              {l:"Open Positions",v:positions.length,sub:`Float: +$${Number(s.open_pnl).toFixed(2)}`,c:C.cyan},
+              {l:"Total Closed",v:s.stats.total_trades,sub:`${s.stats.wins}W / ${s.stats.losses}L`,c:C.txt},
+              {l:"Win Rate",v:`${s.stats.win_rate.toFixed(1)}%`,sub:`Avg Win: +$${s.stats.avg_win.toFixed(2)}`,c:s.stats.win_rate>=50?C.grn:C.red},
+              {l:"Total Realized",v:fmtUsd(s.stats.total_pnl),sub:`Avg Loss: $${Math.abs(s.stats.avg_loss).toFixed(2)}`,c:pnlCol(s.stats.total_pnl)},
+            ].map(({l,v,sub,c}) => (
+              <div key={l} style={{background:C.panel,border:`1px solid ${C.edge}`,
+                borderTop:`2px solid ${c}`,borderRadius:3,padding:"14px 18px"}}>
+                <div style={{color:C.dimT,fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>{l}</div>
+                <div style={{color:c,fontSize:26,fontWeight:700,fontFamily:"Orbitron,monospace",marginBottom:3}}>{v}</div>
+                <div style={{color:C.dimT,fontSize:9}}>{sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:2,marginBottom:10,borderBottom:`1px solid ${C.edge}`}}>
+            {[["open",`Open (${positions.length})`],["history","History"],["equity","Equity Curve"]].map(([id,lbl]) => (
+              <button key={id} onClick={() => setTab(id)} style={{
+                padding:"7px 14px",background:"none",border:"none",
+                color:tab===id?C.cyan:C.dimT,
+                borderBottom:tab===id?`2px solid ${C.cyan}`:"2px solid transparent",
+                cursor:"pointer",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em",transition:"color .15s"}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          {tab === "open" && (
+            <div>
+              <div style={{color:C.grn,fontSize:9,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.12em",display:"flex",alignItems:"center",gap:6}}>
+                <Dot color={C.grn} /> OPEN POSITIONS — {positions.length} ACTIVE
+              </div>
+              {positions.map((p,i) => (
+                <div key={i} style={{background:C.panel,border:`1px solid ${C.edge}`,
+                  borderLeft:`3px solid ${p.side==="Long"?C.grn:C.mag}`,
+                  borderRadius:3,padding:"16px 20px",marginBottom:9}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:9}}>
+                      <span style={{fontSize:15,fontWeight:700,color:C.bright,letterSpacing:"0.04em"}}>~/{p.symbol}</span>
+                      <Badge text={p.side.toUpperCase()} color={p.side==="Long"?C.grn:C.mag} />
+                      <Badge text="◎ TSL" color={C.dimT} />
+                    </div>
+                    <span style={{color:pnlCol(p.pnl),fontWeight:700,fontSize:16}}>{fmtUsd(p.pnl)}</span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:16}}>
+                    {[["Entry",fmtP(p.entry),C.txt],["Current",fmtP(p.current),C.cyan],
+                      ["Stop",fmtP(p.stop),C.red],["Target",fmtP(p.target),C.grn],
+                      ["PnL%",fmtPct(p.pnl_pct),pnlCol(p.pnl)],["Score",p.score,C.yel]
+                    ].map(([l,v,c]) => (
+                      <div key={l}>
+                        <div style={{color:C.dimT,fontSize:8,textTransform:"uppercase",marginBottom:3}}>{l}</div>
+                        <div style={{color:c,fontWeight:600,fontSize:12}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {p.regime && (
+                    <div style={{marginTop:10,color:C.dimT,fontSize:9,borderTop:`1px solid ${C.edge}`,paddingTop:7}}>
+                      Score {p.score} | RSI {p.rsi} | {p.regime} | Kalman {p.kalman}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {tab === "history" && <div style={{color:C.dimT,textAlign:"center",padding:60,fontSize:11,letterSpacing:"0.1em"}}>TRADE_HISTORY_POPULATES_AFTER_POSITIONS_CLOSE</div>}
+          {tab === "equity" && <div style={{color:C.dimT,textAlign:"center",padding:60,fontSize:11,letterSpacing:"0.1em"}}>EQUITY_CURVE_RENDERS_AFTER_FIRST_CLOSED_TRADE</div>}
+        </div>
+      );
+    };
 
-                    <main>
-                        {/* Account Summary */}
-                        <section className="panel">
-                            <div className="panel-header">
-                                <span>💳 ACCOUNT_SUMMARY</span>
-                            </div>
-                            <div className="panel-content">
-                                <div className="stat-block">
-                                    <div className="stat-row">
-                                        <span className="stat-label">Balance</span>
-                                        <span className="stat-value">${summary?.balance || "0.00"}</span>
-                                    </div>
-                                    <div className="stat-row">
-                                        <span className="stat-label">uPnL</span>
-                                        <span className={`stat-value ${summary?.upnl >= 0 ? "text-green" : "text-red"}`}>
-                                            ${summary?.upnl || "0.0000"}
-                                        </span>
-                                    </div>
-                                    <div className="stat-row">
-                                        <span className="stat-label">Entropy</span>
-                                        <span className="stat-value text-yellow">{summary?.entropy || "0.00"}</span>
-                                    </div>
-                                    <div className="stat-row">
-                                        <span className="stat-label">Equity</span>
-                                        <span className="stat-value text-cyan">${summary?.equity || "0.00"}</span>
-                                    </div>
-                                </div>
+    const ScannerPage = ({data}) => {
+      const [filt, setFilt] = useState("ALL");
+      const { scanner } = data;
+      const longN = scanner.filter(r => r.dir === "LONG" && r.score >= 95).length;
+      const shortN = scanner.filter(r => r.dir === "SHORT" && r.score >= 95).length;
+      const candN = scanner.filter(r => r.score >= 95).length;
+      const fastN = scanner.filter(r => r.score >= 140).length;
+      const filtered = scanner.filter(r => {
+        if (filt === "ALL") return true;
+        if (filt === "LONG") return r.dir === "LONG";
+        if (filt === "SHORT") return r.dir === "SHORT";
+        if (filt === "CANDIDATES") return r.score >= 95;
+        if (filt === "FAST") return r.score >= 140;
+        return true;
+      });
+      return (
+        <div className="ffb-page" style={{height:"100%",overflowY:"auto"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:9,marginBottom:12}}>
+            {[
+              {l:"Total Scanned",v:scanner.length,c:C.txt},
+              {l:"Candidates (≥95)",v:candN,c:C.cyan},
+              {l:"⚡ Fast Track (≥140)",v:fastN,c:C.yel},
+              {l:"▲ Long Signals",v:longN,c:C.grn},
+              {l:"▼ Short Signals",v:shortN,c:C.mag},
+            ].map(({l,v,c}) => (
+              <div key={l} style={{background:C.panel,border:`1px solid ${C.edge}`,
+                borderRadius:3,padding:"10px 14px",textAlign:"center"}}>
+                <div style={{color:C.dimT,fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:5}}>{l}</div>
+                <div style={{color:c,fontSize:30,fontWeight:700,fontFamily:"Orbitron,monospace"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:C.panel,border:`1px solid ${C.edge}`,borderRadius:3,padding:"10px 14px",marginBottom:12}}>
+            <div style={{color:C.dimT,fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:9}}>Scan Pipeline</div>
+            <div style={{display:"flex",alignItems:"center",gap:0}}>
+              {[
+                {l:"DISCOVER",sub:"Fetch all USDT pairs",c:C.cyan},
+                {l:"VOLUME FILTER",sub:">$5M/24h",c:C.mag},
+                {l:"SCORE ENGINE",sub:"RSI+BB+EMA+Kalman+POC",c:C.yel},
+                {l:"GATEKEEPERS",sub:"DD+Corr+Spread",c:C.ora},
+                {l:"EXECUTE",sub:"Sim fill @ bid/ask",c:C.grn},
+              ].map(({l,sub,c},i,a) => (
+                <div key={l} style={{display:"flex",alignItems:"center",flex:1}}>
+                  <div style={{flex:1,padding:"7px 10px",background:c+"12",border:`1px solid ${c}35`,
+                    borderRadius:3,textAlign:"center"}}>
+                    <div style={{color:c,fontWeight:700,fontSize:9,letterSpacing:"0.1em"}}>{l}</div>
+                    <div style={{color:C.dimT,fontSize:8,marginTop:2}}>{sub}</div>
+                  </div>
+                  {i < a.length - 1 && <div style={{color:C.dimT,padding:"0 5px",fontSize:13}}>›</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{background:C.panel,border:`1px solid ${C.edge}`,borderRadius:3,overflow:"hidden"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+              padding:"8px 12px",borderBottom:`1px solid ${C.edge}`}}>
+              <span style={{color:C.dimT,fontSize:9,textTransform:"uppercase"}}>
+                Scanner Results <span style={{color:C.txt}}>{scanner.length} pairs</span>
+              </span>
+              <div style={{display:"flex",gap:3}}>
+                {["ALL","CANDIDATES","FAST","LONG","SHORT"].map(f => (
+                  <button key={f} onClick={() => setFilt(f)} style={{
+                    padding:"3px 9px",border:`1px solid ${filt===f?C.cyan:C.dim}`,
+                    background:filt===f?C.cyanD:"none",color:filt===f?C.cyan:C.dimT,
+                    borderRadius:2,cursor:"pointer",fontSize:9,letterSpacing:"0.08em"}}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{overflowY:"auto",maxHeight:480}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                <thead style={{position:"sticky",top:0,background:C.panel,zIndex:1}}>
+                  <tr style={{borderBottom:`1px solid ${C.edge}`}}>
+                    {["Symbol","Price","Score","Dir","RSI","BB","Regime","Kalman","Entropy","Status"].map(h => (
+                      <th key={h} style={{padding:"5px 8px",color:C.dimT,fontWeight:400,textAlign:"left",
+                        fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>{filtered.map((r,i) => <ScanRow key={i} r={r} />)}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
 
-                                <div style={{marginTop: '30px'}}>
-                                    <div className="panel-header" style={{background: 'none', padding: '0', marginBottom: '10px'}}>
-                                        <span>📉 SESSION_PERFORMANCE</span>
-                                    </div>
-                                    <div className="stat-row">
-                                        <span className="stat-label">Win Rate</span>
-                                        <span className="text-green">{summary?.stats?.win_rate || 0}%</span>
-                                    </div>
-                                    <div className="progress-container">
-                                        <div className="progress-bar" style={{width: `${summary?.stats?.win_rate || 0}%`, backgroundColor: 'var(--green)'}}></div>
-                                    </div>
-                                    <div className="stat-row" style={{marginTop: '15px'}}>
-                                        <span className="stat-label">Profit Factor</span>
-                                        <span className="text-yellow">{summary?.stats?.profit_factor || 0}</span>
-                                    </div>
-                                    <div className="stat-row">
-                                        <span className="stat-label">Net PnL</span>
-                                        <span className={(summary?.stats?.total_pnl || 0) >= 0 ? "text-green" : "text-red"}>
-                                            ${summary?.stats?.total_pnl || "0.00"}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
+    const LogsPage = ({data}) => {
+      const [filt, setFilt] = useState("ALL");
+      const [search, setSearch] = useState("");
+      const { logs } = data;
+      const logRef = useRef(null);
+      const counts = { ALL: logs.length };
+      ["TRADE","SCAN","SYSTEM","WARN","ERROR"].forEach(t => { counts[t] = logs.filter(l => l.type === t).length; });
+      const filtered = logs.filter(l => {
+        if (filt !== "ALL" && l.type !== filt) return false;
+        if (search && !l.msg.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      });
+      return (
+        <div className="ffb-page" style={{height:"100%",display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <div style={{display:"flex",gap:3}}>
+              {["ALL","TRADE","SCAN","SYSTEM","WARN","ERROR"].map(f => (
+                <button key={f} onClick={() => setFilt(f)} style={{
+                  padding:"4px 11px",border:`1px solid ${filt===f?C.cyan:C.dim}`,
+                  background:filt===f?C.cyanD:"none",color:filt===f?C.cyan:C.dimT,
+                  borderRadius:2,cursor:"pointer",fontSize:10}}>
+                  {f}{counts[f] > 0 ? ` (${counts[f]})` : ""}
+                </button>
+              ))}
+            </div>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search logs..."
+              style={{flex:1,padding:"4px 12px",background:C.panel,border:`1px solid ${C.edge}`,
+                color:C.txt,borderRadius:2,fontSize:10,fontFamily:"inherit"}}
+              onFocus={e => e.target.style.borderColor = C.cyan}
+              onBlur={e => e.target.style.borderColor = C.edge}
+            />
+            <span style={{color:C.dimT,fontSize:9,whiteSpace:"nowrap"}}>{filtered.length} / {logs.length} entries</span>
+          </div>
+          <div ref={logRef} style={{flex:1,overflowY:"auto",background:C.panel,border:`1px solid ${C.edge}`,
+            borderRadius:3,padding:"8px 12px"}}>
+            {filtered.map((l,i) => <LogLine key={i} e={l} />)}
+            {filtered.length === 0 && (
+              <div style={{color:C.dimT,textAlign:"center",padding:40,fontSize:11,letterSpacing:"0.12em"}}>NO_LOG_ENTRIES_MATCH_FILTER</div>
+            )}
+          </div>
+        </div>
+      );
+    };
 
-                        {/* Active Positions */}
-                        <section className="panel">
-                            <div className="panel-header">
-                                <span>🚀 ACTIVE_POSITIONS ({positions.length})</span>
-                            </div>
-                            <div className="panel-content">
-                                {positions.length === 0 ? (
-                                    <div style={{color: 'var(--dim)', textAlign: 'center', marginTop: '50px'}}>SEARCHING_FOR_MARKET_SETUP...</div>
-                                ) : (
-                                    positions.map(p => (
-                                        <div className="pos-card" key={p.symbol}>
-                                            <div className="pos-header">
-                                                <span className="pos-symbol">{p.symbol}</span>
-                                                <span className={p.side === "Buy" ? "side-long" : "side-short"}>
-                                                    {p.side === "Buy" ? "▲ LONG" : "▼ SHORT"}
-                                                </span>
-                                            </div>
-                                            <div className="pos-details">
-                                                <div>
-                                                    <div className="stat-label">Entry</div>
-                                                    <div>{p.entry.toFixed(4)}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="stat-label">Price</div>
-                                                    <div>{p.current.toFixed(4)}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="stat-label">uPnL</div>
-                                                    <div className={p.pnl >= 0 ? "text-green" : "text-red"}>
-                                                        ${p.pnl.toFixed(2)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </section>
+    const BacktesterPage = ({data, onRun, onOptimize}) => {
+      const [tab, setTab] = useState("walk-forward");
+      const bt = data.backtest || { symbols: [], signals: [], total_trades: 0, total_pnl: 0 };
+      const opt = data.optimizer || [];
 
-                        {/* System Audit Logs */}
-                        <section className="panel" style={{gridColumn: 'span 2'}}>
-                            <div className="panel-header">
-                                <span>📋 SYSTEM_AUDIT_LOG</span>
-                            </div>
-                            <div className="panel-content" style={{padding: '5px 15px'}}>
-                                {logs.map((log, i) => {
-                                    let style = "log-info";
-                                    if (log.includes("FAIL") || log.includes("ERROR")) style = "log-error";
-                                    else if (log.includes("SKIP") || log.includes("THROTTLE")) style = "log-warn";
-                                    else if (log.includes("VERIFIED") || log.includes("ENTRY")) style = "log-success";
-                                    
-                                    return <div key={i} className={`log-line ${style}`}>{log}</div>
-                                })}
-                            </div>
-                        </section>
-                    </main>
-                </React.Fragment>
-            );
+      return (
+        <div className="ffb-page" style={{height:"100%", display:"flex", flexDirection:"column"}}>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, borderBottom:`1px solid ${C.edge}`}}>
+            <div style={{display:"flex", gap:2}}>
+              {["Walk-forward", "Optimizer"].map(t => {
+                const id = t.toLowerCase().replace(" ","-");
+                return (
+                  <button key={id} onClick={() => setTab(id)} style={{
+                    padding:"7px 14px",background:"none",border:"none",
+                    color:tab===id?C.cyan:C.dimT,
+                    borderBottom:tab===id?`2px solid ${C.cyan}`:"2px solid transparent",
+                    cursor:"pointer",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{paddingBottom:8}}>
+               {tab === "walk-forward" ? (
+                 <button onClick={onRun} style={{padding:"4px 12px", background:C.cyanD, border:`1px solid ${C.cyan}`, color:C.cyan, borderRadius:2, cursor:"pointer", fontSize:9, fontWeight:700}}>▶ RUN BACKTEST</button>
+               ) : (
+                 <button onClick={onOptimize} style={{padding:"4px 12px", background:C.magD, border:`1px solid ${C.mag}`, color:C.mag, borderRadius:2, cursor:"pointer", fontSize:9, fontWeight:700}}>⚡ RUN OPTIMIZER</button>
+               )}
+            </div>
+          </div>
+
+          <div style={{flex:1, overflowY:"auto"}}>
+            {tab === "walk-forward" && (
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+                <Panel title="Performance Summary" glow={C.grn}>
+                  <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+                    <div>
+                      <div style={{color:C.dimT, fontSize:8, textTransform:"uppercase"}}>Total Trades</div>
+                      <div style={{color:C.bright, fontSize:20, fontWeight:700}}>{bt.total_trades}</div>
+                    </div>
+                    <div>
+                      <div style={{color:C.dimT, fontSize:8, textTransform:"uppercase"}}>Total PnL</div>
+                      <div style={{color:pnlCol(bt.total_pnl), fontSize:20, fontWeight:700}}>{fmtUsd(bt.total_pnl)}</div>
+                    </div>
+                  </div>
+                </Panel>
+                
+                <Panel title="Top Symbols" glow={C.cyan}>
+                  <table style={{width:"100%", borderCollapse:"collapse", fontSize:10}}>
+                    <thead><tr style={{borderBottom:`1px solid ${C.edge}`}}>
+                      <th style={{textAlign:"left", color:C.dimT, padding:4}}>SYMBOL</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>TRADES</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>WR%</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>PNL</th>
+                    </tr></thead>
+                    <tbody>
+                      {bt.symbols.slice(0, 10).map((s, i) => (
+                        <tr key={i} style={{borderBottom:`1px solid ${C.edge}40`}}>
+                          <td style={{padding:4, color:C.bright, fontWeight:700}}>{s.symbol}</td>
+                          <td style={{padding:4, textAlign:"right", color:C.txt}}>{s.trades}</td>
+                          <td style={{padding:4, textAlign:"right", color:C.txt}}>{s.win_rate}%</td>
+                          <td style={{padding:4, textAlign:"right", color:pnlCol(s.pnl)}}>{s.pnl}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Panel>
+
+                <Panel title="Signal Alpha" glow={C.yel} style={{gridColumn:"span 2"}}>
+                  <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(200px, 1fr))", gap:8}}>
+                    {bt.signals.map((s, i) => (
+                      <div key={i} style={{padding:8, background:C.panel, border:`1px solid ${C.edge}`, borderRadius:3}}>
+                         <div style={{color:C.bright, fontSize:10, fontWeight:700, marginBottom:4}}>{s.signal}</div>
+                         <div style={{display:"flex", justifyContent:"space-between", fontSize:9}}>
+                            <span style={{color:C.dimT}}>Trades: {s.trades}</span>
+                            <span style={{color:pnlCol(s.pnl)}}>{fmtUsd(s.pnl)}</span>
+                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              </div>
+            )}
+
+            {tab === "optimizer" && (
+              <Panel title="Parameter Grid Results" glow={C.mag}>
+                {opt.length === 0 ? (
+                  <div style={{color:C.dimT, textAlign:"center", padding:40}}>NO_OPTIMIZATION_DATA_FOUND</div>
+                ) : (
+                  <table style={{width:"100%", borderCollapse:"collapse", fontSize:10}}>
+                    <thead><tr style={{borderBottom:`1px solid ${C.edge}`}}>
+                      <th style={{textAlign:"left", color:C.dimT, padding:4}}>RANK</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>STP</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>TRL</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>SCR</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>PNL</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>WR%</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>SHARPE</th>
+                      <th style={{textAlign:"right", color:C.dimT, padding:4}}>COMP</th>
+                    </tr></thead>
+                    <tbody>
+                      {opt.map((r, i) => (
+                        <tr key={i} style={{borderBottom:`1px solid ${C.edge}40`}}>
+                          <td style={{padding:4, color:C.dimT}}>{i+1}</td>
+                          <td style={{padding:4, textAlign:"right", color:C.txt}}>{r.params.atr_stop_mult}</td>
+                          <td style={{padding:4, textAlign:"right", color:C.txt}}>{r.params.atr_trail_mult}</td>
+                          <td style={{padding:4, textAlign:"right", color:C.txt}}>{r.params.score_threshold}</td>
+                          <td style={{padding:4, textAlign:"right", color:pnlCol(r.total_pnl)}}>{r.total_pnl}</td>
+                          <td style={{padding:4, textAlign:"right", color:C.txt}}>{(r.win_rate*100).toFixed(1)}%</td>
+                          <td style={{padding:4, textAlign:"right", color:C.txt}}>{r.sharpe}</td>
+                          <td style={{padding:4, textAlign:"right", color:C.yel, fontWeight:700}}>{r.composite}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </Panel>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const SettingsPage = ({config, onUpdate, connected, mode}) => {
+      const [simUrl, setSimUrl] = useState(config.simUrl);
+      const [liveUrl, setLiveUrl] = useState(config.liveUrl);
+      const [intv, setIntv] = useState(String(config.interval));
+      const [saved, setSaved] = useState(false);
+      const save = () => {
+        onUpdate({ simUrl, liveUrl, interval: Number(intv) || 1000 });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      };
+      const Field = ({label, value, onChange, placeholder}) => (
+        <div style={{marginBottom:14}}>
+          <div style={{color:C.dimT,fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>{label}</div>
+          <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+            style={{width:"100%",padding:"8px 12px",background:"#07071a",border:`1px solid ${C.edge}`,
+              color:C.bright,borderRadius:3,fontSize:12,fontFamily:"inherit"}}
+            onFocus={e => e.target.style.borderColor = C.cyan}
+            onBlur={e => e.target.style.borderColor = C.edge}
+          />
+        </div>
+      );
+      return (
+        <div className="ffb-page" style={{maxWidth:580}}>
+          <Panel title="API Configuration" glow={C.cyan} style={{marginBottom:12}}>
+            <Field label="SIM Bot API URL (web_bridge.py)" value={simUrl} onChange={setSimUrl} placeholder="http://localhost:8080" />
+            <Field label="LIVE Bot API URL" value={liveUrl} onChange={setLiveUrl} placeholder="http://localhost:8081" />
+            <Field label="Poll Interval (ms)" value={intv} onChange={setIntv} placeholder="1000" />
+            <button onClick={save} style={{
+              padding:"7px 22px",background:saved?C.grnD:C.cyanD,
+              border:`1px solid ${saved?C.grn:C.cyan}`,
+              color:saved?C.grn:C.cyan,borderRadius:3,cursor:"pointer",
+              fontSize:10,letterSpacing:"0.12em",textTransform:"uppercase",transition:"all .2s"}}>
+              {saved ? "✓ SAVED" : "Save Configuration"}
+            </button>
+          </Panel>
+          <Panel title="Connection Status" glow={C.grn}>
+            {[
+              {l:"SIM API",url:simUrl,active:mode==="SIM"&&connected},
+              {l:"LIVE API",url:liveUrl,active:mode==="LIVE"&&connected},
+            ].map(({l,url,active}) => (
+              <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"8px 12px",background:active?C.grnD:C.cyanD+"10",
+                border:`1px solid ${active?C.grn:C.dimT+"40"}`,borderRadius:3,marginBottom:7}}>
+                <span style={{color:C.txt,fontSize:11}}>{l}: <span style={{color:C.dimT,fontSize:10}}>{url}</span></span>
+                <Badge text={active?"CONNECTED":"STANDBY"} color={active?C.grn:C.dimT} />
+              </div>
+            ))}
+            <div style={{marginTop:10,color:C.dimT,fontSize:9,lineHeight:1.6}}>
+              Dashboard polls /api/summary, /api/positions, /api/logs, /api/scanner<br/>
+              When API is offline, demo data is displayed. Start web_bridge.py to connect.
+            </div>
+          </Panel>
+        </div>
+      );
+    };
+
+    // ── APP ROOT ──────────────────────────────────────────────────────────────────
+    function App() {
+      const [page, setPage] = useState("dashboard");
+      const [mode, setMode] = useState("SIM");
+      const [running, setRunning] = useState(true);
+      const [connected, setConnected] = useState(false);
+      const [config, setConfig] = useState({ simUrl: "http://localhost:8080", liveUrl: "http://localhost:8081", interval: 1000 });
+      const [data, setData] = useState({
+        summary: MOCK.summary,
+        positions: MOCK.positions,
+        logs: MOCK.logs,
+        scanner: MOCK.scanner,
+        backtest: { symbols: [], signals: [], total_trades: 0, total_pnl: 0 },
+        optimizer: [],
+      });
+      const dataRef = useRef(data);
+      dataRef.current = data;
+
+      useEffect(() => {
+        const poll = async () => {
+          const base = mode === "SIM" ? config.simUrl : config.liveUrl;
+          try {
+            const [sr, pr, lr, scr, btr, opr] = await Promise.all([
+              fetchWithTimeout(`${base}/api/summary`).catch(() => null),
+              fetchWithTimeout(`${base}/api/positions`).catch(() => null),
+              fetchWithTimeout(`${base}/api/logs`).catch(() => null),
+              fetchWithTimeout(`${base}/api/scanner`).catch(() => null),
+              fetchWithTimeout(`${base}/api/backtest/stats`).catch(() => null),
+              fetchWithTimeout(`${base}/api/backtest/optimizer`).catch(() => null),
+            ]);
+            const ok = sr?.ok || pr?.ok;
+            setConnected(!!ok);
+            if (ok) {
+              const nd = { ...dataRef.current };
+              if (sr?.ok) {
+                const j = await sr.json();
+                nd.summary = normalizeSummary(j);
+              }
+              if (pr?.ok) {
+                const j = await pr.json();
+                nd.positions = normalizePositions(j);
+              }
+              if (lr?.ok) {
+                const j = await lr.json();
+                nd.logs = normalizeLogs(j);
+              }
+              if (scr?.ok) {
+                const j = await scr.json();
+                nd.scanner = normalizeScanner(j);
+              }
+              if (btr?.ok) {
+                nd.backtest = await btr.json();
+              }
+              if (opr?.ok) {
+                nd.optimizer = await opr.json();
+              }
+              setData(nd);
+            }
+          } catch {
+            setConnected(false);
+          }
         };
+        const id = setInterval(poll, config.interval);
+        poll();
+        return () => clearInterval(id);
+      }, [mode, config.simUrl, config.liveUrl, config.interval]);
 
-        try {
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<Dashboard />);
-        } catch (err) {
-            document.getElementById('root').innerHTML = `<div style="color:red; padding:20px;">Render Error: ${err.message}</div>`;
-        }
-    </script>
+      const NAV = [
+        {id:"dashboard",icon:"⚡",label:"Dashboard"},
+        {id:"positions",icon:"◈",label:"Positions"},
+        {id:"scanner",icon:"◎",label:"Scanner"},
+        {id:"logs",icon:"≡",label:"Logs"},
+        {id:"backtester",icon:"▦",label:"Backtester"},
+        {id:"settings",icon:"⚙",label:"Settings"},
+      ];
+      const s = data.summary;
+
+      const onRunBacktest = async () => {
+        const base = mode === "SIM" ? config.simUrl : config.liveUrl;
+        await fetch(`${base}/api/backtest/run`, { method: "POST" });
+        alert("Backtest started in background.");
+      };
+
+      const onRunOptimizer = async () => {
+        const base = mode === "SIM" ? config.simUrl : config.liveUrl;
+        await fetch(`${base}/api/backtest/optimize`, { method: "POST" });
+        alert("Optimizer started in background.");
+      };
+
+      return (
+        <div style={{display:"flex",height:"100vh",width:"100vw",background:C.bg,color:C.txt,
+          fontFamily:"'JetBrains Mono','Courier New',monospace",fontSize:12,overflow:"hidden"}}>
+          <div style={{width:46,flexShrink:0,background:"#060610",borderRight:`1px solid ${C.edge}`,
+            display:"flex",flexDirection:"column",alignItems:"center",paddingTop:6,gap:2}}>
+            <div style={{width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:6}}>
+              <div style={{width:26,height:26,background:`linear-gradient(135deg,${C.cyan},${C.mag})`,
+                borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",
+                color:"#000",fontWeight:900,fontSize:15,fontFamily:"Orbitron,monospace"}}>$</div>
+            </div>
+            {NAV.map(({id, icon, label}) => (
+              <button key={id} onClick={() => setPage(id)} title={label} style={{
+                width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",
+                background:page===id?C.cyanD:"none",border:page===id?`1px solid ${C.cyanM}`:"1px solid transparent",
+                borderRadius:3,cursor:"pointer",color:page===id?C.cyan:C.dimT,fontSize:15,transition:"all .15s"}}
+                onMouseEnter={e => { if (page !== id) e.currentTarget.style.background = "#ffffff08"; }}
+                onMouseLeave={e => { if (page !== id) e.currentTarget.style.background = "none"; }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+          <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
+            <div style={{height:42,flexShrink:0,background:"#07071a",borderBottom:`1px solid ${C.edge}`,
+              display:"flex",alignItems:"center",padding:"0 14px",gap:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{color:C.cyan,fontWeight:700,fontSize:13,letterSpacing:"0.12em",fontFamily:"Orbitron,monospace"}}>FANCYFANGBOT</span>
+                <Badge text={`${mode} v2.0`} color={mode==="SIM"?C.yel:C.mag} />
+                <Dot color={running?C.grn:C.red} pulse={running} />
+              </div>
+              <div style={{flex:1,display:"flex",gap:20,justifyContent:"center"}}>
+                {[
+                  {l:"BALANCE",v:`$${Number(s.balance).toFixed(2)}`,c:C.bright},
+                  {l:"DAY PNL",v:fmtUsd(s.day_pnl),c:pnlCol(s.day_pnl)},
+                  {l:"OPEN PNL",v:`+$${Number(s.open_pnl).toFixed(2)}`,c:C.grn},
+                  {l:"SCANS",v:`#${s.scans}`,c:C.cyan},
+                  {l:"ANALYZED",v:s.analyzed,c:C.cyan},
+                ].map(({l,v,c}) => (
+                  <div key={l} style={{textAlign:"center"}}>
+                    <div style={{color:C.dimT,fontSize:7,textTransform:"uppercase",letterSpacing:"0.12em"}}>{l}</div>
+                    <div style={{color:c,fontWeight:700,fontSize:12}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:7,alignItems:"center"}}>
+                <div style={{display:"flex",border:`1px solid ${C.edge}`,borderRadius:2,overflow:"hidden"}}>
+                  {["SIM","LIVE"].map(m => (
+                    <button key={m} onClick={() => setMode(m)} style={{
+                      padding:"4px 11px",border:"none",cursor:"pointer",
+                      background:mode===m?(m==="SIM"?C.yelD:C.magD):"transparent",
+                      color:mode===m?(m==="SIM"?C.yel:C.mag):C.dimT,
+                      fontSize:9,fontWeight:mode===m?700:400,letterSpacing:"0.12em",transition:"all .15s"}}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => setRunning(r => !r)} style={{
+                  padding:"5px 13px",
+                  background:running?"#ff335518":"#00ff8818",
+                  border:`1px solid ${running?C.red:C.grn}`,
+                  color:running?C.red:C.grn,borderRadius:2,cursor:"pointer",
+                  fontSize:9,fontWeight:700,letterSpacing:"0.1em",transition:"all .15s"}}>
+                  {running ? `■ STOP ${mode}` : `▶ START ${mode}`}
+                </button>
+              </div>
+            </div>
+            <div style={{flex:1,overflow:"hidden",padding:9}}>
+              {page === "dashboard" && <DashboardPage data={data} />}
+              {page === "positions" && <PositionsPage data={data} />}
+              {page === "scanner" && <ScannerPage data={data} />}
+              {page === "logs" && <LogsPage data={data} />}
+              {page === "backtester" && <BacktesterPage data={data} onRun={onRunBacktest} onOptimize={onRunOptimizer} />}
+              {page === "settings" && <SettingsPage config={config} onUpdate={setConfig} connected={connected} mode={mode} />}
+            </div>
+            <div style={{height:20,flexShrink:0,background:"#050510",borderTop:`1px solid ${C.edge}`,
+              display:"flex",alignItems:"center",padding:"0 12px",gap:16,
+              fontSize:8,color:C.dimT,letterSpacing:"0.1em"}}>
+              <span><span style={{color:connected?C.grn:C.red}}>●</span> {connected?"API_CONNECTED":"API_OFFLINE · DEMO_DATA"}</span>
+              <span>MODE: <span style={{color:mode==="SIM"?C.yel:C.mag}}>{mode}</span></span>
+              <span>ENTROPY: <span style={{color:C.cyan}}>{Number(s.entropy).toFixed(3)}</span></span>
+              <span>POSITIONS: <span style={{color:C.cyan}}>{data.positions.length}/{s.max_positions}</span></span>
+              <span style={{marginLeft:"auto"}}>FANCYFANGBOT v2.0 // CYBER_CORE_INTERFACE</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
 </body>
 </html>

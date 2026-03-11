@@ -41,5 +41,17 @@ def get_gradient_banner():
         lines = BANNER.strip("\n").split("\n")
         colorized = [gradient_text(line, (0, 255, 255), (255, 0, 255)) for line in lines]
         return "\n".join(colorized)
-    except ImportError:
+    except ImportError as e:
+        #region agent log
+        try:
+            from core.debug_log import dbg_log
+            dbg_log(
+                hypothesisId="D",
+                location="modules/banner.py:get_gradient_banner",
+                message="ImportError in banner gradient path",
+                data={"exc": repr(e)},
+            )
+        except Exception:
+            pass
+        #endregion
         return BANNER

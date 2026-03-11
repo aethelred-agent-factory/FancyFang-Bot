@@ -1091,7 +1091,7 @@ def main():
     parser.add_argument("--timeframe",  default="4H")
     parser.add_argument("--candles",    type=int,   default=500,
                         help="Historical candles per symbol")
-    parser.add_argument("--min-score",  type=int,   default=25)
+    parser.add_argument("--min-score",  type=float, default=25.0)
     parser.add_argument("--min-signals", type=int, default=3, help="Minimum number of signals required to consider a candidate (default: 3)")
     parser.add_argument("--trail-pct",  type=float, default=0.02)
     parser.add_argument("--leverage",   type=int,   default=30)
@@ -1101,7 +1101,7 @@ def main():
                         help="Max total USDT margin for scaling in.")
     parser.add_argument("--max-hold",   type=int,   default=96,
                         help="Max candles to hold a trade")
-    parser.add_argument("--min-vol",    type=int,   default=5_000_000)
+    parser.add_argument("--min-vol",    type=float,   default=5_000_000.0)
     parser.add_argument("--workers",    type=int,   default=30,
                         help="Parallel fetch workers")
 
@@ -1115,7 +1115,7 @@ def main():
     parser.add_argument("--direction",  default="BOTH",
                         choices=["LONG", "SHORT", "BOTH"],
                         help="Only take LONG or SHORT trades, or BOTH")
-    parser.add_argument("--min-score-gap", type=int, default=0,
+    parser.add_argument("--min-score-gap", type=float, default=0.0,
                         help="Min score gap between LONG and SHORT to avoid ambiguous entries")
 
     # ── Sweep ─────────────────────────────────────────────────────────
@@ -1158,7 +1158,7 @@ def main():
         print(Fore.WHITE + "  Fetching ticker universe...", end="", flush=True)
         tickers = get_tickers(min_vol=args.min_vol)
         tickers.sort(key=lambda t: float(t.get("turnoverRv") or 0), reverse=True)
-        n = args.sweep_n if args.sweep else min(50, len(tickers))
+        n = args.sweep_n # Always use sweep_n to limit symbols
         symbols = [t["symbol"] for t in tickers[:n]]
         print(f" {len(symbols)} symbols (vol ≥ ${args.min_vol:,.0f})")
 
@@ -1213,16 +1213,10 @@ def main():
     # ── Sweep or single run ───────────────────────────────────────────
     if args.sweep:
         print(Fore.CYAN + Style.BRIGHT + f"  🔍 PARAMETER SWEEP ({args.direction})\n")
-        if args.timeframe in ["4H", "6H", "8H", "12H", "1D"]:
-            trail_pcts  = [0.01, 0.02]
-            sl_pcts     = [0.0, 0.05]
-            tp_pcts     = [0.0]
-        else:
-            trail_pcts  = [0.01, 0.02]
-            sl_pcts     = [0.0, 0.05]
-            tp_pcts     = [0.0]
-
-        min_scores  = [100, 110, 120]
+        trail_pcts  = [0.005, 0.01, 0.015, 0.02]
+        sl_pcts     = [0.0, 0.03, 0.05]
+        tp_pcts     = [0.0]
+        min_scores  = [40, 60, 80, 100, 120]
         leverages   = [30]
 
         # Remove parameters that are part of the sweep grid to avoid multiple values

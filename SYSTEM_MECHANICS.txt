@@ -1,0 +1,53 @@
+# FancyFangBot: System Mechanics & Architecture
+
+The FancyFangBot is a high-frequency, multi-strategy algorithmic trading system built for the Phemex exchange. It is designed to find, verify, and manage dozens of trades simultaneously across a wide range of crypto assets.
+
+## Phase 1: Market Scanning (The Eyes)
+The system doesn't just watch one coin; it watches the entire market.
+* **Discovery:** The `phemex_scanner.py` (invoked by `p_bot.py` or `sim_bot.py`) pulls every USDT-margined pair from the exchange.
+* **Filtering:** It immediately discards "dead" coins with low volume (typically < $5M/24h) to ensure liquidity.
+* **Parallel Analysis:** It uses a "Worker" system to scan dozens of coins at once. It runs two specialized modules: `phemex_long.py` (looking for dips/recoveries) and `phemex_short.py` (looking for overextensions/crashes).
+
+## Phase 2: Signal Analysis (The Brain)
+Inside `phemex_common.py`, the system performs a **Unified Analysis** on every coin it finds. It calculates:
+* **Standard Indicators:** RSI, Bollinger Bands, and EMAs to find the price trend.
+* **Denoising (Kalman Filter):** It uses a Kalman Filter to "smooth out" market noise and see the true price direction.
+* **Volume Profile (POC):** It finds the "Point of Control"—the price where the most trading happened—to see if the current price is "cheap" or "expensive."
+* **The Predictive Engine:** `feature_builder.py` looks at "Entropy" (how chaotic the market is) and "Market Regime" (is it trending or ranging?).
+* **The Score:** All these factors are combined into a single **Score (0–200)**. 
+    * **Score > 100:** Strong candidate.
+    * **Score > 140:** High-conviction "Fast Track" candidate.
+
+## Phase 3: Risk & Filtering (The Gatekeepers)
+Before a trade is allowed to happen, it must pass through a series of "Immune System" modules:
+* **Drawdown Guard (`drawdown_guard.py`):** If the bot has lost a certain percentage of the account today, it "kills" all trading to prevent a total wipeout.
+* **Correlation Manager (`correlation_manager.py`):** It ensures you aren't buying 5 different coins that all move exactly the same (e.g., buying 5 different "AI coins" at once), which would triple your risk.
+* **Spread Filter:** It checks the "Bid-Ask Spread." If the gap between buyers and sellers is too wide, it skips the trade to avoid "slippage" (losing money the moment you enter).
+* **Dynamic Sizing (`risk_manager.py`):** It calculates exactly how much money to bet using the **Kelly Criterion** or **ATR Sizing**. It bets more on high-score signals and less on risky ones.
+
+## Phase 4: Execution (The Hands)
+This is where **Live** and **Simulation** bots diverge:
+* **Live (`p_bot.py`):** Sends an authenticated API request to Phemex to open a leveraged position.
+* **Simulation (`sim_bot.py`):** Records a "virtual trade" in a local SQLite database (`fancybot.db`). It calculates a "fake fill" based on the real bid/ask prices to stay honest.
+* **Verification:** Both bots use a "wait-and-confirm" step. They wait 20 seconds and re-scan the coin. If the signal disappears or the price crashes during those 20 seconds, the trade is aborted.
+
+## Phase 5: Trade Management (The Heartbeat)
+Once a trade is open, the bot enters its main loop:
+* **The Trailing Stop:** As the price moves in your favor, the bot "ratchets" the Stop Loss up behind it. It uses **ATR (Average True Range)** to keep the stop at a "safe" distance based on how volatile the coin is.
+* **Take Profit:** It sets a target (e.g., +2% or +5%). If the price hits this, it closes the trade immediately.
+* **Reversal Exit:** If the scanner detects a strong signal in the *opposite* direction (e.g., you are Long, but a massive Short signal appears), the bot will "panic exit" to lock in current profits.
+
+## Phase 6: Visualization (The Dashboard)
+The entire process is rendered in a high-tech Terminal UI (`ui_rich.py` or `ui_textual.py`):
+* **Sparklines:** Real-time mini-charts of your PnL.
+* **Cyber Telemetry:** Bars showing your current account health and "Entropy" (market chaos).
+* **Logs:** A scrolling feed of every decision the bot is making in real-time.
+
+## Summary of the Data Flow
+1. **Scanner** fetches 100+ coins.
+2. **Brain** scores them based on math/indicators.
+3. **Gatekeepers** check if it's safe to trade.
+4. **Risk Manager** decides the "Bet Size."
+5. **Executioner** opens the trade (Live or Sim).
+6. **Monitor** follows the price with a Trailing Stop.
+7. **Storage** logs everything to a database for later **Backtesting**.

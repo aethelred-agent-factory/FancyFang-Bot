@@ -156,6 +156,10 @@ class StorageManager:
             finally:
                 conn.close()
 
+        # Initialize auxiliary ledger tables outside of the main transaction
+        # to avoid impacting core schema creation on older installs.
+        self._init_ledger_tables()
+
     def load_account(self, initial_balance: float = 100.0) -> Dict[str, Any]:
         """Loads account balance and positions."""
         with self._lock:
@@ -485,6 +489,235 @@ class StorageManager:
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to save events: {e}")
+            finally:
+                conn.close()
+
+    # --- Sovereign Ledger: Blacklist & Config & State ---
+
+    def _init_ledger_tables(self):
+        """Ensures auxiliary ledger tables exist (blacklist, system_config, sim_state)."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+
+                # Symbol blacklist table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS blacklist (
+                        symbol TEXT PRIMARY KEY,
+                        reason TEXT,
+                        created_at TEXT NOT NULL,
+                        expires_at TEXT
+                    )
+                """)
+
+                # System configuration regimes
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS system_config (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL UNIQUE,
+                        params_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        is_active INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+
+                # Serialized bot state snapshots
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS sim_state (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        snapshot_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        is_current INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+
+                conn.commit()
+            finally:
+                conn.close()
+
+    # Blacklist API --------------------------------------------------------
+
+    def add_to_blacklist(self, symbol: str, reason: str, expires_at: Optional[datetime.datetime] = None):
+        """Adds or updates a blacklisted symbol with an optional expiry."""
+        self._init_ledger_tables()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        expiry_str = expires_at.isoformat() if expires_at else None
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO blacklist (symbol, reason, created_at, expires_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(symbol) DO UPDATE SET
+                        reason=excluded.reason,
+                        created_at=excluded.created_at,
+                        expires_at=excluded.expires_at
+                    """,
+                    (symbol, reason, now, expiry_str),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def remove_from_blacklist(self, symbol: str):
+        """Removes a symbol from the blacklist."""
+        self._init_ledger_tables()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                conn.execute("DELETE FROM blacklist WHERE symbol = ?", (symbol,))
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_blacklist(self) -> Dict[str, Dict[str, Any]]:
+        """Returns all currently active blacklist entries as a dict keyed by symbol."""
+        self._init_ledger_tables()
+        now = datetime.datetime.now(datetime.timezone.utc)
+        active: Dict[str, Dict[str, Any]] = {}
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT symbol, reason, created_at, expires_at FROM blacklist")
+                rows = cursor.fetchall()
+                for r in rows:
+                    exp = r["expires_at"]
+                    if exp:
+                        try:
+                            exp_dt = datetime.datetime.fromisoformat(exp)
+                        except Exception:
+                            exp_dt = None
+                        if exp_dt and exp_dt <= now:
+                            continue
+                    active[r["symbol"]] = {
+                        "reason": r["reason"],
+                        "created_at": r["created_at"],
+                        "expires_at": r["expires_at"],
+                    }
+            finally:
+                conn.close()
+        return active
+
+    def is_blacklisted(self, symbol: str) -> bool:
+        """Returns True if symbol is currently active on the blacklist."""
+        return symbol in self.get_blacklist()
+
+    # System configuration API ---------------------------------------------
+
+    def set_system_config(self, name: str, params: Dict[str, Any], activate: bool = False):
+        """
+        Upserts a named configuration regime.
+        When activate=True, marks this config as the single active regime.
+        """
+        self._init_ledger_tables()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        params_json = json.dumps(params)
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO system_config (name, params_json, created_at, is_active)
+                    VALUES (?, ?, ?, COALESCE(?, 0))
+                    ON CONFLICT(name) DO UPDATE SET
+                        params_json=excluded.params_json,
+                        created_at=excluded.created_at
+                    """,
+                    (name, params_json, now, 1 if activate else 0),
+                )
+                if activate:
+                    cursor.execute("UPDATE system_config SET is_active = CASE WHEN name = ? THEN 1 ELSE 0 END", (name,))
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_system_config(self, name: str) -> Optional[Dict[str, Any]]:
+        """Returns a specific named configuration regime, or None if missing."""
+        self._init_ledger_tables()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT name, params_json, created_at, is_active FROM system_config WHERE name = ?", (name,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return {
+                    "name": row["name"],
+                    "params": json.loads(row["params_json"]),
+                    "created_at": row["created_at"],
+                    "is_active": bool(row["is_active"]),
+                }
+            finally:
+                conn.close()
+
+    def get_active_config(self) -> Optional[Dict[str, Any]]:
+        """Returns the currently active configuration regime, if any."""
+        self._init_ledger_tables()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT name, params_json, created_at, is_active FROM system_config WHERE is_active = 1 ORDER BY id DESC LIMIT 1"
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return {
+                    "name": row["name"],
+                    "params": json.loads(row["params_json"]),
+                    "created_at": row["created_at"],
+                    "is_active": bool(row["is_active"]),
+                }
+            finally:
+                conn.close()
+
+    # Sim state snapshot API -----------------------------------------------
+
+    def save_sim_state(self, snapshot: Dict[str, Any]):
+        """
+        Persists a full simulation bot snapshot.
+        Callers are responsible for providing a fully serializable dict.
+        """
+        self._init_ledger_tables()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        payload = json.dumps(snapshot)
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE sim_state SET is_current = 0 WHERE is_current = 1")
+                cursor.execute(
+                    """
+                    INSERT INTO sim_state (snapshot_json, created_at, is_current)
+                    VALUES (?, ?, 1)
+                    """,
+                    (payload, now),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def load_latest_sim_state(self) -> Optional[Dict[str, Any]]:
+        """Loads the most recent sim_state snapshot, if any."""
+        self._init_ledger_tables()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT snapshot_json FROM sim_state WHERE is_current = 1 ORDER BY id DESC LIMIT 1"
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return json.loads(row["snapshot_json"])
             finally:
                 conn.close()
 
