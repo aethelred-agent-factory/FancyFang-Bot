@@ -1,4 +1,4 @@
-# FancyBot
+# FancyFangBot
 
 A Phemex perpetual-futures algorithmic trading bot with paper simulation,
 live execution, walk-forward backtesting, and a full-screen TUI dashboard.
