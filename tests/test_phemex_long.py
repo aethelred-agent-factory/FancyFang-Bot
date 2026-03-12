@@ -65,6 +65,12 @@ class TestPhemexLong(unittest.TestCase):
         # So score should be around 0.
         self.assertTrue(abs(score) < 20, f"Score {score} too high for neutral data")
 
+        # ensemble score component should stay within [-1,1]
+        import core.phemex_common as pc
+        ens = pc.score_func(self.base_data, direction="LONG")
+        self.assertGreaterEqual(ens, -1.0)
+        self.assertLessEqual(ens, 1.0)
+
     def test_score_long_bullish(self):
         # Construct a bullish setup
         data = self.base_data

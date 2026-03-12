@@ -20,8 +20,8 @@ class TestBacktestScoring(unittest.TestCase):
 
     def test_neutral_scoring(self):
         # In a perfectly flat market, score should be low or zero
-        l_score, l_sigs = score_window_unified("BTCUSDT", self.neutral_window, "LONG")
-        s_score, s_sigs = score_window_unified("BTCUSDT", self.neutral_window, "SHORT")
+        l_score, l_sigs, *rest = score_window_unified("BTCUSDT", self.neutral_window, "LONG")
+        s_score, s_sigs, *rest = score_window_unified("BTCUSDT", self.neutral_window, "SHORT")
         self.assertLess(l_score, 50)
         self.assertLess(s_score, 50)
 
@@ -42,7 +42,7 @@ class TestBacktestScoring(unittest.TestCase):
         # Window format: (open, high, low, close, volume)
         window = [(c, c + 1, c - 1, c, 1000.0) for c in closes]
 
-        l_score, l_sigs = score_window_unified("BTCUSDT", window, "LONG")
+        l_score, l_sigs, *rest = score_window_unified("BTCUSDT", window, "LONG")
         # Should have rsi_oversold signal
         self.assertTrue(any("RSI" in s and "Oversold" in s for s in l_sigs))
         self.assertGreater(l_score, 20)
@@ -53,17 +53,17 @@ class TestBacktestScoring(unittest.TestCase):
         # Window format: (open, high, low, close, volume)
         window = [(c, c + 1, c - 1, c, 1000.0) for c in closes]
 
-        s_score, s_sigs = score_window_unified("BTCUSDT", window, "SHORT")
+        s_score, s_sigs, *rest = score_window_unified("BTCUSDT", window, "SHORT")
         # Should have rsi_overbought signal
         self.assertTrue(any("RSI" in s and "Overbought" in s for s in s_sigs))
         self.assertGreater(s_score, 20)
 
     def test_funding_signals(self):
         # Negative funding should boost long score
-        l_score_base, _ = score_window_unified(
+        l_score_base, _, *rest = score_window_unified(
             "BTCUSDT", self.neutral_window, "LONG", funding=0.0
         )
-        l_score_neg, l_sigs = score_window_unified(
+        l_score_neg, l_sigs, *rest = score_window_unified(
             "BTCUSDT", self.neutral_window, "LONG", funding=-0.001  # -0.1%
         )
         self.assertGreater(l_score_neg, l_score_base)

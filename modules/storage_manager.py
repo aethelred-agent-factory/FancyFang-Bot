@@ -151,6 +151,20 @@ class StorageManager:
                     )
                 """)
 
+                # ----------------------------------------------------------------
+                # Training corpus / scan dump table (Step 15+ roadmap)
+                # Stores raw scan results or feature dumps that can be used by
+                # downstream ML training pipelines.  Each row is a JSON blob
+                # since different projects may have different schemas.
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS scan_corpus (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        symbol TEXT NOT NULL,
+                        timestamp TEXT NOT NULL,
+                        data_json TEXT NOT NULL
+                    )
+                """)
+
                 # Ensure columns exist in trade_history (Migration)
                 cursor.execute("PRAGMA table_info(trade_history)")
                 cols = [c[1] for c in cursor.fetchall()]

@@ -45,6 +45,77 @@ class TestPhemexCommon(unittest.TestCase):
         ema = calc_ema_series(closes, period=5)
         self.assertTrue(len(ema) > 0)
 
+    # ------------------------------------------------------------------
+    # tests added for ensemble / score_func integration
+    # ------------------------------------------------------------------
+
+    def test_score_func_range(self):
+        # minimal TickerData for range check
+        from core.phemex_common import TickerData, score_func
+
+        data = TickerData(
+            inst_id="X",
+            price=1.0,
+            rsi=None,
+            prev_rsi=None,
+            bb=None,
+            ema21=None,
+            change_24h=None,
+            funding_rate=None,
+            patterns=[],
+            raw_ohlc=[],
+        )
+
+        for direction in ("LONG", "SHORT"):
+            score = score_func(data, direction=direction)
+            self.assertGreaterEqual(score, -1.0)
+            self.assertLessEqual(score, 1.0)
+
+    def test_score_func_respects_regime(self):
+        from core.phemex_common import TickerData, score_func
+
+        data = TickerData(
+            inst_id="X",
+            price=1.0,
+            rsi=None,
+            prev_rsi=None,
+            bb=None,
+            ema21=None,
+            change_24h=None,
+            funding_rate=None,
+            patterns=[],
+            raw_ohlc=[],
+        )
+        data.regime = "TRENDING"
+        score = score_func(data, direction="LONG")
+        self.assertIsInstance(score, float)
+        self.assertGreaterEqual(score, -1.0)
+        self.assertLessEqual(score, 1.0)
+
+    def test_scan_corpus_table_created(self):
+        # ensure the migration added the new table and we can insert a row
+        from modules.storage_manager import StorageManager
+        from pathlib import Path
+
+        db_path = Path("data/state/test_temp.db")
+        # remove any existing file
+        try:
+            db_path.unlink()
+        except Exception:
+            pass
+        storage = StorageManager(db_path)
+        conn = storage._get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='scan_corpus'")
+        row = cur.fetchone()
+        self.assertIsNotNone(row, "scan_corpus table should exist after init")
+        # try inserting
+        cur.execute("INSERT INTO scan_corpus (symbol, timestamp, data_json) VALUES (?, ?, ?)",
+                    ("X", "now", "{}"))
+        conn.commit()
+        conn.close()
+        db_path.unlink()
+
 
 if __name__ == "__main__":
     unittest.main()

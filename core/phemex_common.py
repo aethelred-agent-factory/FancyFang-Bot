@@ -346,6 +346,54 @@ class TickerData:
 
 
 # ----------------------------
+# Ensemble helper
+# ----------------------------
+
+def score_func(data: TickerData, direction: str = "LONG") -> float:
+    """Compute an ML/ensemble score for the ticker data.
+
+    Returns a float in the range [-1.0, +1.0] suitable for zero‑shot or
+    integration with legacy integer scoring.  The function is intentionally
+    light-weight so that scanners can call it without importing the heavy
+    :mod:`modules.ensemble_scorer` themselves.
+
+    Parameters
+    ----------
+    data : TickerData
+        Object containing pre-computed indicators and optionally
+        ``ml_features`` and ``raw_ohlc``.  If ``ml_features`` is empty the
+        caller is responsible for populating it before use.
+    direction : str
+        "LONG" or "SHORT"; passed through to the ensemble scorer.
+    """
+    # features dict is either stored on the data object or empty
+    features = data.ml_features or {}
+
+    # build a dummy sequence if none is available; ensemble expects shape
+    # (L,7).  ``build_sequences`` in ``research`` uses 7 columns so we pad
+    # accordingly.  Real pipelines should supply a proper numpy array.
+    import numpy as np
+
+    if data.raw_ohlc:
+        seq = np.array(data.raw_ohlc, dtype=np.float32)
+        if seq.ndim == 2 and seq.shape[1] < 7:
+            padding = np.zeros((seq.shape[0], 7 - seq.shape[1]), dtype=np.float32)
+            seq = np.hstack([seq, padding])
+    else:
+        seq = np.zeros((1, 7), dtype=np.float32)
+
+    raw = ensemble_scorer.score(features, seq, direction, data.regime)
+    # ensure we never leak a value outside the expected bounds
+    if raw < -1.0:
+        return -1.0
+    if raw > 1.0:
+        return 1.0
+    return raw
+
+
+from modules.ensemble_scorer import ensemble_scorer
+
+# ----------------------------
 # Thread-local session
 # ----------------------------
 _thread_local = threading.local()

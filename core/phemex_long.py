@@ -492,14 +492,13 @@ def score_long(data: TickerData) -> Tuple[int, List[str]]:
         score += 10
         signals.append("Regime: Bullish Trending")
 
-    # ── New Predictive Engine Integration ────────────────────────────────────
+    # ── New Predictive / Ensemble Integration ───────────────────────────────
     features = feature_builder_long.build_features(data, getattr(data, 'market_context', {}))
     data.ml_features = features
-    predictive_score = prediction_engine_long.get_prediction_score(features, "LONG")
+    # ensemble-based score (now lives in phemex_common to avoid duplicate imports)
+    predictive_score = pc.score_func(data, "LONG")
 
-    # Scale predictive score into the 0-200 range logic
-    # Base predictive contribution: 0 predictive score -> +0 to legacy score
-    # High predictive score -> significant bonus
+    # Scale predictive score into the 0-200 range logic (same as before)
     predictive_bonus = int(predictive_score * 30)
     score += predictive_bonus
 

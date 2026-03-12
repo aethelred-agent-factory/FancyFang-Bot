@@ -52,6 +52,11 @@ class TestPhemexShort(unittest.TestCase):
         # Neutral data should have near zero score
         self.assertTrue(abs(score) < 20, f"Score {score} too high for neutral data")
 
+        import core.phemex_common as pc
+        ens = pc.score_func(self.base_data, direction="SHORT")
+        self.assertGreaterEqual(ens, -1.0)
+        self.assertLessEqual(ens, 1.0)
+
     def test_score_short_bearish(self):
         # Construct a bearish setup
         data = self.base_data
