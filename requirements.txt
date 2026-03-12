@@ -9,3 +9,6 @@ pytest
 pandas
 pyserial
 matplotlib
+fastapi
+uvicorn
+rich

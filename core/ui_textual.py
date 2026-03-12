@@ -14,6 +14,7 @@ from core.ui_rich import (
 )
 import datetime
 import threading
+from core.debug_log import dbg_log
 
 class Dashboard(Static):
     """Main terminal dashboard with 2-column layout."""
@@ -40,6 +41,21 @@ class Dashboard(Static):
 
     def update_ui(self) -> None:
         try:
+            #region agent log
+            dbg_log(
+                hypothesisId="A",
+                location="core/ui_textual.py:update_ui",
+                message="Dashboard.update_ui enter",
+                data={
+                    "balance": self.balance,
+                    "upnl": self.upnl,
+                    "locked_margin": self.locked_margin,
+                    "entropy_penalty": self.entropy_penalty,
+                    "positions_len": len(self.positions) if isinstance(self.positions, list) else None,
+                    "market_len": len(self.market_data) if isinstance(self.market_data, list) else None,
+                },
+            )
+            #endregion
             summary = self.query_one("#account-summary")
             summary.update(get_account_summary(self.balance, self.upnl, self.locked_margin, self.entropy_penalty, self.initial_balance))
             
@@ -54,7 +70,15 @@ class Dashboard(Static):
                 ) for p in self.positions
             ]
             pos_list.update(Group(*panels) if panels else Panel("Searching for signals...", border_style="fb.dim"))
-        except:
+        except Exception as e:
+            #region agent log
+            dbg_log(
+                hypothesisId="A",
+                location="core/ui_textual.py:update_ui",
+                message="Dashboard.update_ui exception",
+                data={"exc_type": type(e).__name__, "exc": repr(e)},
+            )
+            #endregion
             pass
 
 class PerformanceStats(Static):

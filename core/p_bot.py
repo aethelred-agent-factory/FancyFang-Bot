@@ -88,10 +88,27 @@ from colorama import init, Fore, Style
 from dotenv import load_dotenv
 import core.phemex_common as pc
 import core.ui as ui
+import core.web_bridge as web_bridge
 import modules.animations as animations
 from modules.storage_manager import StorageManager
 
 # ── Global Control ───────────────────────────────────────────────────
+class BotState:
+    """Thread-safe container for bot metrics to bridge with web_bridge."""
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.balance = 0.0
+        self.positions = []
+        self.live_prices = {}
+        self.rolling_stats = {"wins": 0, "losses": 0, "win_pnl": 0.0, "loss_pnl": 0.0}
+        self.scan_count = 0
+        self.analyzed_count = 0
+        self.last_scanner_results = []
+        self.is_running = True
+        self.entropy_penalty = 0.0
+        self.max_positions = 8
+
+_bot_state = BotState()
 _running = True
 _shutdown_requested = False
 _session_wins = 0
@@ -204,7 +221,6 @@ BASE_URL       = os.getenv("PHEMEX_BASE_URL", "https://testnet-api.phemex.com")
 API_KEY        = os.getenv("PHEMEX_API_KEY", "")
 API_SECRET     = os.getenv("PHEMEX_API_SECRET", "")
 BOT_LOG_FILE   = Path(SCRIPT_DIR).parent / "data" / "backtest_results" / "bot_trades.json"
-BLACKLIST_FILE = Path(SCRIPT_DIR).parent / "data" / "state" / "bot_blacklist.json"
 
 # Entity API Configuration
 ENTITY_API_KEY      = os.getenv("ENTITY_API_KEY", "")
@@ -232,11 +248,11 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
     return pc.make_entity_request(entity_name, method=method, data=data, entity_id=entity_id)
 
 # Strategy parameters
-MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "25.0"))   # $ margin per trade
+MARGIN_USDT    = float(os.getenv("BOT_MARGIN_USDT", "50.0"))   # $ margin per trade
 LEVERAGE       = int(os.getenv("BOT_LEVERAGE", "30"))          # leverage multiplier
 TRAIL_PCT      = float(os.getenv("BOT_TRAIL_PCT", "0.01"))     # 1% trailing stop
 TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.50")) # 50% take profit
-SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "300"))    # seconds between scans
+SCAN_INTERVAL  = int(os.getenv("BOT_SCAN_INTERVAL", "60"))    # seconds between scans
 
 # Base gating thresholds
 MIN_SCORE      = int(os.getenv("BOT_MIN_SCORE", "120"))
@@ -329,26 +345,48 @@ def get_tf_seconds(tf: str) -> int:
     return mapping.get(tf, 900) # default 15m
 
 def save_blacklist() -> None:
-    """Saves the current SYMBOL_BLACKLIST to a file."""
-    with _blacklist_lock:
-        data_to_save = {s: expiry for s, expiry in SYMBOL_BLACKLIST.items() if expiry > time.time()}
-        try:
-            BLACKLIST_FILE.write_text(json.dumps(data_to_save))
-        except Exception as e:
-            logger.error(f"Failed to save blacklist: {e}")
+    """
+    DEPRECATED: File-based blacklist persistence.
+    Kept as a no-op shim for backward compatibility; blacklist is now stored in SQLite via StorageManager.
+    """
+    pass
 
 def load_blacklist() -> None:
-    """Loads the SYMBOL_BLACKLIST from a file and cleans up expired entries."""
+    """
+    Loads any legacy JSON blacklist into the in-memory SYMBOL_BLACKLIST and migrates it into StorageManager.
+    Subsequent blacklist persistence happens via the DB-backed StorageManager interface.
+    """
     global SYMBOL_BLACKLIST
-    if BLACKLIST_FILE.exists():
-        try:
-            loaded_data = json.loads(BLACKLIST_FILE.read_text())
-            with _blacklist_lock:
-                # Filter out expired entries immediately
-                SYMBOL_BLACKLIST = {s: expiry for s, expiry in loaded_data.items() if expiry > time.time()}
-            logger.info(f"Loaded {len(SYMBOL_BLACKLIST)} active blacklist entries.")
-        except Exception as e:
-            logger.error(f"Failed to load blacklist: {e}")
+    legacy_path = Path(SCRIPT_DIR).parent / "data" / "state" / "bot_blacklist.json"
+    if not legacy_path.exists():
+        return
+
+    try:
+        loaded_data = json.loads(legacy_path.read_text())
+    except Exception as e:
+        logger.error(f"Failed to load legacy blacklist file: {e}")
+        return
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    migrated = 0
+    with _blacklist_lock:
+        SYMBOL_BLACKLIST = {}
+        for symbol, expiry_ts in loaded_data.items():
+            try:
+                expiry = float(expiry_ts)
+            except Exception:
+                continue
+            if expiry <= time.time():
+                continue
+            SYMBOL_BLACKLIST[symbol] = expiry
+            expires_dt = datetime.datetime.fromtimestamp(expiry, datetime.timezone.utc)
+            try:
+                p_bot_storage.add_to_blacklist(symbol, reason="migrated", expires_at=expires_dt)
+                migrated += 1
+            except Exception as db_err:
+                logger.error(f"Failed to migrate blacklist symbol {symbol} to DB: {db_err}")
+
+    logger.info(f"Migrated {migrated} legacy blacklist entries into StorageManager.")
 
 # ── Dynamic Cooldown Parameters (Project Phoenix) ───────────────────────────
 # After a trade is closed, the cooldown before re-entry is dynamically calculated.
@@ -2471,7 +2509,8 @@ def _get_cluster_threshold_penalty(intensity: float) -> int:
     return 0
 
 def bot_loop(args):
-    global _account_high_water, _account_trail_stop, _account_trading_halted, _cached_balance, _cached_positions, _entropy_penalty
+    global _account_high_water, _account_trail_stop, _account_trading_halted, _cached_balance, _cached_positions, _entropy_penalty, _bot_state
+    _bot_state = BotState()
 
     cfg = {
         "MIN_VOLUME": args.min_vol,
@@ -2579,6 +2618,16 @@ def bot_loop(args):
         )
         logger.info("[TG] Telegram controller started")
 
+    # ── Web Bridge initialization ──
+    with _bot_state.lock:
+        _bot_state.balance = _cached_balance
+        _bot_state.positions = _cached_positions
+        _bot_state.max_positions = get_dynamic_max_positions(_cached_balance)
+    
+    if getattr(args, "web", False):
+        web_bridge.start_bridge_thread(_bot_state, _bot_logs, port=args.web_port)
+        logger.info(f"[WEB] Web dashboard bridge started on port {args.web_port}")
+
     scan_number = 0
     # ── Main Bot Execution Loop ──────────────────────────────────────
     while _running:
@@ -2625,6 +2674,22 @@ def bot_loop(args):
                 # Dynamic scaling: more positions as equity grows
                 dynamic_max = get_dynamic_max_positions(_cached_balance)
                 available_slots = dynamic_max - len(_cached_positions)
+            
+            # Update _bot_state for web dashboard
+            with _bot_state.lock:
+                _bot_state.balance = _cached_balance
+                _bot_state.positions = _cached_positions
+                _bot_state.max_positions = dynamic_max
+                with _prices_lock:
+                    _bot_state.live_prices = _live_prices.copy()
+                _bot_state.entropy_penalty = _entropy_penalty
+                _bot_state.is_running = True
+                _bot_state.rolling_stats = {
+                    "wins": _session_wins,
+                    "losses": _session_losses,
+                    "win_pnl": _session_total_pnl if _session_total_pnl > 0 else 0, # Best guess
+                    "loss_pnl": _session_total_pnl if _session_total_pnl < 0 else 0
+                }
 
             # ── Fast-track callback ──────────────────────────────────────
             # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
@@ -2775,6 +2840,18 @@ def bot_loop(args):
 
             if eff_min_score > args.min_score:
                 tui_log(f"ADAPTIVE FILTER: Effective Min Score: {eff_min_score} (Penalty: +{_entropy_penalty})", event_type="ADAPTIVE")
+
+            # Update _bot_state for web dashboard
+            with _bot_state.lock:
+                _bot_state.scan_count = scan_number
+                # Combine results for dashboard display
+                tagged_long = [dict(r, dir="LONG", status="PASS" if r["score"] >= eff_min_score else "low score") for r in long_results]
+                tagged_short = [dict(r, dir="SHORT", status="PASS" if r["score"] >= eff_min_score else "low score") for r in short_results]
+                # Map inst_id to symbol for dashboard
+                for r in tagged_long + tagged_short:
+                    r["symbol"] = r.get("inst_id")
+                _bot_state.last_scanner_results = sorted(tagged_long + tagged_short, key=lambda x: x["score"], reverse=True)
+                _bot_state.analyzed_count += len(long_results) + len(short_results)
 
             # ── Staleness filter ──────────────────────────────────────────
             now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -3173,6 +3250,8 @@ def main():
     run_p.add_argument("--no-entity", action="store_true", help="Disable Entity API")
     run_p.add_argument("--no-dynamic", action="store_true", help="Disable adaptive score filtering")
     run_p.add_argument("--no-tui",     action="store_true", help="Run without the full-screen TUI dashboard")
+    run_p.add_argument("--web",        action="store_true", help="Enable web dashboard backend")
+    run_p.add_argument("--web-port",   type=int, default=8081, help="Port for web dashboard backend")
 
     # ── deploy: single scan + exit ───────────────────────────────────
     deploy_p = sub.add_parser("deploy", help="Run one scan and optionally execute, then exit")

@@ -23,6 +23,9 @@ data/logs/
 data/state/
 *.db
 *.tmp
+
+# Research artifacts
+research/master_results.json
 *.log
 *.jsonl
 !paper_account.json
@@ -41,6 +44,7 @@ data/backtest_results/
 .DS_Store
 .vscode/
 .idea/
+<<<<<<< HEAD
 
 # Docker
 docker-compose.override.yml
@@ -56,3 +60,6 @@ node_modules/
 *.so
 *.c
 
+=======
+research/master_results.json
+>>>>>>> origin/main

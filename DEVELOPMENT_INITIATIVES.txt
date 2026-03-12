@@ -1,0 +1,37 @@
+# FancyBot: Development Initiative Directives
+
+To maintain the high engineering standards established in the AI Caretaker's Journal, these directives are designed to advance the bot from a specialized "Chimera" hunter into a robust, autonomous, and self-healing trading ecosystem.
+
+## 🏛 Directive I: The "Sovereign Ledger" (Data Integrity)
+*Goal: Eliminate all remaining "flat-file" dependencies and unify global state.*
+1. **Blacklist Migration:** Fully decommission `bot_blacklist.json` and migrate symbol blacklisting to the `StorageManager` SQLite backend.
+2. **Configuration Versioning:** Store "Project Chimera" vs. "Project Titan" parameter sets in a `system_config` table within SQLite, allowing the bot to swap regimes without code changes or restarts.
+3. **Atomic State Recovery:** Ensure that in the event of a hard system crash, the bot can reconstruct its `SimBotState` entirely from the database ledger, including "high-water" trailing stop marks.
+
+## 🧠 Directive II: The "Regime Sentinel" (Adaptive Intelligence)
+*Goal: Evolve the bot beyond "Short-Only" into a regime-aware entity.*
+1. **Asymmetric Strategy Toggling:** Implement a global "Market Regime" detector that automatically switches between **Titan (Balanced/Low-Risk)** for Bullish/Ranging markets and **Chimera (Aggressive/Short)** for Bearish/High-Volatility markets.
+2. **Entropy-Based Throttling:** Programmatically reduce position sizes or increase `MIN_SCORE` requirements when the `entropy` metric (from `phemex_common.py`) exceeds a critical threshold.
+3. **Cross-Timeframe Confirmation:** Mandatory "Long-Term Trend" filter that prevents Short entries if the 1-Day timeframe is overwhelmingly bullish, regardless of 4H signals.
+
+## 🛰 Directive III: The "Oracle's Telemetry" (Observability)
+*Goal: Solve the "Silence is Dangerous" mandate through robust, unified debugging.*
+1. **Unified Debug Framework:** Replace the current brittle `debug-3b23fa.log` instrumentation with a centralized `TelemetryManager`. Every exception must be captured, categorized by "Hypothesis ID" (for AI debugging), and flushed to the DB.
+2. **Heartbeat Synchronization:** Integrate the `HardwareBridge` (RP2040) directly into the `StorageManager` heartbeat, so physical LED patterns reflect DB health and scan status.
+3. **Telegram Command Expansion:** Implement `/stats`, `/regime`, and `/blacklist [symbol]` commands to allow the operator to manage the "Sentinel" logic remotely.
+
+## 🧪 Directive IV: The "Fidelity Bridge" (Validation Accuracy)
+*Goal: Close the gap between Backtesting and Live Simulation.*
+1. **Backtest Verification Emulation:** Update `backtest.py` to optionally simulate the 20-second `verify_sim_candidate` logic by checking intra-candle price action on a lower timeframe (e.g., using 1m data for a 15m backtest).
+2. **Dynamic Slippage Profiling:** Use historical trade data from `fancybot.db` to create a more realistic "Slippage Profile" for backtesting, rather than using a fixed percentage.
+3. **Walk-Forward Optimization:** Automate the `param_optimizer.py` to run weekly, suggesting parameter "drift" adjustments based on the last 7 days of actual market volatility.
+
+## 🎨 Directive V: The "Aesthetic of Order" (UI/UX)
+*Goal: Enhance the operator's situational awareness.*
+1. **Textual Dashboard Evolution:** Complete the `FancyBotApp` in `ui_textual.py` to provide a full-screen, interactive dashboard that allows for real-time symbol blacklisting and parameter tuning via the UI.
+2. **Web-Bridge Synchronization:** Fully implement `web_bridge.py` to stream the SQLite trade history and live equity curves to a local `index.html` dashboard for mobile monitoring.
+
+***
+
+**Status Update for Next Caretaker:**
+*The system is currently operating under the **Chimera-Short** protocol. While profitable, Directive II (Regime Sentinel) should be prioritized to prevent losses if the market regime shifts suddenly to a bullish recovery.*
