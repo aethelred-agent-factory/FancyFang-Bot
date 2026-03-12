@@ -33,6 +33,27 @@ app.add_middleware(
 _bot_state = None
 _bot_logs = []
 
+# storage helper used by VoltAgent endpoints; instantiate lazily
+from modules.storage_manager import StorageManager
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent.parent / "data" / "state" / "fancybot.db"
+_storage = StorageManager(DB_PATH)
+
+# Pydantic models for VoltAgent payloads
+from typing import List, Optional
+from pydantic import BaseModel
+
+class AnnotationPayload(BaseModel):
+    trade_id: int
+    narrative: str
+    tags: List[str]
+    primary_driver: Optional[str]
+    failure_mode: Optional[str]
+
+class JournalPayload(BaseModel):
+    entry: str
+
 
 def inject_state(state, logs):
     global _bot_state, _bot_logs
@@ -57,6 +78,55 @@ def _max_positions_from_state():
         return 8
     # Optional: get_dynamic_max_positions(balance) if available
     return getattr(_bot_state, "max_positions", 8)
+
+
+@app.get("/trade/{trade_id}")
+async def get_trade(trade_id: int):
+    """VoltAgent tool: fetch a closed trade record by ID"""
+    return _storage.get_trade_by_id(trade_id)
+
+
+@app.post("/trade/annotate")
+async def annotate_trade(payload: AnnotationPayload):
+    """VoltAgent tool: write DeepSeek annotation back to the trade record"""
+    _storage.update_trade_narration(
+        payload.trade_id,
+        {
+            "narrative": payload.narrative,
+            "tags": payload.tags,
+            "primary_driver": payload.primary_driver,
+            "failure_mode": payload.failure_mode,
+        },
+    )
+    return {"status": "ok"}
+
+
+@app.get("/market_context/latest")
+async def get_market_context():
+    """VoltAgent tool: return the most recent market context snapshot"""
+    # reuse the existing market context manager if possible
+    from modules.market_context import market_ctx_manager
+    return market_ctx_manager.get_market_context_snapshot()
+
+
+@app.get("/failure_history")
+async def get_failure_history():
+    """VoltAgent tool: return failure mode distribution"""
+    return _storage.get_failure_mode_distribution()
+
+
+@app.get("/candidate/{symbol}")
+async def get_candidate_features(symbol: str):
+    """VoltAgent tool: fetch latest ml_features for a given symbol"""
+    return _storage.get_latest_features(symbol)
+
+
+@app.post("/journal/append")
+async def append_journal(payload: JournalPayload):
+    """VoltAgent tool: append a caretakers log entry"""
+    with open('docs/AI_CARETAKERS_JOURNAL.md', 'a') as f:
+        f.write(payload.entry)
+    return {'status': 'ok'}
 
 
 @app.get("/api/summary")

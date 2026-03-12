@@ -1278,6 +1278,14 @@ def _log_closed_trade(
         else (entry - exit_price) * size
     )
 
+    # Emit closed-trade event to VoltAgent
+    try:
+        from modules.event_emitter import emit
+        # very small payload to let the council fetch full record if needed
+        emit('TRADE_CLOSED', {'trade_id': None})  # will update after append
+    except Exception:
+        pass
+
     hold_time_seconds = 0
     if entry_time:
         try:
@@ -1334,6 +1342,19 @@ def _log_closed_trade(
     with state.file_io_lock:
         trade_id = state.storage.append_trade(record)
         if trade_id:
+            # notify VoltAgent of the real trade_id (overwrite earlier placeholder)
+            try:
+                from modules.event_emitter import emit
+                emit('TRADE_CLOSED', {'trade_id': trade_id})
+            except Exception:
+                pass
+
+            # Increment counter used for triggering retraining
+            try:
+                state.storage.increment_trades_since_last_training()
+            except Exception as e:
+                logger.error(f"Failed to update training counter: {e}")
+
             # Launch narration in a background thread
             threading.Thread(
                 target=narrate_and_update,
@@ -2093,6 +2114,19 @@ def verify_sim_candidate(
     try:
         ml_features = last_result.get("ml_features", {})
         if ml_features:
+            # synchronous event to VoltAgent
+            try:
+                from modules.event_emitter import emit
+                resp = emit('CANDIDATE_ENTRY', {'symbol': symbol, 'features': ml_features})
+                if resp and resp.get('decision') == 'SUPPRESS':
+                    tui_log(f"VA: suppressed by council: {resp.get('reason', '')}", event_type="SUPPRESS")
+                    return None
+                elif resp and resp.get('decision') == 'REDUCE_SIZE_50':
+                    tui_log(f"VA: size reduced 50% — {resp.get('reason', '')}", event_type="GUARD")
+                    last_result['reduce_size_50'] = True
+            except Exception:
+                pass
+
             decision, reason, prob = failure_guard.failure_guard.evaluate_candidate(ml_features)
             if decision == "SUPPRESS":
                 tui_log(f"FAILURE GUARD: {symbol} entry suppressed — {reason}", event_type="SUPPRESS")

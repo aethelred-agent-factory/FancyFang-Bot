@@ -2282,6 +2282,11 @@ def log_trade(entry: dict):
                 "market_context": entry.get("market_context", {}),
             }
             trade_id = p_bot_storage.append_trade(record)
+            try:
+                from modules.event_emitter import emit
+                emit('TRADE_CLOSED', {'trade_id': trade_id})
+            except Exception:
+                pass
 
             def narrate_and_update(trade_id, trade_record, ctx):
                 narration_result = narrator.narrate_closed_trade(trade_record, ctx)

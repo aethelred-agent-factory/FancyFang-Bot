@@ -1,0 +1,20 @@
+{
+  "name": "voltagent",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/supervisor.ts"
+  },
+  "dependencies": {
+    "@voltagent/core": "*",
+    "@voltagent/server-hono": "*",
+    "ai": "*",
+    "@ai-sdk/openai-compatible": "*",
+    "zod": "*"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "tsx": "*",
+    "@types/node": "*"
+  }
+}
