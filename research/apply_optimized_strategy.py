@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 
 # Strategy parameters optimized from 1H backtest
@@ -7,8 +6,9 @@ OPTIMIZED_PARAMS = {
     "BOT_MIN_SCORE": "120",
     "BOT_TRAIL_PCT": "0.01",
     "BOT_MARGIN_USDT": "10.0",
-    "BOT_LEVERAGE": "30"
+    "BOT_LEVERAGE": "30",
 }
+
 
 def apply_strategy():
     env_path = Path(".env")
@@ -39,6 +39,7 @@ def apply_strategy():
 
         env_path.write_text("\n".join(new_lines) + "\n")
         print("Updated .env with optimized strategy parameters.")
+
 
 if __name__ == "__main__":
     apply_strategy()

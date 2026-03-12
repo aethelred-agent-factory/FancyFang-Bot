@@ -39,7 +39,10 @@ Options:
 """
 
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import argparse
@@ -53,11 +56,10 @@ import time
 from pathlib import Path
 from typing import List, Tuple
 
-from modules.storage_manager import StorageManager
-
 # ── colour setup ────────────────────────────────────────────────────
-from colorama import init, Fore, Style
+from colorama import Fore, Style, init
 from dotenv import load_dotenv
+from modules.storage_manager import StorageManager
 
 load_dotenv()
 init(autoreset=True)
@@ -85,11 +87,14 @@ except Exception:
 
 BANNER_WIDTH = 92
 
+
 def fmt_vol(v: float) -> str:
     return pc.fmt_vol(v)
 
+
 def grade(score: int) -> Tuple[str, str]:
     return pc.grade(score)
+
 
 def hr(char: str = "─", width: int = BANNER_WIDTH) -> str:
     return char * width
@@ -102,7 +107,9 @@ def hr(char: str = "─", width: int = BANNER_WIDTH) -> str:
 _print_lock = threading.Lock()
 
 
-def run_scan(scanner_module, direction: str, cfg: dict, args, tickers: List[dict]) -> List[dict]:
+def run_scan(
+    scanner_module, direction: str, cfg: dict, args, tickers: List[dict]
+) -> List[dict]:
     """
     Executes a scan for a specific direction (LONG/SHORT) using the provided scanner module.
     """
@@ -128,7 +135,8 @@ def run_scan(scanner_module, direction: str, cfg: dict, args, tickers: List[dict
     def _task(ticker_item):
         nonlocal done
         scan_res = scanner_module.analyse(
-            ticker_item, cfg,
+            ticker_item,
+            cfg,
             enable_ai=enable_ai,
             enable_entity=enable_entity,
             scan_id=None,
@@ -170,6 +178,7 @@ def run_scan(scanner_module, direction: str, cfg: dict, args, tickers: List[dict
 # Display — per-direction card
 # ────────────────────────────────────────────────────────────────────
 
+
 def print_direction_results(
     results: List[dict],
     direction: str,
@@ -183,17 +192,30 @@ def print_direction_results(
     funding_label = "Neg=Bull" if direction == "LONG" else "Pos=Bear"
 
     sorted_results = sorted(results, key=lambda x: x["score"], reverse=True)
-    top = [scan_res for scan_res in sorted_results[:limit] if scan_res["score"] >= cfg["MIN_SCORE"]]
+    top = [
+        scan_res
+        for scan_res in sorted_results[:limit]
+        if scan_res["score"] >= cfg["MIN_SCORE"]
+    ]
 
     print("\n" + ui.section(f"{arrow} ({dir_label})", color=dir_color))
-    print(Fore.WHITE + f"  Timeframe: {cfg['TIMEFRAME']} | Results: {len(top)} | Min Score: {cfg['MIN_SCORE']}\n")
+    print(
+        Fore.WHITE
+        + f"  Timeframe: {cfg['TIMEFRAME']} | Results: {len(top)} | Min Score: {cfg['MIN_SCORE']}\n"
+    )
 
     if not top:
-        print(ui.modern_panel("", [Fore.YELLOW + "No setups pass the minimum score threshold."], color=Fore.YELLOW))
+        print(
+            ui.modern_panel(
+                "",
+                [Fore.YELLOW + "No setups pass the minimum score threshold."],
+                color=Fore.YELLOW,
+            )
+        )
         return
 
     for i, scan_res in enumerate(top, 1):
-        score = scan_res['score']
+        score = scan_res["score"]
         g, gc = grade(score)
         conf = scan_res.get("confidence", "N/A")
         cc = scan_res.get("conf_color", Fore.WHITE)
@@ -205,9 +227,17 @@ def print_direction_results(
         else:
             fp_str = f"{fp:+.4f}%"
             if direction == "LONG":
-                fp_color = Fore.GREEN if fp < -0.01 else (Fore.RED if fp > 0.05 else Fore.WHITE)
+                fp_color = (
+                    Fore.GREEN
+                    if fp < -0.01
+                    else (Fore.RED if fp > 0.05 else Fore.WHITE)
+                )
             else:
-                fp_color = Fore.RED if fp > 0.05 else (Fore.GREEN if fp < -0.01 else Fore.WHITE)
+                fp_color = (
+                    Fore.RED
+                    if fp > 0.05
+                    else (Fore.GREEN if fp < -0.01 else Fore.WHITE)
+                )
 
         rsi_val = scan_res.get("rsi")
         rsi_str = f"{rsi_val:.1f}" if rsi_val is not None else "N/A"
@@ -228,15 +258,25 @@ def print_direction_results(
         )
 
         bb_pct = scan_res.get("bb_pct")
-        bb_str = f"BB%: {Fore.YELLOW}{bb_pct:.1f}{Style.RESET_ALL}" if bb_pct is not None else ""
+        bb_str = (
+            f"BB%: {Fore.YELLOW}{bb_pct:.1f}{Style.RESET_ALL}"
+            if bb_pct is not None
+            else ""
+        )
         vol_spike = scan_res.get("vol_spike", 1.0)
         atr_stop = scan_res.get("atr_stop_pct")
 
         # Simulated setup
-        sl_pct = (args.stop_loss_pct * 100.0) if (args and args.stop_loss_pct) else (atr_stop if atr_stop else 0.0)
-        tp_pct = (args.take_profit_pct * 100.0) if (args and args.take_profit_pct) else 0.0
+        sl_pct = (
+            (args.stop_loss_pct * 100.0)
+            if (args and args.stop_loss_pct)
+            else (atr_stop if atr_stop else 0.0)
+        )
+        tp_pct = (
+            (args.take_profit_pct * 100.0) if (args and args.take_profit_pct) else 0.0
+        )
         if not tp_pct:
-             tp_pct = (pc.TAKE_PROFIT_PCT * 100.0) # default fallback
+            tp_pct = pc.TAKE_PROFIT_PCT * 100.0  # default fallback
 
         sim_line = (
             f" {Fore.YELLOW}Simulated Setup:{Style.RESET_ALL} "
@@ -246,12 +286,21 @@ def print_direction_results(
             f"TP: {Fore.GREEN}{tp_pct:.2f}%{Style.RESET_ALL}"
         )
 
-        extra_line = "  ".join(filter(None, [
-            bb_str,
-            f"BB Width: {scan_res.get('bb_width', 0):.2f}%" if scan_res.get("bb_width") else None,
-            f"Vol Spike: {Fore.MAGENTA}{vol_spike:.2f}x{Style.RESET_ALL}",
-            f"Conf: {cc}{conf}{Style.RESET_ALL}"
-        ]))
+        extra_line = "  ".join(
+            filter(
+                None,
+                [
+                    bb_str,
+                    (
+                        f"BB Width: {scan_res.get('bb_width', 0):.2f}%"
+                        if scan_res.get("bb_width")
+                        else None
+                    ),
+                    f"Vol Spike: {Fore.MAGENTA}{vol_spike:.2f}x{Style.RESET_ALL}",
+                    f"Conf: {cc}{conf}{Style.RESET_ALL}",
+                ],
+            )
+        )
 
         card_lines = [title_line, stat_line, sim_line, extra_line]
 
@@ -259,12 +308,15 @@ def print_direction_results(
         signals = scan_res.get("signals", [])
         if signals:
             sig_str = f"{Fore.CYAN}Signals:{Style.RESET_ALL} " + ", ".join(signals[:4])
-            if len(signals) > 4: sig_str += f" (+{len(signals)-4})"
+            if len(signals) > 4:
+                sig_str += f" (+{len(signals)-4})"
             card_lines.append(sig_str)
 
         # News
         if scan_res.get("news_count", 0) > 0 and scan_res.get("news_titles"):
-            card_lines.append(f"{Fore.YELLOW}📰 {scan_res['news_count']} news items: {scan_res['news_titles'][0][:65]}...")
+            card_lines.append(
+                f"{Fore.YELLOW}📰 {scan_res['news_count']} news items: {scan_res['news_titles'][0][:65]}..."
+            )
 
         rgb = (0, 255, 0) if direction == "LONG" else (255, 0, 0)
         print(ui.glow_panel(f"SIGNAL #{i:02d}", card_lines, color_rgb=rgb, width=90))
@@ -274,17 +326,31 @@ def print_direction_results(
 # Display — combined top-N across both directions
 # ────────────────────────────────────────────────────────────────────
 
-def print_combined(long_results: List[dict], short_results: List[dict], n: int, cfg: dict, args: any = None):
+
+def print_combined(
+    long_results: List[dict],
+    short_results: List[dict],
+    n: int,
+    cfg: dict,
+    args: any = None,
+):
     if n <= 0:
         return
 
-    tagged_long  = [dict(r, _dir="LONG")  for r in long_results]
+    tagged_long = [dict(r, _dir="LONG") for r in long_results]
     tagged_short = [dict(r, _dir="SHORT") for r in short_results]
-    combined = sorted(tagged_long + tagged_short, key=lambda x: x["score"], reverse=True)
+    combined = sorted(
+        tagged_long + tagged_short, key=lambda x: x["score"], reverse=True
+    )
     top = [r for r in combined[:n] if r["score"] >= cfg["MIN_SCORE"]]
 
     banner_text = f"COMBINED TOP {n} — HIGHEST SCORE ACROSS BOTH DIRECTIONS"
-    print("\n" + ui.gradient_text(banner_text.center(BANNER_WIDTH), (0, 255, 255), (255, 0, 255)))
+    print(
+        "\n"
+        + ui.gradient_text(
+            banner_text.center(BANNER_WIDTH), (0, 255, 255), (255, 0, 255)
+        )
+    )
     print(ui.hr_double(Fore.MAGENTA))
 
     if not top:
@@ -292,16 +358,17 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
         return
 
     # Header row
-    print(Fore.CYAN +
-          f"  {'#':>3}  {'Symbol':<16} {'Dir':^6} {'Gr':^4} {'Score':>5}  "
-          f"{'Price':>10}  {'SL%':>6}  {'TP%':>6}  {'RSI':>5}  {'Funding%':>9}  "
-          f"{'Vol 24h':>8}")
+    print(
+        Fore.CYAN + f"  {'#':>3}  {'Symbol':<16} {'Dir':^6} {'Gr':^4} {'Score':>5}  "
+        f"{'Price':>10}  {'SL%':>6}  {'TP%':>6}  {'RSI':>5}  {'Funding%':>9}  "
+        f"{'Vol 24h':>8}"
+    )
     print(Fore.CYAN + hr("─"))
 
     for i, r in enumerate(top, 1):
         direction = r.get("_dir", "?")
         dir_color = Fore.GREEN if direction == "LONG" else Fore.RED
-        dir_sym   = "▲" if direction == "LONG" else "▼"
+        dir_sym = "▲" if direction == "LONG" else "▼"
 
         g, gc = grade(r["score"])
         fp = r.get("funding_pct")
@@ -312,8 +379,16 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
         rsi_bar = ui.braille_progress_bar(rsi_val, width=10) if rsi_val else " " * 10
 
         atr_stop = r.get("atr_stop_pct", 0.0)
-        sl_pct = (args.stop_loss_pct * 100.0) if (args and args.stop_loss_pct) else (atr_stop if atr_stop else 0.0)
-        tp_pct = (args.take_profit_pct * 100.0) if (args and args.take_profit_pct) else (pc.TAKE_PROFIT_PCT * 100.0)
+        sl_pct = (
+            (args.stop_loss_pct * 100.0)
+            if (args and args.stop_loss_pct)
+            else (atr_stop if atr_stop else 0.0)
+        )
+        tp_pct = (
+            (args.take_profit_pct * 100.0)
+            if (args and args.take_profit_pct)
+            else (pc.TAKE_PROFIT_PCT * 100.0)
+        )
 
         print(
             f"  {Fore.WHITE}{i:>3}{Style.RESET_ALL}  "
@@ -336,7 +411,10 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
 # Summary stats
 # ────────────────────────────────────────────────────────────────────
 
-def print_summary(long_results: List[dict], short_results: List[dict], elapsed: float, cfg: dict):
+
+def print_summary(
+    long_results: List[dict], short_results: List[dict], elapsed: float, cfg: dict
+):
     def grade_counts(results):
         counts = {"A": 0, "B": 0, "C": 0, "D": 0}
         for r in results:
@@ -353,12 +431,12 @@ def print_summary(long_results: List[dict], short_results: List[dict], elapsed: 
         f"Timeframe: {Fore.CYAN}{cfg['TIMEFRAME']}{Style.RESET_ALL}  Min Vol: {Fore.CYAN}{pc.fmt_vol(cfg['MIN_VOLUME'])} USDT{Style.RESET_ALL}",
         f"Completed: {Fore.WHITE}{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC{Style.RESET_ALL}",
         f"Elapsed:   {Fore.YELLOW}{elapsed:.1f}s{Style.RESET_ALL}",
-        ""
+        "",
     ]
 
     for label, results, lc, gc_list in [
-        ("LONG  ▲", long_results,  Fore.GREEN, lg),
-        ("SHORT ▼", short_results, Fore.RED,   sg),
+        ("LONG  ▲", long_results, Fore.GREEN, lg),
+        ("SHORT ▼", short_results, Fore.RED, sg),
     ]:
         total_dir = len(results)
         avg = (sum(r["score"] for r in results) / total_dir) if total_dir else 0
@@ -371,17 +449,26 @@ def print_summary(long_results: List[dict], short_results: List[dict], elapsed: 
 
         summary_lines.append(f"{lc}{Style.BRIGHT}{label}:{Style.RESET_ALL}")
         summary_lines.append(f"  Hits: {total_dir:<4} Avg: {avg:.1f}")
-        summary_lines.append(f"  Grades: {gc_a}A:{gc_list['A']}{Style.RESET_ALL}  {gc_b}B:{gc_list['B']}{Style.RESET_ALL}  {gc_c}C:{gc_list['C']}{Style.RESET_ALL}  {gc_d}D:{gc_list['D']}{Style.RESET_ALL}")
+        summary_lines.append(
+            f"  Grades: {gc_a}A:{gc_list['A']}{Style.RESET_ALL}  {gc_b}B:{gc_list['B']}{Style.RESET_ALL}  {gc_c}C:{gc_list['C']}{Style.RESET_ALL}  {gc_d}D:{gc_list['D']}{Style.RESET_ALL}"
+        )
 
         if best:
             g, gc = grade(best["score"])
-            summary_lines.append(f"  Best: {gc}{best['inst_id']}{Style.RESET_ALL} Score:{best['score']} Grade:{g}")
+            summary_lines.append(
+                f"  Best: {gc}{best['inst_id']}{Style.RESET_ALL} Score:{best['score']} Grade:{g}"
+            )
         summary_lines.append("")
 
-    print(ui.modern_panel("PERFORMANCE & HITS", summary_lines, color=Fore.WHITE, width=90))
+    print(
+        ui.modern_panel("PERFORMANCE & HITS", summary_lines, color=Fore.WHITE, width=90)
+    )
 
     print(Fore.YELLOW + "  ⚠  Scanner output is NOT financial advice.")
-    print(Fore.YELLOW + "     Confirm all setups on the chart with proper risk management.")
+    print(
+        Fore.YELLOW
+        + "     Confirm all setups on the chart with proper risk management."
+    )
     print(ui.hr_double(Fore.WHITE))
     print()
 
@@ -390,40 +477,82 @@ def print_summary(long_results: List[dict], short_results: List[dict], elapsed: 
 # Main
 # ────────────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Phemex Dual Scanner — runs LONG + SHORT scanners in parallel",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--timeframe",  default="15m",       help="Candle timeframe")
-    parser.add_argument("--candles",    type=int, default=500, help="Number of candles to fetch")
-    parser.add_argument("--min-vol",    type=int, default=1_000_000, help="Min 24h USDT turnover")
-    parser.add_argument("--top",        type=int, default=20,  help="Top N per direction")
-    parser.add_argument("--min-score",  type=int, default=25, help="Min score to display")
-    parser.add_argument("--min-signals", type=int, default=3, help="Minimum signals required")
-    parser.add_argument("--workers",    type=int, default=100,   help="Worker threads per scanner")
-    parser.add_argument("--rate",       type=float, default=100.0, help="Requests/sec per scanner")
-    parser.add_argument("--combined",   type=int, default=10,  help="Unified top-N table (0 = off)")
-    parser.add_argument("--no-ai",      action="store_true",   help="Disable DeepSeek AI")
-    parser.add_argument("--no-entity",  action="store_true",   help="Disable Entity API")
-    parser.add_argument("--write-json", action="store_true",   help="Write JSON result files")
-    parser.add_argument("--long-only",  action="store_true",   help="Run only long scanner")
-    parser.add_argument("--short-only", action="store_true",   help="Run only short scanner")
-    parser.add_argument("-time", "--time", action="store_true", help="Print estimated scan duration and exit")
-    parser.add_argument("--debug",      action="store_true",   help="Enable debug logging")
-    
+    parser.add_argument("--timeframe", default="15m", help="Candle timeframe")
+    parser.add_argument(
+        "--candles", type=int, default=500, help="Number of candles to fetch"
+    )
+    parser.add_argument(
+        "--min-vol", type=int, default=1_000_000, help="Min 24h USDT turnover"
+    )
+    parser.add_argument("--top", type=int, default=20, help="Top N per direction")
+    parser.add_argument(
+        "--min-score", type=int, default=25, help="Min score to display"
+    )
+    parser.add_argument(
+        "--min-signals", type=int, default=3, help="Minimum signals required"
+    )
+    parser.add_argument(
+        "--workers", type=int, default=100, help="Worker threads per scanner"
+    )
+    parser.add_argument(
+        "--rate", type=float, default=100.0, help="Requests/sec per scanner"
+    )
+    parser.add_argument(
+        "--combined", type=int, default=10, help="Unified top-N table (0 = off)"
+    )
+    parser.add_argument("--no-ai", action="store_true", help="Disable DeepSeek AI")
+    parser.add_argument("--no-entity", action="store_true", help="Disable Entity API")
+    parser.add_argument(
+        "--write-json", action="store_true", help="Write JSON result files"
+    )
+    parser.add_argument(
+        "--long-only", action="store_true", help="Run only long scanner"
+    )
+    parser.add_argument(
+        "--short-only", action="store_true", help="Run only short scanner"
+    )
+    parser.add_argument(
+        "-time",
+        "--time",
+        action="store_true",
+        help="Print estimated scan duration and exit",
+    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+
     # ── Simulation parity arguments ──────────────────────────────────
-    parser.add_argument("--leverage",   type=int, default=30,  help="Leverage for simulated cards")
-    parser.add_argument("--margin",     type=float, default=10.0, help="Margin for simulated cards")
-    parser.add_argument("--max-margin", type=float, default=150.0, help="Max margin for simulated cards")
-    parser.add_argument("--trail-pct",  type=float, default=0.01, help="Trailing stop %")
-    parser.add_argument("--stop-loss-pct", type=float, default=None, help="Hard stop loss %")
-    parser.add_argument("--take-profit-pct", type=float, default=None, help="Take profit %")
-    parser.add_argument("--max-hold",   type=int, default=None, help="Max hold time in hours")
-    parser.add_argument("--window",     type=int, default=100, help="Window size for indicators")
-    parser.add_argument("--symbols",    type=str, default=None, help="Comma-separated symbols to scan")
-    parser.add_argument("--no-htf",     action="store_true", help="Disable HTF RSI check")
-    
+    parser.add_argument(
+        "--leverage", type=int, default=30, help="Leverage for simulated cards"
+    )
+    parser.add_argument(
+        "--margin", type=float, default=10.0, help="Margin for simulated cards"
+    )
+    parser.add_argument(
+        "--max-margin", type=float, default=150.0, help="Max margin for simulated cards"
+    )
+    parser.add_argument("--trail-pct", type=float, default=0.01, help="Trailing stop %")
+    parser.add_argument(
+        "--stop-loss-pct", type=float, default=None, help="Hard stop loss %"
+    )
+    parser.add_argument(
+        "--take-profit-pct", type=float, default=None, help="Take profit %"
+    )
+    parser.add_argument(
+        "--max-hold", type=int, default=None, help="Max hold time in hours"
+    )
+    parser.add_argument(
+        "--window", type=int, default=100, help="Window size for indicators"
+    )
+    parser.add_argument(
+        "--symbols", type=str, default=None, help="Comma-separated symbols to scan"
+    )
+    parser.add_argument("--no-htf", action="store_true", help="Disable HTF RSI check")
+
     args = parser.parse_args()
 
     if args.long_only and args.short_only:
@@ -432,23 +561,24 @@ def main():
 
     if args.debug:
         import logging
+
         logging.basicConfig(level=logging.DEBUG)
 
     cfg = {
-        "MIN_VOLUME":      args.min_vol,
-        "TIMEFRAME":       args.timeframe,
-        "TOP_N":           args.top,
-        "MIN_SCORE":       args.min_score,
-        "MAX_WORKERS":     max(1, args.workers),
-        "RATE_LIMIT_RPS":  max(0.0, args.rate),
-        "CANDLES":         args.candles,
-        "SYMBOLS":         args.symbols.split(",") if args.symbols else None,
-        "no_htf":          args.no_htf,
-        "window":          args.window,
-        "min_signals":     args.min_signals,
+        "MIN_VOLUME": args.min_vol,
+        "TIMEFRAME": args.timeframe,
+        "TOP_N": args.top,
+        "MIN_SCORE": args.min_score,
+        "MAX_WORKERS": max(1, args.workers),
+        "RATE_LIMIT_RPS": max(0.0, args.rate),
+        "CANDLES": args.candles,
+        "SYMBOLS": args.symbols.split(",") if args.symbols else None,
+        "no_htf": args.no_htf,
+        "window": args.window,
+        "min_signals": args.min_signals,
     }
 
-    run_long  = not args.short_only
+    run_long = not args.short_only
     run_short = not args.long_only
 
     if not args.debug:
@@ -458,15 +588,21 @@ def main():
     print("\n" + ui.gradient_text(banner_text.center(92), (0, 255, 255), (255, 0, 255)))
     print(ui.hr_double(Fore.MAGENTA))
 
-    print(Fore.CYAN + Style.BRIGHT +
-          f"  MODE: {args.timeframe}  |  "
-          f"VOL: {pc.fmt_vol(args.min_vol)} USDT  |  "
-          f"UTC: {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}")
+    print(
+        Fore.CYAN + Style.BRIGHT + f"  MODE: {args.timeframe}  |  "
+        f"VOL: {pc.fmt_vol(args.min_vol)} USDT  |  "
+        f"UTC: {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}"
+    )
 
-    dirs_running = " + ".join(filter(None, [
-        "▲ LONG" if run_long else None,
-        "▼ SHORT" if run_short else None,
-    ]))
+    dirs_running = " + ".join(
+        filter(
+            None,
+            [
+                "▲ LONG" if run_long else None,
+                "▼ SHORT" if run_short else None,
+            ],
+        )
+    )
     print(Fore.CYAN + Style.BRIGHT + f"  DIRECTIONS: {dirs_running}")
     print(ui.hr_double(Fore.MAGENTA))
     print()
@@ -476,7 +612,8 @@ def main():
         print(Fore.WHITE + "  Calculating estimate...")
         raw_tickers = pc.get_tickers(rps=cfg["RATE_LIMIT_RPS"])
         filtered = [
-            t for t in raw_tickers
+            t
+            for t in raw_tickers
             if float(t.get("turnoverRv") or 0.0) >= cfg["MIN_VOLUME"]
         ]
         total = len(filtered)
@@ -498,7 +635,10 @@ def main():
 
     print(Fore.WHITE + "  Fetching USDT-M tickers from Phemex...")
     if pc.is_hour_blocked():
-        print(Fore.YELLOW + f"  ⚠️  Current UTC hour {datetime.datetime.now(datetime.timezone.utc).hour} is in BLOCKED_HOURS. Skipping scan.")
+        print(
+            Fore.YELLOW
+            + f"  ⚠️  Current UTC hour {datetime.datetime.now(datetime.timezone.utc).hour} is in BLOCKED_HOURS. Skipping scan."
+        )
         sys.exit(0)
 
     suppressed, reason = event_filter.filter.should_suppress()
@@ -510,10 +650,13 @@ def main():
     try:
         raw_tickers = pc.get_tickers(rps=cfg["RATE_LIMIT_RPS"])
         filtered = [
-            t for t in raw_tickers
+            t
+            for t in raw_tickers
             if float(t.get("turnoverRv") or 0.0) >= cfg["MIN_VOLUME"]
         ]
-        print(f"  {len(filtered)} instruments pass volume filter. Running scanners...\n")
+        print(
+            f"  {len(filtered)} instruments pass volume filter. Running scanners...\n"
+        )
     except Exception:
         filtered = []
 
@@ -530,9 +673,13 @@ def main():
         # Fallback to local scanning (legacy behavior)
         if run_long and run_short:
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exe:
-                fut_long  = exe.submit(run_scan, scanner_long,  "LONG",  cfg, args, filtered)
-                fut_short = exe.submit(run_scan, scanner_short, "SHORT", cfg, args, filtered)
-                long_results  = fut_long.result()
+                fut_long = exe.submit(
+                    run_scan, scanner_long, "LONG", cfg, args, filtered
+                )
+                fut_short = exe.submit(
+                    run_scan, scanner_short, "SHORT", cfg, args, filtered
+                )
+                long_results = fut_long.result()
                 short_results = fut_short.result()
         elif run_long:
             long_results = run_scan(scanner_long, "LONG", cfg, args, filtered)
@@ -546,25 +693,35 @@ def main():
     eff_min_long = cfg["MIN_SCORE"]
     eff_min_short = cfg["MIN_SCORE"]
     if long_results:
-        eff_min_long = pc.calc_dynamic_threshold([r["score"] for r in long_results], cfg["MIN_SCORE"])
+        eff_min_long = pc.calc_dynamic_threshold(
+            [r["score"] for r in long_results], cfg["MIN_SCORE"]
+        )
     if short_results:
-        eff_min_short = pc.calc_dynamic_threshold([r["score"] for r in short_results], cfg["MIN_SCORE"])
+        eff_min_short = pc.calc_dynamic_threshold(
+            [r["score"] for r in short_results], cfg["MIN_SCORE"]
+        )
 
     # ── Per-direction results ─────────────────────────────────────────
     if run_long:
         cfg_long = dict(cfg, MIN_SCORE=eff_min_long)
-        print_direction_results(long_results, "LONG", cfg_long, limit=args.top, args=args)
+        print_direction_results(
+            long_results, "LONG", cfg_long, limit=args.top, args=args
+        )
 
     if run_short:
         cfg_short = dict(cfg, MIN_SCORE=eff_min_short)
-        print_direction_results(short_results, "SHORT", cfg_short, limit=args.top, args=args)
+        print_direction_results(
+            short_results, "SHORT", cfg_short, limit=args.top, args=args
+        )
 
     # ── Combined table ───────────────────────────────────────────────
     if run_long and run_short and args.combined > 0:
         # Use the average of effective minimums for combined table
         combined_min = (eff_min_long + eff_min_short) // 2
         cfg_combined = dict(cfg, MIN_SCORE=combined_min)
-        print_combined(long_results, short_results, args.combined, cfg_combined, args=args)
+        print_combined(
+            long_results, short_results, args.combined, cfg_combined, args=args
+        )
 
     # ── Summary ───────────────────────────────────────────────────────
     print_summary(long_results, short_results, elapsed, cfg)

@@ -1,6 +1,5 @@
 
 import requests
-import json
 
 BASE_URL = "https://api.phemex.com"
 symbol = "BTCUSDT"

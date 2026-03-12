@@ -1,17 +1,38 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
-from core.phemex_common import pct_change, calc_rsi, calc_bb, calc_ema_series
+
+from core.phemex_common import calc_bb, calc_ema_series, calc_rsi, pct_change
+
 
 class TestPhemexCommon(unittest.TestCase):
     def test_pct_change(self):
         self.assertEqual(pct_change(110.0, 100.0), 10.0)
         self.assertEqual(pct_change(90.0, 100.0), -10.0)
         self.assertEqual(pct_change(100.0, 0.0), 0.0)
-        self.assertEqual(pct_change(100.0, float('nan')), 0.0)
+        self.assertEqual(pct_change(100.0, float("nan")), 0.0)
 
     def test_indicators(self):
-        closes = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115]
+        closes = [
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+        ]
         rsi, prev_rsi, history = calc_rsi(closes, period=14)
         self.assertIsNotNone(rsi)
         self.assertIsNotNone(prev_rsi)
@@ -24,5 +45,6 @@ class TestPhemexCommon(unittest.TestCase):
         ema = calc_ema_series(closes, period=5)
         self.assertTrue(len(ema) > 0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

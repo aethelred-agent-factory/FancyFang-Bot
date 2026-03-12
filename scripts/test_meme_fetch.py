@@ -1,10 +1,9 @@
 
 import requests
-import json
 
 BASE_URL = "https://api.phemex.com"
 symbol = "TRUMPUSDT"
-resolution = 300 # 5m
+resolution = 300  # 5m
 limit = 500
 
 params = {"symbol": symbol, "resolution": resolution, "limit": limit}

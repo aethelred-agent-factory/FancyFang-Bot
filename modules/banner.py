@@ -1,4 +1,6 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  FancyFangBot                            ║
@@ -34,17 +36,22 @@ BANNER = r"""
 ##       ##     ## ##    ##  ######     ##    ##       ##     ## ##    ##  ######      ########   #######     ##
 """
 
+
 def get_gradient_banner():
     """Returns the banner pre-colorized with a cyan-magenta gradient."""
     try:
         from core.ui import gradient_text
+
         lines = BANNER.strip("\n").split("\n")
-        colorized = [gradient_text(line, (0, 255, 255), (255, 0, 255)) for line in lines]
+        colorized = [
+            gradient_text(line, (0, 255, 255), (255, 0, 255)) for line in lines
+        ]
         return "\n".join(colorized)
     except ImportError as e:
-        #region agent log
+        # region agent log
         try:
             from core.debug_log import dbg_log
+
             dbg_log(
                 hypothesisId="D",
                 location="modules/banner.py:get_gradient_banner",
@@ -53,5 +60,5 @@ def get_gradient_banner():
             )
         except Exception:
             pass
-        #endregion
+        # endregion
         return BANNER

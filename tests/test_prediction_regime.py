@@ -1,19 +1,19 @@
-
 import pytest
 from modules.prediction_engine import PredictionEngine
+
 
 def test_prediction_engine_regimes():
     engine = PredictionEngine()
 
     # Common features for testing
     features = {
-        "norm_rsi": 2.0,          # Strong overbought (Z=2)
-        "norm_ema_slope": 2.0,    # Strong uptrend (Z=2)
-        "norm_volume_spike": 2.0, # High volume (Z=2)
-        "norm_fr_change": 2.0,    # Rising FR (Z=2)
-        "norm_ob_imbalance": 2.0, # High bid-ask imbalance (Z=2)
-        "norm_bb_pct": 2.0,       # High in BB (Z=2)
-        "norm_adx": 2.0           # Strong trend (Z=2)
+        "norm_rsi": 2.0,  # Strong overbought (Z=2)
+        "norm_ema_slope": 2.0,  # Strong uptrend (Z=2)
+        "norm_volume_spike": 2.0,  # High volume (Z=2)
+        "norm_fr_change": 2.0,  # Rising FR (Z=2)
+        "norm_ob_imbalance": 2.0,  # High bid-ask imbalance (Z=2)
+        "norm_bb_pct": 2.0,  # High in BB (Z=2)
+        "norm_adx": 2.0,  # Strong trend (Z=2)
     }
 
     # Direction: LONG
@@ -54,9 +54,10 @@ def test_prediction_engine_regimes():
     # Total: -0.2 + 0.5 + 0.2 - 0.2 + 0.3 - 0.1 + 0.5 = 1.0
     assert pytest.approx(score_trending, 0.01) == 1.0
 
+
 def test_prediction_engine_short_direction():
     engine = PredictionEngine()
-    features = {"norm_rsi": 2.0} # Overbought
+    features = {"norm_rsi": 2.0}  # Overbought
 
     # For SHORT, higher RSI is bearish -> positive score contribution
     # norm_rsi (2.0) * short_direction (1) * weight (0.2) = 0.4

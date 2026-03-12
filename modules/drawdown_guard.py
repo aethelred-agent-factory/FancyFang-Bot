@@ -21,7 +21,10 @@ Refactored into a class to eliminate global state and improve testability.
 """
 
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import datetime
@@ -29,7 +32,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass
-from typing import Tuple, Dict, Any, Optional
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger("drawdown_guard")
 logger.addHandler(logging.NullHandler())
@@ -37,7 +40,8 @@ logger.addHandler(logging.NullHandler())
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
-MAX_DAILY_DRAWDOWN = float(os.getenv("MAX_DAILY_DRAWDOWN", "0.05"))   # 5 %
+MAX_DAILY_DRAWDOWN = float(os.getenv("MAX_DAILY_DRAWDOWN", "0.05"))  # 5 %
+
 
 @dataclass
 class DrawdownState:
@@ -47,6 +51,7 @@ class DrawdownState:
     killed: bool = False
     kill_reason: str = ""
     kill_count_today: int = 0
+
 
 class DrawdownGuard:
     """Thread-safe Drawdown Guard with automatic UTC-midnight reset."""
@@ -72,12 +77,12 @@ class DrawdownGuard:
         if saved:
             with self._lock:
                 self._state = DrawdownState(
-                    day=saved['day'],
-                    start_balance=saved['start_balance'],
-                    daily_pnl=saved['daily_pnl'],
-                    killed=saved['killed'],
-                    kill_reason=saved['kill_reason'],
-                    kill_count_today=saved['kill_count_today']
+                    day=saved["day"],
+                    start_balance=saved["start_balance"],
+                    daily_pnl=saved["daily_pnl"],
+                    killed=saved["killed"],
+                    kill_reason=saved["kill_reason"],
+                    kill_count_today=saved["kill_count_today"],
                 )
                 logger.info(f"drawdown_guard: restored state for {today} from storage")
 
@@ -96,13 +101,10 @@ class DrawdownGuard:
             prev_day = self._state.day
             prev_pnl = self._state.daily_pnl
             prev_kill = self._state.killed
-            
-            self._state = DrawdownState(
-                day=today,
-                start_balance=current_balance
-            )
+
+            self._state = DrawdownState(day=today, start_balance=current_balance)
             self._save_to_storage()
-            
+
             if prev_day is not None:
                 logger.info(
                     f"drawdown_guard: new day {today} — prev day {prev_day} "
@@ -123,7 +125,9 @@ class DrawdownGuard:
                 f"(start={self._state.start_balance:.2f}, pnl={self._state.daily_pnl:+.4f})"
             )
             self._save_to_storage()
-            logger.warning(f"drawdown_guard: KILL SWITCH ACTIVATED — {self._state.kill_reason}")
+            logger.warning(
+                f"drawdown_guard: KILL SWITCH ACTIVATED — {self._state.kill_reason}"
+            )
 
     def record_pnl(self, pnl: float, current_balance: float = 0.0) -> None:
         """Record a closed trade's PnL."""
@@ -132,7 +136,9 @@ class DrawdownGuard:
             self._state.daily_pnl += pnl
             self._check_kill()
             self._save_to_storage()
-            logger.debug(f"drawdown_guard: pnl={pnl:+.4f}, daily_pnl={self._state.daily_pnl:+.4f}")
+            logger.debug(
+                f"drawdown_guard: pnl={pnl:+.4f}, daily_pnl={self._state.daily_pnl:+.4f}"
+            )
 
     def set_start_balance(self, balance: float) -> None:
         """Explicitly set today's starting balance."""
@@ -156,29 +162,47 @@ class DrawdownGuard:
         """Return a snapshot of the current daily drawdown state."""
         with self._lock:
             s = self._state.__dict__.copy()
-            s["loss_pct"] = round(-s["daily_pnl"] / s["start_balance"] if s["start_balance"] > 0 else 0.0, 6)
+            s["loss_pct"] = round(
+                -s["daily_pnl"] / s["start_balance"] if s["start_balance"] > 0 else 0.0,
+                6,
+            )
             s["threshold"] = self._max_drawdown
-            s["remaining"] = round(max(0.0, s["start_balance"] * self._max_drawdown + s["daily_pnl"]), 4)
+            s["remaining"] = round(
+                max(0.0, s["start_balance"] * self._max_drawdown + s["daily_pnl"]), 4
+            )
             return s
 
     def force_reset(self, new_balance: float = 0.0) -> None:
         """Manually reset the kill switch."""
         with self._lock:
-            self._state = DrawdownState(
-                day=self._today(),
-                start_balance=new_balance
-            )
+            self._state = DrawdownState(day=self._today(), start_balance=new_balance)
             self._save_to_storage()
         logger.info(f"drawdown_guard: manually reset. new balance={new_balance:.4f}")
+
 
 # Singleton for legacy module-level access
 _instance = DrawdownGuard()
 
-def record_pnl(*args, **kwargs): return _instance.record_pnl(*args, **kwargs)
-def set_start_balance(*args, **kwargs): return _instance.set_start_balance(*args, **kwargs)
-def can_open_trade(*args, **kwargs): return _instance.can_open_trade(*args, **kwargs)
-def get_status(): return _instance.get_status()
-def force_reset(*args, **kwargs): return _instance.force_reset(*args, **kwargs)
+
+def record_pnl(*args, **kwargs):
+    return _instance.record_pnl(*args, **kwargs)
+
+
+def set_start_balance(*args, **kwargs):
+    return _instance.set_start_balance(*args, **kwargs)
+
+
+def can_open_trade(*args, **kwargs):
+    return _instance.can_open_trade(*args, **kwargs)
+
+
+def get_status():
+    return _instance.get_status()
+
+
+def force_reset(*args, **kwargs):
+    return _instance.force_reset(*args, **kwargs)
+
 
 def init_storage(storage: Any):
     """Initialize the singleton with a storage manager."""
@@ -186,6 +210,7 @@ def init_storage(storage: Any):
     with _instance._lock:
         _instance._storage = storage
         _instance._load_from_storage()
+
 
 # Constant exposure
 MAX_DAILY_DRAWDOWN = _instance._max_drawdown

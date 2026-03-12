@@ -32,7 +32,10 @@ Metrics computed per signal type:
 """
 
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import json
@@ -92,6 +95,7 @@ def flush() -> None:
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _load() -> Dict[str, Any]:
     """Load analytics data from storage or legacy disk. Returns empty dict on any error."""
     # 1. Try SQLite first
@@ -103,16 +107,22 @@ def _load() -> Dict[str, Any]:
             # Adapt history to the old trade_log format if needed
             trade_log = []
             for h in history:
-                trade_log.append({
-                    "symbol": h['symbol'],
-                    "direction": h['direction'],
-                    "entry": h['entry'],
-                    "exit": h['exit'],
-                    "pnl": h['pnl'],
-                    "timestamp": h['timestamp'],
-                    "signal_types": h.get('signals', [])
-                })
-            return {"signals": stats, "hours": hour_stats, "trade_log": trade_log[::-1]} # reverse to maintain chronological order
+                trade_log.append(
+                    {
+                        "symbol": h["symbol"],
+                        "direction": h["direction"],
+                        "entry": h["entry"],
+                        "exit": h["exit"],
+                        "pnl": h["pnl"],
+                        "timestamp": h["timestamp"],
+                        "signal_types": h.get("signals", []),
+                    }
+                )
+            return {
+                "signals": stats,
+                "hours": hour_stats,
+                "trade_log": trade_log[::-1],
+            }  # reverse to maintain chronological order
         except Exception as e:
             logger.error(f"signal_analytics: SQLite load error — {e}")
 
@@ -148,18 +158,19 @@ def _save(data: Dict[str, Any]) -> None:
 
 def _default_bucket() -> Dict[str, Any]:
     return {
-        "trade_count":  0,
-        "win_count":    0,
-        "loss_count":   0,
-        "gross_wins":   0.0,
-        "gross_losses": 0.0,   # stored as positive number
-        "pnl_list":     [],    # last 500 individual PnL values for stddev/expectancy
+        "trade_count": 0,
+        "win_count": 0,
+        "loss_count": 0,
+        "gross_wins": 0.0,
+        "gross_losses": 0.0,  # stored as positive number
+        "pnl_list": [],  # last 500 individual PnL values for stddev/expectancy
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def record_trade(
     signal_types: List[str],
@@ -186,6 +197,7 @@ def record_trade(
         signal_types = ["UNKNOWN"]
 
     import datetime
+
     if timestamp:
         try:
             dt = datetime.datetime.fromisoformat(timestamp)
@@ -198,7 +210,7 @@ def record_trade(
     with _lock:
         data = _ensure_loaded()
         signals_node = data.setdefault("signals", {})
-        hours_node   = data.setdefault("hours", {})
+        hours_node = data.setdefault("hours", {})
 
         # Record for each signal
         for sig in signal_types:
@@ -210,10 +222,10 @@ def record_trade(
                 bucket["pnl_list"] = bucket["pnl_list"][-500:]
 
             if pnl > 0:
-                bucket["win_count"]  += 1
+                bucket["win_count"] += 1
                 bucket["gross_wins"] += pnl
             else:
-                bucket["loss_count"]   += 1
+                bucket["loss_count"] += 1
                 bucket["gross_losses"] += abs(pnl)
 
         # Record for the hour
@@ -232,15 +244,18 @@ def record_trade(
 
         # Also append to a flat trade log (last 1000)
         trade_log = data.setdefault("trade_log", [])
-        trade_log.append({
-            "symbol":       symbol,
-            "direction":    direction,
-            "entry":        round(entry_price, 8),
-            "exit":         round(exit_price, 8),
-            "pnl":          round(pnl, 6),
-            "timestamp":    timestamp or datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "signal_types": signal_types,
-        })
+        trade_log.append(
+            {
+                "symbol": symbol,
+                "direction": direction,
+                "entry": round(entry_price, 8),
+                "exit": round(exit_price, 8),
+                "pnl": round(pnl, 6),
+                "timestamp": timestamp
+                or datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "signal_types": signal_types,
+            }
+        )
         if len(trade_log) > 1000:
             data["trade_log"] = trade_log[-1000:]
 
@@ -260,7 +275,7 @@ def get_signal_stats() -> Dict[str, Any]:
     """
     with _lock:
         data = _ensure_loaded()
-    
+
     def _compute_metrics(node):
         res = {}
         for key, b in node.items():
@@ -271,34 +286,34 @@ def get_signal_stats() -> Dict[str, Any]:
             wc = b.get("win_count", 0)
             lc = b.get("loss_count", 0)
             gw = b.get("gross_wins", 0.0)
-            gl = b.get("gross_losses", 0.0)    # positive
+            gl = b.get("gross_losses", 0.0)  # positive
             pnl_list = b.get("pnl_list", [])
 
-            win_rate  = wc / tc if tc > 0 else 0.0
+            win_rate = wc / tc if tc > 0 else 0.0
             loss_rate = lc / tc if tc > 0 else 0.0
-            avg_win   = gw / wc if wc > 0 else 0.0
-            avg_loss  = gl / lc if lc > 0 else 0.0
+            avg_win = gw / wc if wc > 0 else 0.0
+            avg_loss = gl / lc if lc > 0 else 0.0
 
-            expectancy     = win_rate * avg_win - loss_rate * avg_loss
-            profit_factor  = gw / gl if gl > 0 else float("inf")
-            avg_return     = sum(pnl_list) / len(pnl_list) if pnl_list else 0.0
+            expectancy = win_rate * avg_win - loss_rate * avg_loss
+            profit_factor = gw / gl if gl > 0 else float("inf")
+            avg_return = sum(pnl_list) / len(pnl_list) if pnl_list else 0.0
 
             res[key] = {
-                "trade_count":    tc,
-                "win_count":      wc,
-                "loss_count":     lc,
-                "win_rate":       round(win_rate, 4),
-                "avg_return":     round(avg_return, 6),
-                "expectancy":     round(expectancy, 6),
-                "profit_factor":  round(profit_factor, 4),
-                "gross_wins":     round(gw, 4),
-                "gross_losses":   round(gl, 4),
+                "trade_count": tc,
+                "win_count": wc,
+                "loss_count": lc,
+                "win_rate": round(win_rate, 4),
+                "avg_return": round(avg_return, 6),
+                "expectancy": round(expectancy, 6),
+                "profit_factor": round(profit_factor, 4),
+                "gross_wins": round(gw, 4),
+                "gross_losses": round(gl, 4),
             }
         return res
 
     return {
         "signals": _compute_metrics(data.get("signals", {})),
-        "hours":   _compute_metrics(data.get("hours", {}))
+        "hours": _compute_metrics(data.get("hours", {})),
     }
 
 

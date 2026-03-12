@@ -38,7 +38,10 @@ Results written to optimizer_results.json.
 """
 
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import itertools
@@ -62,58 +65,58 @@ _RESULTS_FILE = Path(__file__).parent / "optimizer_results.json"
 # Data structures
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class ParamSet:
-    atr_stop_mult:   float = 1.5
-    atr_trail_mult:  float = 1.0
-    score_threshold: int   = 25
-    spread_max_pct:  float = 0.10   # percent (0.1 = 0.1%)
-    vol_min:         float = 0.002  # ATR/price ratio
+    atr_stop_mult: float = 1.5
+    atr_trail_mult: float = 1.0
+    score_threshold: int = 25
+    spread_max_pct: float = 0.10  # percent (0.1 = 0.1%)
+    vol_min: float = 0.002  # ATR/price ratio
 
     def as_dict(self) -> Dict[str, Any]:
         return {
-            "atr_stop_mult":   self.atr_stop_mult,
-            "atr_trail_mult":  self.atr_trail_mult,
+            "atr_stop_mult": self.atr_stop_mult,
+            "atr_trail_mult": self.atr_trail_mult,
             "score_threshold": self.score_threshold,
-            "spread_max_pct":  self.spread_max_pct,
-            "vol_min":         self.vol_min,
+            "spread_max_pct": self.spread_max_pct,
+            "vol_min": self.vol_min,
         }
 
 
 @dataclass
 class BacktestResult:
-    params:        ParamSet
-    trades:        List[float] = field(default_factory=list)   # PnL per trade
-    total_pnl:     float = 0.0
-    win_rate:      float = 0.0
+    params: ParamSet
+    trades: List[float] = field(default_factory=list)  # PnL per trade
+    total_pnl: float = 0.0
+    win_rate: float = 0.0
     profit_factor: float = 0.0
-    max_drawdown:  float = 0.0
-    sharpe:        float = 0.0
-    expectancy:    float = 0.0
-    trade_count:   int   = 0
+    max_drawdown: float = 0.0
+    sharpe: float = 0.0
+    expectancy: float = 0.0
+    trade_count: int = 0
 
     def compute_metrics(self) -> None:
         """Recompute all metrics from self.trades list."""
         if not self.trades:
             return
         arr = np.array(self.trades, dtype=float)
-        self.trade_count  = len(arr)
-        self.total_pnl    = float(arr.sum())
-        wins   = arr[arr > 0]
+        self.trade_count = len(arr)
+        self.total_pnl = float(arr.sum())
+        wins = arr[arr > 0]
         losses = arr[arr <= 0]
-        self.win_rate      = len(wins) / len(arr)
-        gross_wins  = float(wins.sum())  if len(wins)   > 0 else 0.0
-        gross_loss  = float(-losses.sum()) if len(losses) > 0 else 1e-9
+        self.win_rate = len(wins) / len(arr)
+        gross_wins = float(wins.sum()) if len(wins) > 0 else 0.0
+        gross_loss = float(-losses.sum()) if len(losses) > 0 else 1e-9
         self.profit_factor = gross_wins / gross_loss if gross_loss > 0 else float("inf")
         # Expectancy
-        avg_win  = float(wins.mean())   if len(wins)   > 0 else 0.0
+        avg_win = float(wins.mean()) if len(wins) > 0 else 0.0
         avg_loss = float(losses.mean()) if len(losses) > 0 else 0.0
-        self.expectancy = (self.win_rate * avg_win +
-                           (1.0 - self.win_rate) * avg_loss)
+        self.expectancy = self.win_rate * avg_win + (1.0 - self.win_rate) * avg_loss
         # Max drawdown (equity curve)
         equity = np.cumsum(arr)
-        peak   = np.maximum.accumulate(equity)
-        dd     = peak - equity
+        peak = np.maximum.accumulate(equity)
+        dd = peak - equity
         self.max_drawdown = float(dd.max()) if len(dd) > 0 else 0.0
         # Sharpe (mean / std of returns; not annualised here)
         if arr.std() > 0:
@@ -141,15 +144,15 @@ class BacktestResult:
 
     def as_dict(self) -> Dict[str, Any]:
         return {
-            "params":        self.params.as_dict(),
-            "trade_count":   self.trade_count,
-            "total_pnl":     round(self.total_pnl, 4),
-            "win_rate":      round(self.win_rate, 4),
+            "params": self.params.as_dict(),
+            "trade_count": self.trade_count,
+            "total_pnl": round(self.total_pnl, 4),
+            "win_rate": round(self.win_rate, 4),
             "profit_factor": round(self.profit_factor, 4),
-            "max_drawdown":  round(self.max_drawdown, 4),
-            "sharpe":        round(self.sharpe, 4),
-            "expectancy":    round(self.expectancy, 6),
-            "composite":     round(self.score_composite(), 4),
+            "max_drawdown": round(self.max_drawdown, 4),
+            "sharpe": round(self.sharpe, 4),
+            "expectancy": round(self.expectancy, 6),
+            "composite": round(self.score_composite(), 4),
         }
 
 
@@ -158,11 +161,11 @@ class BacktestResult:
 # ─────────────────────────────────────────────────────────────────────────────
 
 DEFAULT_GRID = {
-    "atr_stop_mult":   [1.0, 1.5, 2.0, 2.5],
-    "atr_trail_mult":  [0.5, 1.0, 1.5],
+    "atr_stop_mult": [1.0, 1.5, 2.0, 2.5],
+    "atr_trail_mult": [0.5, 1.0, 1.5],
     "score_threshold": [5, 10, 25, 50],
-    "spread_max_pct":  [0.05, 0.10, 0.15],
-    "vol_min":         [0.001, 0.002, 0.003],
+    "spread_max_pct": [0.05, 0.10, 0.15],
+    "vol_min": [0.001, 0.002, 0.003],
 }
 
 
@@ -192,7 +195,7 @@ def run_grid_search(
     values = list(grid.values())
 
     combos = list(itertools.product(*values))
-    total  = len(combos)
+    total = len(combos)
     if verbose:
         print(f"\n[optimizer] Grid search: {total} combinations...")
 
@@ -273,11 +276,16 @@ def load_best_params() -> Optional[ParamSet]:
         logger.warning(f"optimizer: could not load best params — {e}")
     return None
 
+
 if __name__ == "__main__":
     # Demo/Test mode: generate dummy results if run directly
     def mock_backtest(params, data):
         # Deterministic dummy PnL based on params
-        pnl = (params.atr_stop_mult * 10) + (params.score_threshold / 5) - (params.spread_max_pct * 100)
+        pnl = (
+            (params.atr_stop_mult * 10)
+            + (params.score_threshold / 5)
+            - (params.spread_max_pct * 100)
+        )
         return [pnl, pnl * 1.1, pnl * 0.9]
 
     print("[optimizer] Running demo grid search...")

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 """
 Event Filter — Upgrade #14
@@ -16,8 +18,6 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
-import modules.storage_manager
 from modules.storage_manager import StorageManager
 
 logger = logging.getLogger("event_filter")
@@ -28,6 +28,7 @@ STATE_FILE = Path(__file__).parent / "event_filter_state.json"
 # Config
 DEFAULT_BUFFER_BEFORE_MINS = 90
 DEFAULT_BUFFER_AFTER_MINS = 30
+
 
 class EventFilter:
     def __init__(self, storage: Optional[StorageManager] = None):
@@ -47,14 +48,18 @@ class EventFilter:
                     if manual_ts:
                         self.manual_until = datetime.datetime.fromisoformat(manual_ts)
                         if self.manual_until.tzinfo is None:
-                            self.manual_until = self.manual_until.replace(tzinfo=datetime.timezone.utc)
+                            self.manual_until = self.manual_until.replace(
+                                tzinfo=datetime.timezone.utc
+                            )
                 except Exception as e:
                     logger.error(f"Failed to load event filter state: {e}")
 
     def save_state(self):
         with self._lock:
             data = {
-                "manual_until": self.manual_until.isoformat() if self.manual_until else None
+                "manual_until": (
+                    self.manual_until.isoformat() if self.manual_until else None
+                )
             }
             try:
                 STATE_FILE.write_text(json.dumps(data))
@@ -99,7 +104,9 @@ class EventFilter:
             now = datetime.datetime.now(datetime.timezone.utc)
             self.manual_until = now + datetime.timedelta(minutes=minutes)
             self.save_state()
-            logger.info(f"Manual suppression activated for {minutes} minutes (until {self.manual_until})")
+            logger.info(
+                f"Manual suppression activated for {minutes} minutes (until {self.manual_until})"
+            )
 
     def unblock(self):
         """Clears manual suppression."""
@@ -124,13 +131,17 @@ class EventFilter:
                     event_time = datetime.datetime.fromisoformat(event["time"])
                     if event_time.tzinfo is None:
                         event_time = event_time.replace(tzinfo=datetime.timezone.utc)
-                    
-                    buffer_before = datetime.timedelta(minutes=event.get("buffer_before", DEFAULT_BUFFER_BEFORE_MINS))
-                    buffer_after = datetime.timedelta(minutes=event.get("buffer_after", DEFAULT_BUFFER_AFTER_MINS))
-                    
+
+                    buffer_before = datetime.timedelta(
+                        minutes=event.get("buffer_before", DEFAULT_BUFFER_BEFORE_MINS)
+                    )
+                    buffer_after = datetime.timedelta(
+                        minutes=event.get("buffer_after", DEFAULT_BUFFER_AFTER_MINS)
+                    )
+
                     start_block = event_time - buffer_before
                     end_block = event_time + buffer_after
-                    
+
                     if start_block <= now <= end_block:
                         name = event.get("name", "Unnamed Event")
                         return True, f"Event suppression: {name} at {event['time']}"
@@ -145,8 +156,10 @@ class EventFilter:
             return f"🔴 Suppressed: {reason}"
         return "🟢 Active (No news/events)"
 
+
 # Global instance (initially empty, set by init())
-filter: EventFilter = None # type: ignore
+filter: EventFilter = None  # type: ignore
+
 
 def init(storage: StorageManager):
     global filter

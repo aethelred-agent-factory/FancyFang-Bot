@@ -20,7 +20,10 @@ Shared utilities, API wrappers, and indicators for Phemex scanners.
 """
 
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import datetime
@@ -34,15 +37,14 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
 from colorama import Fore, Style
-from requests.adapters import HTTPAdapter
-
-from modules.sector_manager import sector_manager
 from modules.liquidity_spectre import spectre
+from modules.sector_manager import sector_manager
+from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # ── Exchange Constants ───────────────────────────────────────────────
@@ -54,9 +56,12 @@ TAKER_FEE = 0.0006  # 0.06% standard taker fee for Phemex contracts
 # EXCEPTIONS
 # ----------------------------
 
+
 class InitializationError(Exception):
     """Raised when a critical dependency or configuration is missing at startup."""
+
     pass
+
 
 # ----------------------------
 # CONFIG & CONSTANTS
@@ -66,9 +71,18 @@ FUNDING_FILTER_ENABLED = os.getenv("BOT_FUNDING_FILTER", "true").lower() == "tru
 WEEKEND_GUARD_ENABLED = os.getenv("BOT_WEEKEND_GUARD", "true").lower() == "true"
 
 TIMEFRAME_MAP = {
-    "1m":  60,    "3m":  180,   "5m":  300,   "15m": 900,
-    "30m": 1800,  "1H":  3600,  "2H":  7200,  "4H":  14400,
-    "6H":  21600, "12H": 43200, "1D":  86400, "1W":  604800,
+    "1m": 60,
+    "3m": 180,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1H": 3600,
+    "2H": 7200,
+    "4H": 14400,
+    "6H": 21600,
+    "12H": 43200,
+    "1D": 86400,
+    "1W": 604800,
 }
 
 DEFAULTS = {
@@ -83,13 +97,20 @@ DEFAULTS = {
 # ----------------------------
 # System Audit Logger (Async)
 # ----------------------------
-SYSTEM_AUDIT_LOG = Path(os.path.dirname(os.path.abspath(__file__))).parent / "data" / "logs" / "system_audit.log"
+SYSTEM_AUDIT_LOG = (
+    Path(os.path.dirname(os.path.abspath(__file__))).parent
+    / "data"
+    / "logs"
+    / "system_audit.log"
+)
 
 _audit_queue: queue.Queue = queue.Queue()
+
 
 def _audit_worker():
     """Background worker to process audit log entries."""
     import traceback
+
     while True:
         try:
             msg = _audit_queue.get()
@@ -101,15 +122,21 @@ def _audit_worker():
                 with open(SYSTEM_AUDIT_LOG, "a", encoding="utf-8") as audit_file:
                     audit_file.write(msg + "\n")
             except Exception as error:
-                logging.getLogger("phemex_common").error(f"Audit worker failed to write: {error}\n{traceback.format_exc()}")
+                logging.getLogger("phemex_common").error(
+                    f"Audit worker failed to write: {error}\n{traceback.format_exc()}"
+                )
         except Exception as error:
-            logging.getLogger("phemex_common").error(f"Audit worker loop failed: {error}\n{traceback.format_exc()}")
+            logging.getLogger("phemex_common").error(
+                f"Audit worker loop failed: {error}\n{traceback.format_exc()}"
+            )
         finally:
             _audit_queue.task_done()
+
 
 # Start the background worker as a daemon thread
 _audit_thread = threading.Thread(target=_audit_worker, daemon=True)
 _audit_thread.start()
+
 
 def log_system_event(event_type: str, message: str, level: int = logging.INFO):
     """
@@ -118,7 +145,9 @@ def log_system_event(event_type: str, message: str, level: int = logging.INFO):
     Uses a background worker to avoid blocking the hot path on disk I/O.
     """
     # REF: [Tier 2] UTC Standardisation
-    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     formatted_msg = f"[{timestamp}] [{event_type.upper()}] {message}"
 
     # 1. Queue the audit file message
@@ -134,21 +163,31 @@ def log_system_event(event_type: str, message: str, level: int = logging.INFO):
     else:
         audit_logger.info(message)
 
+
 # ── Centralised score thresholds ──────────────────────────────────────────────
 # Single source of truth for all score gating across p_bot, sim_bot, backtest,
 # and the scanner modules. Override any via @.env / args at call sites.
-SCORE_MIN_DEFAULT    = int(os.getenv("MIN_SCORE", 100))      # standard gate
-SCORE_MIN_HTF_BYPASS = int(os.getenv("MIN_SCORE_HTF", 100))  # lower bar with HTF alignment
-SCORE_MIN_LOW_LIQ    = int(os.getenv("MIN_SCORE_LOW_LIQ", 135)) # higher bar for low-liquidity assets
-SCORE_FAST_TRACK     = int(os.getenv("FAST_TRACK_SCORE", 125)) # immediate-entry threshold
-SCORE_EXIT_SIGNAL    = int(os.getenv("EXIT_SIGNAL_SCORE", 100)) # opposite-signal exit threshold
-SCORE_GRADE_A        = 75  # grade() boundary
-SCORE_GRADE_B        = 60  # grade() boundary
-SCORE_GRADE_C        = 45  # grade() boundary
+SCORE_MIN_DEFAULT = int(os.getenv("MIN_SCORE", 100))  # standard gate
+SCORE_MIN_HTF_BYPASS = int(
+    os.getenv("MIN_SCORE_HTF", 100)
+)  # lower bar with HTF alignment
+SCORE_MIN_LOW_LIQ = int(
+    os.getenv("MIN_SCORE_LOW_LIQ", 135)
+)  # higher bar for low-liquidity assets
+SCORE_FAST_TRACK = int(os.getenv("FAST_TRACK_SCORE", 125))  # immediate-entry threshold
+SCORE_EXIT_SIGNAL = int(
+    os.getenv("EXIT_SIGNAL_SCORE", 100)
+)  # opposite-signal exit threshold
+SCORE_GRADE_A = 75  # grade() boundary
+SCORE_GRADE_B = 60  # grade() boundary
+SCORE_GRADE_C = 45  # grade() boundary
 
 # Time-of-day filter (UTC hours to block)
 _blocked_hours_str = os.getenv("BLOCKED_HOURS", "")
-BLOCKED_HOURS = [int(h.strip()) for h in _blocked_hours_str.split(",") if h.strip().isdigit()]
+BLOCKED_HOURS = [
+    int(h.strip()) for h in _blocked_hours_str.split(",") if h.strip().isdigit()
+]
+
 
 def is_hour_blocked() -> bool:
     """Returns True if the current UTC hour is in the BLOCKED_HOURS list."""
@@ -157,11 +196,16 @@ def is_hour_blocked() -> bool:
     current_hour = datetime.datetime.now(datetime.timezone.utc).hour
     return current_hour in BLOCKED_HOURS
 
+
 CRYPTOPANIC_API_KEY = os.getenv("CRYPTOPANIC_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 ENTITY_API_KEY = os.getenv("ENTITY_API_KEY")
-ENTITY_API_BASE_URL = os.getenv("ENTITY_API_BASE_URL", "https://acoustic-trade-scan-now.base44.app")
-ENTITY_APP_ID = os.getenv("ENTITY_APP_ID", "")  # must be set in .env — no hardcoded fallback
+ENTITY_API_BASE_URL = os.getenv(
+    "ENTITY_API_BASE_URL", "https://acoustic-trade-scan-now.base44.app"
+)
+ENTITY_APP_ID = os.getenv(
+    "ENTITY_APP_ID", ""
+)  # must be set in .env — no hardcoded fallback
 
 logger = logging.getLogger("phemex_common")
 logger.addHandler(logging.NullHandler())
@@ -169,11 +213,13 @@ logger.addHandler(logging.NullHandler())
 if not ENTITY_APP_ID:
     logger.warning("ENTITY_APP_ID not set — entity logging disabled")
 
+
 # ----------------------------
 # Colored Logging
 # ----------------------------
 class LogBufferHandler(logging.Handler):
     """Custom logging handler that stores the last N formatted logs in a buffer."""
+
     def __init__(self, buffer: deque):
         super().__init__()
         self.buffer = buffer
@@ -184,6 +230,7 @@ class LogBufferHandler(logging.Handler):
             self.buffer.append(msg)
         except Exception:
             self.handleError(record)
+
 
 class ColoredFormatter(logging.Formatter):
     """Custom logging formatter that adds color to different log levels."""
@@ -202,7 +249,13 @@ class ColoredFormatter(logging.Formatter):
         record.msg = f"{color}{record.msg}{Style.RESET_ALL}"
         return super().format(record)
 
-def setup_colored_logging(logger_name: str, level: int = logging.INFO, log_file: Optional[str] = None, buffer: Optional[deque] = None):
+
+def setup_colored_logging(
+    logger_name: str,
+    level: int = logging.INFO,
+    log_file: Optional[str] = None,
+    buffer: Optional[deque] = None,
+):
     """Sets up a logger with a colored console handler, optional file handler, and optional buffer handler."""
     # REF: [Tier 3] Descriptive Naming
     new_logger = logging.getLogger(logger_name)
@@ -213,7 +266,9 @@ def setup_colored_logging(logger_name: str, level: int = logging.INFO, log_file:
         new_logger.handlers.clear()
 
     # Formatter
-    formatter = ColoredFormatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+    formatter = ColoredFormatter(
+        "%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
 
     # Console Handler
     console_handler = logging.StreamHandler()
@@ -229,10 +284,13 @@ def setup_colored_logging(logger_name: str, level: int = logging.INFO, log_file:
     # File Handler
     if log_file:
         file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+        )
         new_logger.addHandler(file_handler)
 
     return new_logger
+
 
 # ----------------------------
 # Data classes
@@ -257,15 +315,17 @@ class TickerData:
     rsi_4h: Optional[float] = None
     fr_change: float = 0.0
     spread: Optional[float] = None
-    dist_to_node_below: Optional[float] = None   # Support
-    dist_to_node_above: Optional[float] = None   # Resistance
+    dist_to_node_below: Optional[float] = None  # Support
+    dist_to_node_above: Optional[float] = None  # Resistance
     ema_slope: Optional[float] = None
     slope_change: Optional[float] = None
     news_count: int = 0
     news_titles: List[str] = field(default_factory=list)
     adx: Optional[float] = None
     poc_price: Optional[float] = None
-    raw_ohlc: List[Tuple[float, float, float, float, float]] = field(default_factory=list)
+    raw_ohlc: List[Tuple[float, float, float, float, float]] = field(
+        default_factory=list
+    )
     vol_24h: float = 0.0
     regime: str = "UNKNOWN"
     entropy: float = 0.0
@@ -276,6 +336,7 @@ class TickerData:
     poc_price: Optional[float] = None
     sector: str = "OTHER"
     spectre_score: float = 0.0
+
 
 # ----------------------------
 # Thread-local session
@@ -288,27 +349,32 @@ _news_rate_lock = threading.Lock()
 _news_last_request = [0.0]
 NEWS_RATE_LIMIT_SECONDS = 1.1
 
+
 def build_session(timeout: int = 15, max_retries: int = 3) -> requests.Session:
     sess = requests.Session()
-    sess.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-        "Accept": "application/json",
-    })
+    sess.headers.update(
+        {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "application/json",
+        }
+    )
     retry = Retry(
         total=max_retries,
         backoff_factor=0.6,
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=frozenset(["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+        allowed_methods=frozenset(["GET", "POST", "PUT", "DELETE", "OPTIONS"]),
     )
     adapter = HTTPAdapter(max_retries=retry, pool_connections=100, pool_maxsize=100)
     sess.mount("https://", adapter)
     sess.mount("http://", adapter)
     return sess
 
+
 def get_thread_session() -> requests.Session:
     if getattr(_thread_local, "session", None) is None:
         _thread_local.session = build_session()
     return _thread_local.session
+
 
 # ----------------------------
 # Rate limiting
@@ -317,8 +383,10 @@ _rate_lock = threading.Lock()
 _last_request_time_global = 0.0
 _global_backoff_until = 0.0  # Timestamp until which all requests are paused
 
+
 class TokenBucket:
     """Simple thread-safe token bucket implementation."""
+
     def __init__(self, capacity: float, fill_rate: float):
         self.capacity = capacity
         self.fill_rate = fill_rate
@@ -340,14 +408,20 @@ class TokenBucket:
                 wait_time = (weight - self.tokens) / self.fill_rate
                 return wait_time
 
+
 class WeightedRateLimiter:
     """Manages separate rate limits for different API groups (Contract vs Others)."""
+
     def __init__(self):
         # Initialise buckets with Phemex-aligned defaults
         self.buckets = {
-            "CONTRACT": TokenBucket(capacity=40, fill_rate=20), # Private/Trading (e.g., /g-orders)
-            "MARKET":   TokenBucket(capacity=60, fill_rate=30), # Public MD (e.g., /md/v2/orderbook)
-            "DEFAULT":  TokenBucket(capacity=20, fill_rate=10),
+            "CONTRACT": TokenBucket(
+                capacity=40, fill_rate=20
+            ),  # Private/Trading (e.g., /g-orders)
+            "MARKET": TokenBucket(
+                capacity=60, fill_rate=30
+            ),  # Public MD (e.g., /md/v2/orderbook)
+            "DEFAULT": TokenBucket(capacity=20, fill_rate=10),
         }
 
     def _get_category(self, url: str) -> str:
@@ -376,8 +450,10 @@ class WeightedRateLimiter:
                 break
             time.sleep(wait_time)
 
+
 # Global instance for shared limiting across threads
 RATE_LIMITER = WeightedRateLimiter()
+
 
 def throttle(rps: float) -> None:
     """Sleep as needed to respect the global requests-per-second limit and backoff."""
@@ -411,9 +487,17 @@ def throttle(rps: float) -> None:
     if sleep_time > 0.001:
         time.sleep(sleep_time)
 
-def safe_request(method: str, url: str, params: dict = None, json_data: dict = None,
-                 headers: dict = None, rps: float = None, timeout: int = 12,
-                 stream: bool = False) -> Optional[requests.Response]:
+
+def safe_request(
+    method: str,
+    url: str,
+    params: dict = None,
+    json_data: dict = None,
+    headers: dict = None,
+    rps: float = None,
+    timeout: int = 12,
+    stream: bool = False,
+) -> Optional[requests.Response]:
     global _global_backoff_until
     try:
         # 1. Hierarchical Token-Bucket Limiting (Upgrade)
@@ -429,25 +513,43 @@ def safe_request(method: str, url: str, params: dict = None, json_data: dict = N
             time.sleep(_global_backoff_until - now)
 
         sess = get_thread_session()
-        resp = sess.request(method, url, params=params, json=json_data,
-                            headers=headers, timeout=timeout, stream=stream)
+        resp = sess.request(
+            method,
+            url,
+            params=params,
+            json=json_data,
+            headers=headers,
+            timeout=timeout,
+            stream=stream,
+        )
 
         # REF: Tier 2: Brittle Rate Limit Recovery
         if resp.status_code == 429:
             max_retries = 5
             for attempt in range(max_retries):
-                retry_after = resp.headers.get("Retry-After") or resp.headers.get("x-ratelimit-retry-after-Contract")
-                wait = float(retry_after) if retry_after else (0.5 * (2 ** attempt))
+                retry_after = resp.headers.get("Retry-After") or resp.headers.get(
+                    "x-ratelimit-retry-after-Contract"
+                )
+                wait = float(retry_after) if retry_after else (0.5 * (2**attempt))
 
                 # Set global backoff immediately
                 with _rate_lock:
                     _global_backoff_until = time.time() + wait
 
-                logger.warning(f"Rate Limit (429) on {url} (attempt {attempt+1}/{max_retries}). Global backoff for {wait}s")
+                logger.warning(
+                    f"Rate Limit (429) on {url} (attempt {attempt+1}/{max_retries}). Global backoff for {wait}s"
+                )
 
                 time.sleep(wait)
-                resp = sess.request(method, url, params=params, json=json_data,
-                                    headers=headers, timeout=timeout, stream=stream)
+                resp = sess.request(
+                    method,
+                    url,
+                    params=params,
+                    json=json_data,
+                    headers=headers,
+                    timeout=timeout,
+                    stream=stream,
+                )
                 if resp.status_code != 429:
                     break
 
@@ -464,6 +566,7 @@ def safe_request(method: str, url: str, params: dict = None, json_data: dict = N
         # Changed to warning so it's visible without debug mode if things are failing
         logger.warning(f"Request failed: {method} {url} -> {e}")
         return None
+
 
 # ----------------------------
 # Simple TTL cache
@@ -499,7 +602,9 @@ class SimpleCache:
             item_ttl = ttl_override if ttl_override is not None else self._ttl
             self._data[key] = (time.time(), item_ttl, val)
 
+
 CACHE = SimpleCache(ttl=30.0)
+
 
 # ----------------------------
 # Numeric helpers
@@ -512,6 +617,7 @@ def pct_change(new: float, base: float) -> float:
         return (new - base) / base * 100.0
     except Exception:
         return 0.0
+
 
 def fmt_vol(volume: float) -> str:
     """Format a volume value into a human-readable K / M / B suffix string."""
@@ -527,6 +633,7 @@ def fmt_vol(volume: float) -> str:
         return f"{volume/1_000:.1f}K"
     return f"{volume:.2f}"
 
+
 def grade(score: int) -> Tuple[str, str]:
     """Map a raw score to a (letter, colour) tuple."""
     if score >= SCORE_GRADE_A:
@@ -537,7 +644,10 @@ def grade(score: int) -> Tuple[str, str]:
         return "C", Fore.YELLOW
     return "D", Fore.RED
 
-def calc_dynamic_threshold(scores: List[int], default_min: int, percentile: int = 90) -> int:
+
+def calc_dynamic_threshold(
+    scores: List[int], default_min: int, percentile: int = 90
+) -> int:
     """
     Calculate a dynamic score threshold based on the distribution of scores.
     Returns the higher of the percentile value or the default minimum.
@@ -558,10 +668,13 @@ def calc_dynamic_threshold(scores: List[int], default_min: int, percentile: int 
 
     return final_min
 
+
 # ----------------------------
 # Indicator calculations
 # ----------------------------
-def calc_rsi(closes: List[float], period: int = 14) -> Tuple[Optional[float], Optional[float], List[Optional[float]]]:
+def calc_rsi(
+    closes: List[float], period: int = 14
+) -> Tuple[Optional[float], Optional[float], List[Optional[float]]]:
     num_closes = len(closes)
     if num_closes <= period:
         return None, None, [None] * num_closes
@@ -591,7 +704,10 @@ def calc_rsi(closes: List[float], period: int = 14) -> Tuple[Optional[float], Op
     previous_rsi = rsi_history[-2] if len(rsi_history) >= 2 else None
     return current_rsi, previous_rsi, rsi_history
 
-def calc_bb(closes: List[float], period: int = 21, mult: float = 2.0) -> Optional[Dict[str, float]]:
+
+def calc_bb(
+    closes: List[float], period: int = 21, mult: float = 2.0
+) -> Optional[Dict[str, float]]:
     """
     Calculates Bollinger Bands for a given series of close prices.
     REF: [Tier 3] Descriptive Naming
@@ -604,14 +720,19 @@ def calc_bb(closes: List[float], period: int = 21, mult: float = 2.0) -> Optiona
     standard_deviation = float(np.std(window_array, ddof=0))
     upper_band = middle_band + mult * standard_deviation
     lower_band = middle_band - mult * standard_deviation
-    width_percentage = (2.0 * mult * standard_deviation / middle_band * 100.0) if middle_band != 0.0 else 0.0
+    width_percentage = (
+        (2.0 * mult * standard_deviation / middle_band * 100.0)
+        if middle_band != 0.0
+        else 0.0
+    )
     return {
         "upper": upper_band,
         "mid": middle_band,
         "lower": lower_band,
         "std": standard_deviation,
-        "width_pct": width_percentage
+        "width_pct": width_percentage,
     }
+
 
 def calc_ema_series(closes: List[float], period: int = 21) -> List[float]:
     """
@@ -629,13 +750,16 @@ def calc_ema_series(closes: List[float], period: int = 21) -> List[float]:
         ema_series.append(current_ema)
     return ema_series
 
-def calc_ema_slope(series: List[float], lookback: int = 3) -> Tuple[Optional[float], Optional[float]]:
+
+def calc_ema_slope(
+    series: List[float], lookback: int = 3
+) -> Tuple[Optional[float], Optional[float]]:
     if not series or len(series) <= lookback:
         return None, None
-    recent = np.asarray(series[-(lookback + 1):], dtype=float)
+    recent = np.asarray(series[-(lookback + 1) :], dtype=float)
     prevs = recent[:-1]
     currs = recent[1:]
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         slopes = np.where(prevs != 0.0, (currs - prevs) / prevs * 100.0, 0.0)
     if slopes.size == 0:
         return None, None
@@ -643,7 +767,10 @@ def calc_ema_slope(series: List[float], lookback: int = 3) -> Tuple[Optional[flo
     delta = float(slopes[-1] - slopes[-2]) if slopes.size > 1 else None
     return last_slope, delta
 
-def calc_atr(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> Optional[float]:
+
+def calc_atr(
+    highs: List[float], lows: List[float], closes: List[float], period: int = 14
+) -> Optional[float]:
     num_closes = len(closes)
     if num_closes <= period:
         return None
@@ -661,10 +788,15 @@ def calc_atr(highs: List[float], lows: List[float], closes: List[float], period:
         return None
     average_true_range = sum(true_range_list[:period]) / period
     for i in range(period, len(true_range_list)):
-        average_true_range = (average_true_range * (period - 1) + true_range_list[i]) / period
+        average_true_range = (
+            average_true_range * (period - 1) + true_range_list[i]
+        ) / period
     return average_true_range
 
-def calc_adx(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> Optional[float]:
+
+def calc_adx(
+    highs: List[float], lows: List[float], closes: List[float], period: int = 14
+) -> Optional[float]:
     """
     Calculates Average Directional Index (ADX).
     Returns value between 0 and 100.
@@ -693,9 +825,9 @@ def calc_adx(highs: List[float], lows: List[float], closes: List[float], period:
     # 2. Smooth them using Wilder's smoothing
     def wilder_smooth(arr, p):
         smoothed = np.zeros_like(arr)
-        smoothed[p-1] = np.sum(arr[:p])
+        smoothed[p - 1] = np.sum(arr[:p])
         for i in range(p, len(arr)):
-            smoothed[i] = smoothed[i-1] - (smoothed[i-1] / p) + arr[i]
+            smoothed[i] = smoothed[i - 1] - (smoothed[i - 1] / p) + arr[i]
         return smoothed
 
     tr_smooth = wilder_smooth(tr, period)
@@ -714,9 +846,10 @@ def calc_adx(highs: List[float], lows: List[float], closes: List[float], period:
     dx = 100.0 * (np.abs(plus_di - minus_di) / sum_di)
 
     # ADX is the mean of DX over the period
-    adx = wilder_smooth(dx[period-1:], period) / period
+    adx = wilder_smooth(dx[period - 1 :], period) / period
 
     return float(adx[-1])
+
 
 def calc_market_regime(closes: List[float], period: int = 20) -> Tuple[str, float]:
     """
@@ -760,10 +893,9 @@ def calc_market_regime(closes: List[float], period: int = 20) -> Tuple[str, floa
 
     return market_regime, round(market_entropy, 4)
 
+
 def calc_kalman_series(
-    closes: List[float],
-    process_noise: float = 1e-4,
-    measurement_noise: float = 1e-2
+    closes: List[float], process_noise: float = 1e-4, measurement_noise: float = 1e-2
 ) -> List[float]:
     """
     Kalman filter price smoother.
@@ -788,12 +920,13 @@ def calc_kalman_series(
 
     return kalman_series
 
+
 def calc_kelly_margin(
     bankroll: float,
-    win_rate: float,               # e.g. 0.58 for 58%
-    average_win: float,            # average winning trade PnL
-    average_loss: float,           # average losing trade PnL (positive number)
-    kelly_fraction: float = 0.5    # half-Kelly is safer
+    win_rate: float,  # e.g. 0.58 for 58%
+    average_win: float,  # average winning trade PnL
+    average_loss: float,  # average losing trade PnL (positive number)
+    kelly_fraction: float = 0.5,  # half-Kelly is safer
 ) -> float:
     """
     Calculates the recommended margin using the Kelly Criterion.
@@ -801,7 +934,9 @@ def calc_kelly_margin(
     """
     # Not enough history yet or no edge — use flat 2% of bankroll fallback
     if average_loss == 0 or average_win == 0 or win_rate <= 0:
-        logging.getLogger("phemex_common").debug("Kelly: Insufficient history, fallback to 2% margin")
+        logging.getLogger("phemex_common").debug(
+            "Kelly: Insufficient history, fallback to 2% margin"
+        )
         return round(bankroll * 0.02, 2)
 
     win_loss_ratio = average_win / average_loss
@@ -810,14 +945,21 @@ def calc_kelly_margin(
 
     # Kelly went negative — no edge detected yet, use flat fallback
     if kelly_percentage <= 0:
-        logging.getLogger("phemex_common").debug(f"Kelly: Negative edge ({kelly_percentage:.4f}), fallback to 2% margin")
+        logging.getLogger("phemex_common").debug(
+            f"Kelly: Negative edge ({kelly_percentage:.4f}), fallback to 2% margin"
+        )
         return round(bankroll * 0.02, 2)
 
     margin = bankroll * kelly_percentage * kelly_fraction
     # Hard cap at 10% bankroll to prevent massive drawdowns from single trade outliers
     return round(min(margin, bankroll * 0.1), 2)
 
-def calc_volume_profile(ohlc: List[Tuple[float, float, float, float, float]], volumes: List[float], bins: int = 20) -> Tuple[Optional[float], List[float]]:
+
+def calc_volume_profile(
+    ohlc: List[Tuple[float, float, float, float, float]],
+    volumes: List[float],
+    bins: int = 20,
+) -> Tuple[Optional[float], List[float]]:
     """
     Calculates the volume profile and identifies Point of Control (POC) and value nodes.
     REF: [Tier 3] Descriptive Naming
@@ -846,8 +988,13 @@ def calc_volume_profile(ohlc: List[Tuple[float, float, float, float, float]], vo
     poc_index = profile.index(max_volume)
     poc_price = min_price + bin_size * (poc_index + 0.5)
     threshold = max_volume * 0.70
-    value_nodes = [min_price + bin_size * (i + 0.5) for i, vol in enumerate(profile) if vol >= threshold]
+    value_nodes = [
+        min_price + bin_size * (i + 0.5)
+        for i, vol in enumerate(profile)
+        if vol >= threshold
+    ]
     return poc_price, value_nodes
+
 
 def calc_volume_spike(volumes: List[float], period: int = 20) -> float:
     """
@@ -857,12 +1004,15 @@ def calc_volume_spike(volumes: List[float], period: int = 20) -> float:
     num_volumes = len(volumes)
     if num_volumes <= period:
         return 1.0
-    trailing_volumes = np.asarray(volumes[-(period + 1):-1], dtype=float)
-    average_volume = float(trailing_volumes.mean()) if trailing_volumes.size > 0 else 0.0
+    trailing_volumes = np.asarray(volumes[-(period + 1) : -1], dtype=float)
+    average_volume = (
+        float(trailing_volumes.mean()) if trailing_volumes.size > 0 else 0.0
+    )
     if average_volume <= 0.0:
         return 1.0
     latest_volume = float(volumes[-1])
     return latest_volume / average_volume
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # UPGRADE BLOCK — added by the incremental upgrade pass
@@ -870,13 +1020,14 @@ def calc_volume_spike(volumes: List[float], period: int = 20) -> float:
 
 # ── Upgrade #1: Realistic Slippage Simulation ─────────────────────────────────
 
+
 def calc_slippage(
     price: float,
-    direction: str,         # "LONG" or "SHORT"
+    direction: str,  # "LONG" or "SHORT"
     best_bid: Optional[float] = None,
     best_ask: Optional[float] = None,
     atr: Optional[float] = None,
-    slippage_factor: float = 0.5,   # fraction of half-spread or ATR-based estimate
+    slippage_factor: float = 0.5,  # fraction of half-spread or ATR-based estimate
 ) -> Tuple[float, float]:
     """
     Estimate entry slippage for a market order.
@@ -899,7 +1050,7 @@ def calc_slippage(
     slippage_amt = 0.0
 
     if best_bid is not None and best_ask is not None and best_bid > 0:
-        half_spread  = (best_ask - best_bid) / 2.0
+        half_spread = (best_ask - best_bid) / 2.0
         slippage_amt = half_spread * slippage_factor
     elif atr is not None and atr > 0:
         # Rough approximation: 1 % of ATR
@@ -909,9 +1060,9 @@ def calc_slippage(
         slippage_amt = price * 0.0002
 
     if direction == "LONG":
-        fill_price = price + slippage_amt   # buyer pays more
+        fill_price = price + slippage_amt  # buyer pays more
     else:
-        fill_price = price - slippage_amt   # seller receives less
+        fill_price = price - slippage_amt  # seller receives less
 
     logger.debug(
         f"slippage: dir={direction} mid={price:.6g} "
@@ -922,10 +1073,11 @@ def calc_slippage(
 
 # ── Upgrade #2: ATR-Based Stop-Loss and Trailing Stop ────────────────────────
 
+
 def calc_atr_stops(
     entry_price: float,
     atr: float,
-    direction: str,           # "LONG" or "SHORT"
+    direction: str,  # "LONG" or "SHORT"
     stop_mult: float = 1.5,
     trail_mult: float = 1.0,
 ) -> Tuple[float, float]:
@@ -935,7 +1087,7 @@ def calc_atr_stops(
     Returns:
         (stop_price, trail_distance)
     """
-    stop_distance  = atr * stop_mult
+    stop_distance = atr * stop_mult
     trail_distance = atr * trail_mult
 
     if direction == "LONG":
@@ -976,12 +1128,12 @@ def update_atr_trail(
     if direction == "LONG":
         if current_price > high_water:
             high_water = current_price
-            new_stop   = high_water - trail_distance
+            new_stop = high_water - trail_distance
             stop_price = max(stop_price, new_stop)  # stops only move up for longs
     else:
         if current_price < low_water:
             low_water = current_price
-            new_stop  = low_water + trail_distance
+            new_stop = low_water + trail_distance
             stop_price = min(stop_price, new_stop)  # stops only move down for shorts
 
     return stop_price, high_water, low_water
@@ -990,6 +1142,7 @@ def update_atr_trail(
 # ── Upgrade #3: Spread Filter ────────────────────────────────────────────────
 
 SPREAD_FILTER_MAX_PCT = float(os.getenv("SPREAD_FILTER_MAX_PCT", "0.20"))  # 0.20 %
+
 
 def check_spread_filter(
     spread_pct: Optional[float],
@@ -1006,24 +1159,22 @@ def check_spread_filter(
         max_pct    : optional override for SPREAD_FILTER_MAX_PCT
     """
     if spread_pct is None:
-        return True, ""     # no data → allow (don't block on missing data)
-    
+        return True, ""  # no data → allow (don't block on missing data)
+
     limit = max_pct if max_pct is not None else SPREAD_FILTER_MAX_PCT
-    
+
     # Convert from percentage: 0.10 means 0.10 %
-    spread_frac = spread_pct / 100.0   # now in decimal (0.001)
-    limit_frac  = limit / 100.0
+    spread_frac = spread_pct / 100.0  # now in decimal (0.001)
+    limit_frac = limit / 100.0
     if spread_frac > limit_frac:
-        reason = (
-            f"spread {spread_pct:.4f}% > max {limit:.4f}% "
-            f"for {symbol}"
-        )
+        reason = f"spread {spread_pct:.4f}% > max {limit:.4f}% " f"for {symbol}"
         logger.info(f"SPREAD_FILTER: SKIP — {reason}")
         return False, reason
     return True, ""
 
 
 # ── Upgrade #4: Z-Score Signal Normalisation ─────────────────────────────────
+
 
 class RollingNormalizer:
     """
@@ -1032,8 +1183,9 @@ class RollingNormalizer:
 
     Thread-safe.
     """
+
     def __init__(self, window: int = 50):
-        self._window  = window
+        self._window = window
         # [T2-06] Use deque(maxlen) for O(1) eviction instead of O(n) list.pop(0)
         self._buf: deque = deque(maxlen=window)
         self._lock = threading.Lock()
@@ -1044,13 +1196,15 @@ class RollingNormalizer:
         Returns 0.0 if fewer than 3 samples are available.
         """
         with self._lock:
-            self._buf.append(value)   # deque(maxlen) auto-evicts oldest — no manual pop needed
+            self._buf.append(
+                value
+            )  # deque(maxlen) auto-evicts oldest — no manual pop needed
             n = len(self._buf)
             if n < 3:
                 return 0.0
-            arr  = np.asarray(self._buf, dtype=float)
+            arr = np.asarray(self._buf, dtype=float)
             mean = float(arr.mean())
-            std  = float(arr.std())
+            std = float(arr.std())
             if std < 1e-10:
                 return 0.0
             return float((value - mean) / std)
@@ -1061,16 +1215,16 @@ class RollingNormalizer:
 
 
 # Shared global normalisers — used by scoring functions
-_norm_ema_slope   = RollingNormalizer(window=50)
+_norm_ema_slope = RollingNormalizer(window=50)
 _norm_volume_spike = RollingNormalizer(window=50)
-_norm_rsi_change  = RollingNormalizer(window=50)
+_norm_rsi_change = RollingNormalizer(window=50)
 
 
 def calc_normalised_composite_score(
-    ema_slope:    Optional[float],
-    vol_spike:    Optional[float],
-    rsi_current:  Optional[float],
-    rsi_prev:     Optional[float],
+    ema_slope: Optional[float],
+    vol_spike: Optional[float],
+    rsi_current: Optional[float],
+    rsi_prev: Optional[float],
     weights: Tuple[float, float, float] = (0.4, 0.3, 0.3),
 ) -> float:
     """
@@ -1091,26 +1245,23 @@ def calc_normalised_composite_score(
     Returns:
         Float composite score (higher = stronger signal in direction)
     """
-    rsi_change    = (rsi_current - rsi_prev) if (rsi_current and rsi_prev) else 0.0
-    ema_val       = ema_slope   if ema_slope   is not None else 0.0
-    vol_val       = vol_spike   if vol_spike   is not None else 1.0
+    rsi_change = (rsi_current - rsi_prev) if (rsi_current and rsi_prev) else 0.0
+    ema_val = ema_slope if ema_slope is not None else 0.0
+    vol_val = vol_spike if vol_spike is not None else 1.0
 
-    trend_score    = _norm_ema_slope.update_and_score(ema_val)
-    volume_score   = _norm_volume_spike.update_and_score(vol_val)
+    trend_score = _norm_ema_slope.update_and_score(ema_val)
+    volume_score = _norm_volume_spike.update_and_score(vol_val)
     momentum_score = _norm_rsi_change.update_and_score(rsi_change)
 
     w_trend, w_vol, w_mom = weights
-    composite = (
-        w_trend * trend_score
-        + w_vol   * volume_score
-        + w_mom   * momentum_score
-    )
+    composite = w_trend * trend_score + w_vol * volume_score + w_mom * momentum_score
     return composite
 
 
 # ── Upgrade #6: Volatility Filter ────────────────────────────────────────────
 
 VOLATILITY_FILTER_MIN = float(os.getenv("VOLATILITY_FILTER_MIN", "0.002"))  # ATR/price
+
 
 def check_volatility_filter(
     atr: Optional[float],
@@ -1132,17 +1283,14 @@ def check_volatility_filter(
         min_ratio : optional override for VOLATILITY_FILTER_MIN
     """
     if atr is None or price <= 0:
-        return True, ""   # no data → allow
+        return True, ""  # no data → allow
     vol_ratio = atr / price
-    
+
     # Use min_ratio if provided (even if 0.0), otherwise use global constant
     limit = min_ratio if min_ratio is not None else VOLATILITY_FILTER_MIN
-    
+
     if limit > 0 and vol_ratio < limit:
-        reason = (
-            f"volatility {vol_ratio:.5f} < min {limit:.5f} "
-            f"for {symbol}"
-        )
+        reason = f"volatility {vol_ratio:.5f} < min {limit:.5f} " f"for {symbol}"
         logger.info(f"VOL_FILTER: SKIP — {reason}")
         return False, reason
     return True, ""
@@ -1150,9 +1298,10 @@ def check_volatility_filter(
 
 # ── Upgrade #10: Order Book Imbalance Signal ──────────────────────────────────
 
+
 def calc_order_book_imbalance(
-    bids: List[List],   # list of [price, qty] from order book
-    asks: List[List],   # list of [price, qty] from order book
+    bids: List[List],  # list of [price, qty] from order book
+    asks: List[List],  # list of [price, qty] from order book
     depth_levels: int = 5,
 ) -> Optional[float]:
     """
@@ -1175,7 +1324,9 @@ def calc_order_book_imbalance(
         if ask_vol <= 0:
             return None
         imbalance = bid_vol / ask_vol
-        logger.debug(f"ob_imbalance: bid_vol={bid_vol:.2f} ask_vol={ask_vol:.2f} ratio={imbalance:.4f}")
+        logger.debug(
+            f"ob_imbalance: bid_vol={bid_vol:.2f} ask_vol={ask_vol:.2f} ratio={imbalance:.4f}"
+        )
         return imbalance
     except Exception as e:
         logger.debug(f"calc_order_book_imbalance: error — {e}")
@@ -1183,7 +1334,13 @@ def calc_order_book_imbalance(
 
 
 def get_order_book_with_volumes(symbol: str, rps: float = None) -> Tuple[
-    Optional[float], Optional[float], Optional[float], float, Optional[float], List[List], List[List]
+    Optional[float],
+    Optional[float],
+    Optional[float],
+    float,
+    Optional[float],
+    List[List],
+    List[List],
 ]:
     """
     Extended order book fetch that also returns the imbalance ratio and raw book data.
@@ -1203,9 +1360,9 @@ def get_order_book_with_volumes(symbol: str, rps: float = None) -> Tuple[
         return None, None, None, 0.0, None, [], []
 
     result = data.get("result", {}) or {}
-    book   = result.get("orderbook_p", {}) or {}
-    bids   = book.get("bids", [])
-    asks   = book.get("asks", [])
+    book = result.get("orderbook_p", {}) or {}
+    bids = book.get("bids", [])
+    asks = book.get("asks", [])
     if not bids or not asks:
         return None, None, None, 0.0, None, [], []
 
@@ -1226,13 +1383,14 @@ def get_order_book_with_volumes(symbol: str, rps: float = None) -> Tuple[
                 continue
         return total
 
-    depth      = depth_sum(bids) + depth_sum(asks)
-    imbalance  = calc_order_book_imbalance(bids, asks)
+    depth = depth_sum(bids) + depth_sum(asks)
+    imbalance = calc_order_book_imbalance(bids, asks)
 
     return best_bid, best_ask, spread_pct, depth, imbalance, bids, asks
 
 
 # ── Upgrade #9: Dynamic Pair Selection Helpers ────────────────────────────────
+
 
 def select_top_pairs(
     tickers: List[Dict],
@@ -1263,19 +1421,19 @@ def select_top_pairs(
         if vol24 < min_volume:
             continue
 
-        last  = float(t.get("lastRp") or t.get("closeRp") or 0.0)
-        high  = float(t.get("highRp") or last)
-        low   = float(t.get("lowRp")  or last)
+        last = float(t.get("lastRp") or t.get("closeRp") or 0.0)
+        high = float(t.get("highRp") or last)
+        low = float(t.get("lowRp") or last)
         if last > 0 and min_volatility_pct > 0:
             daily_range_pct = (high - low) / last * 100.0
             if daily_range_pct < min_volatility_pct:
                 continue
 
         # Composite rank: normalise log of volume + ATR-based vol score
-        vol_score    = math.log1p(vol24)
-        atr          = (atr_cache or {}).get(symbol, 0.0)
-        atr_score    = (atr / last * 100.0) if (atr and last > 0) else 0.0
-        composite    = vol_score * 0.6 + atr_score * 0.4
+        vol_score = math.log1p(vol24)
+        atr = (atr_cache or {}).get(symbol, 0.0)
+        atr_score = (atr / last * 100.0) if (atr and last > 0) else 0.0
+        composite = vol_score * 0.6 + atr_score * 0.4
         candidates.append((composite, t))
 
     candidates.sort(key=lambda x: x[0], reverse=True)
@@ -1293,7 +1451,10 @@ def select_top_pairs(
 
 # ── New Mathematical Utilities for Adaptive Filtering ────────────────────────
 
-def calc_shannon_entropy_signals(long_count: int, short_count: int, total_scanned: int) -> float:
+
+def calc_shannon_entropy_signals(
+    long_count: int, short_count: int, total_scanned: int
+) -> float:
     """
     Computes Shannon entropy of the signal direction distribution.
     Includes 'NONE' as a category representing no signal.
@@ -1312,6 +1473,7 @@ def calc_shannon_entropy_signals(long_count: int, short_count: int, total_scanne
             entropy -= p * math.log2(p)
 
     return round(entropy, 4)
+
 
 def calc_hurst_exponent(series: List[float], max_window: int = 50) -> float:
     """
@@ -1342,7 +1504,11 @@ def calc_hurst_exponent(series: List[float], max_window: int = 50) -> float:
     rs_vals = []
     for s in sizes:
         # Average R/S across non-overlapping windows
-        windows = [returns[i:i+s] for i in range(0, len(returns), s) if len(returns[i:i+s]) == s]
+        windows = [
+            returns[i : i + s]
+            for i in range(0, len(returns), s)
+            if len(returns[i : i + s]) == s
+        ]
         if windows:
             rs_vals.append(np.mean([rs_analysis(w) for w in windows]))
         else:
@@ -1360,11 +1526,13 @@ def calc_hurst_exponent(series: List[float], max_window: int = 50) -> float:
     slope, _ = np.polyfit(log_sizes, log_rs_vals, 1)
     return round(float(np.clip(slope, 0.0, 1.0)), 3)
 
+
 class HawkesTracker:
     """
     Tracks self-exciting process intensity (Hawkes) for signal directions.
     λ(t) = μ + Σ α * exp(-β * (t - t_i))
     """
+
     def __init__(self, mu: float = 0.1, alpha: float = 0.8, beta: float = 0.1):
         self.mu = mu
         self.alpha = alpha
@@ -1379,7 +1547,9 @@ class HawkesTracker:
             now = time.time()
             dt = now - self.last_time
             # Decay intensity towards baseline mu
-            self.intensity = self.mu + (self.intensity - self.mu) * math.exp(-self.beta * dt)
+            self.intensity = self.mu + (self.intensity - self.mu) * math.exp(
+                -self.beta * dt
+            )
 
             if event_occurred:
                 self.intensity += self.alpha
@@ -1390,6 +1560,7 @@ class HawkesTracker:
     def get_intensity(self) -> float:
         return self.update(event_occurred=False)
 
+
 # ----------------------------
 # Phemex API helpers
 # ----------------------------
@@ -1397,7 +1568,10 @@ def _resolve_resolution(timeframe: str) -> int:
     """Resolve a timeframe string (e.g. '15m') to its API resolution integer."""
     return TIMEFRAME_MAP.get(timeframe, 900)
 
-def get_tickers(rps: float = None, direction_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+
+def get_tickers(
+    rps: float = None, direction_filter: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """
     Fetch all USDT-M perpetual 24hr tickers.
     Endpoint: GET /md/v3/ticker/24hr/all
@@ -1429,9 +1603,9 @@ def get_tickers(rps: float = None, direction_filter: Optional[str] = None) -> Li
             try:
                 fr = float(fr_raw)
                 if direction_filter.upper() == "SHORT" and fr < 0:
-                    continue # Skip negative funding for shorts
+                    continue  # Skip negative funding for shorts
                 if direction_filter.upper() == "LONG" and fr > 0:
-                    continue # Skip positive funding for longs (optional, but consistent)
+                    continue  # Skip positive funding for longs (optional, but consistent)
             except Exception:
                 pass
 
@@ -1440,7 +1614,10 @@ def get_tickers(rps: float = None, direction_filter: Optional[str] = None) -> Li
     filtered.sort(key=lambda x: float(x.get("turnoverRv") or 0.0), reverse=True)
     return filtered
 
-def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: float = None) -> List[List[Any]]:
+
+def get_candles(
+    symbol: str, timeframe: str = "15m", limit: int = 100, rps: float = None
+) -> List[List[Any]]:
     """
     Fetch klines from Phemex public market data endpoint.
     Endpoint: GET /exchange/public/md/v2/kline/last
@@ -1459,20 +1636,22 @@ def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: floa
 
     # Map custom limits to allowed Phemex limits: [5, 10, 50, 100, 500, 1000]
     allowed_limits = [5, 10, 50, 100, 500, 1000]
-    api_limit = next((limit_val for limit_val in allowed_limits if limit_val >= limit), 1000)
+    api_limit = next(
+        (limit_val for limit_val in allowed_limits if limit_val >= limit), 1000
+    )
 
     url = f"{BASE_URL}/exchange/public/md/v2/kline/last"
     params = {"symbol": api_symbol, "resolution": resolution, "limit": api_limit}
-    
+
     logger.debug("get_candles: requesting %s with params %s", url, params)
-    
+
     try:
         resp = safe_request("GET", url, params=params, rps=rps)
         if not resp:
             logger.error(f"get_candles: No response for {symbol} {timeframe}")
             return []
         data = resp.json()
-        
+
         if data.get("code") == 0:
             rows = data.get("data", {}).get("rows", [])
             if not rows:
@@ -1481,12 +1660,19 @@ def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: floa
                 current_idx = allowed_limits.index(api_limit)
                 if current_idx > 0:
                     smaller_limit = allowed_limits[current_idx - 1]
-                    logger.debug("get_candles: %s %s returned 0 rows for limit %d. Retrying with limit %d...", 
-                                 symbol, timeframe, api_limit, smaller_limit)
-                    time.sleep(0.05) # small backoff
+                    logger.debug(
+                        "get_candles: %s %s returned 0 rows for limit %d. Retrying with limit %d...",
+                        symbol,
+                        timeframe,
+                        api_limit,
+                        smaller_limit,
+                    )
+                    time.sleep(0.05)  # small backoff
                     return get_candles(symbol, timeframe, smaller_limit, rps)
-                
-                logger.warning(f"get_candles: No rows in data for {symbol} {timeframe} even at minimum limit. Full response: {data}")
+
+                logger.warning(
+                    f"get_candles: No rows in data for {symbol} {timeframe} even at minimum limit. Full response: {data}"
+                )
                 return []
 
             rows_sorted = sorted(rows, key=lambda r: r[0])
@@ -1495,12 +1681,16 @@ def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: floa
             CACHE.set(cache_key, final_rows, ttl_override=effective_ttl)
             return final_rows
         else:
-            logger.error(f"get_candles: API error {data.get('code')} for {symbol} {timeframe}. Full response: {data}")
+            logger.error(
+                f"get_candles: API error {data.get('code')} for {symbol} {timeframe}. Full response: {data}"
+            )
             return []
 
     except json.JSONDecodeError as e:
 
-        logger.error(f"get_candles: JSON decode error for {symbol} {timeframe}: {e}. Response text: {resp.text if resp else 'N/A'}")
+        logger.error(
+            f"get_candles: JSON decode error for {symbol} {timeframe}: {e}. Response text: {resp.text if resp else 'N/A'}"
+        )
 
         return []
 
@@ -1510,7 +1700,10 @@ def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: floa
 
         return []
 
-def get_funding_rate_info(symbol: str, rps: float = None) -> Tuple[Optional[float], Optional[float], float]:
+
+def get_funding_rate_info(
+    symbol: str, rps: float = None
+) -> Tuple[Optional[float], Optional[float], float]:
     """
     Fetch current funding rate.
     Endpoint: GET /contract-biz/public/real-funding-rates?symbol=
@@ -1553,6 +1746,7 @@ def get_funding_rate_info(symbol: str, rps: float = None) -> Tuple[Optional[floa
     except Exception:
         return None, None, 0.0
 
+
 def prefetch_all_funding_rates(rps: float = None):
     """
     Fetch all funding rates in one call and populate CACHE.
@@ -1591,11 +1785,19 @@ def prefetch_all_funding_rates(rps: float = None):
     except Exception as e:
         logger.error("Funding prefetch error: %s", e)
 
-def _get_funding_rate_history(symbol: str, rps: float = None) -> Tuple[Optional[float], Optional[float], float]:
+
+def _get_funding_rate_history(
+    symbol: str, rps: float = None
+) -> Tuple[Optional[float], Optional[float], float]:
     base = symbol.replace("USDT", "")
     fr_symbol = f".{base}USDTFR8H"
     url = f"{BASE_URL}/api-data/public/data/funding-rate-history"
-    resp = safe_request("GET", url, params={"symbol": fr_symbol, "limit": 2, "latestOnly": False}, rps=rps)
+    resp = safe_request(
+        "GET",
+        url,
+        params={"symbol": fr_symbol, "limit": 2, "latestOnly": False},
+        rps=rps,
+    )
     if not resp:
         return None, None, 0.0
     try:
@@ -1606,10 +1808,15 @@ def _get_funding_rate_history(symbol: str, rps: float = None) -> Tuple[Optional[
         if not rows:
             return None, None, 0.0
         current_fr = float(rows[-1].get("fundingRate", 0.0))
-        prev_fr = float(rows[-2].get("fundingRate", current_fr)) if len(rows) > 1 else current_fr
+        prev_fr = (
+            float(rows[-2].get("fundingRate", current_fr))
+            if len(rows) > 1
+            else current_fr
+        )
         return current_fr, prev_fr, current_fr - prev_fr
     except Exception:
         return None, None, 0.0
+
 
 def get_order_book(symbol: str, rps: float = None):
     """
@@ -1656,6 +1863,7 @@ def get_order_book(symbol: str, rps: float = None):
 
     return best_bid, best_ask, spread_pct, (depth_sum(bids) + depth_sum(asks))
 
+
 def get_cryptopanic_news(coin_symbol: str) -> Tuple[int, List[str]]:
     if not CRYPTOPANIC_API_KEY:
         return 0, []
@@ -1673,7 +1881,11 @@ def get_cryptopanic_news(coin_symbol: str) -> Tuple[int, List[str]]:
 
     try:
         url = "https://cryptopanic.com/api/developer/v2/posts/"
-        params = {"auth_token": CRYPTOPANIC_API_KEY, "currencies": coin_symbol, "filter": "news"}
+        params = {
+            "auth_token": CRYPTOPANIC_API_KEY,
+            "currencies": coin_symbol,
+            "filter": "news",
+        }
         resp = safe_request("GET", url, params=params)
         if not resp:
             return 0, []
@@ -1689,6 +1901,7 @@ def get_cryptopanic_news(coin_symbol: str) -> Tuple[int, List[str]]:
     with _news_cache_lock:
         _news_cache[coin_symbol] = result
     return result
+
 
 # ----------------------------
 # AI & Entity integration
@@ -1735,15 +1948,17 @@ def unified_analyse(
         return None
 
     try:
-        last   = float(ticker.get("lastRp") or ticker.get("closeRp") or 0.0)
+        last = float(ticker.get("lastRp") or ticker.get("closeRp") or 0.0)
         open24 = float(ticker.get("openRp") or last)
-        low24  = float(ticker.get("lowRp") or last)
+        low24 = float(ticker.get("lowRp") or last)
         high24 = float(ticker.get("highRp") or last)
-        vol24  = float(ticker.get("turnoverRv") or 0.0)
+        vol24 = float(ticker.get("turnoverRv") or 0.0)
 
         min_vol = cfg.get("MIN_VOLUME", 1_000_000)
         if vol24 < min_vol:
-            logger.debug("  %s: vol24 %.0f < min_vol %.0f, skipping.", symbol, vol24, min_vol)
+            logger.debug(
+                "  %s: vol24 %.0f < min_vol %.0f, skipping.", symbol, vol24, min_vol
+            )
             return None
         if last == 0.0:
             logger.debug("  %s: last price is 0.0, skipping.", symbol)
@@ -1751,7 +1966,9 @@ def unified_analyse(
 
         # 1. Funding check (direction-specific thresholds handled in score_func or caller)
         # REF: Tier 3: Non-Descriptive Variable Naming (fr -> funding_rate)
-        funding_rate, prev_funding_rate, funding_rate_change = get_funding_rate_info(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        funding_rate, prev_funding_rate, funding_rate_change = get_funding_rate_info(
+            symbol, rps=cfg.get("RATE_LIMIT_RPS")
+        )
         if funding_rate is None:
             fr_raw = ticker.get("fundingRateRr")
             funding_rate = float(fr_raw) if fr_raw is not None else 0.0
@@ -1759,23 +1976,46 @@ def unified_analyse(
 
         # Hard Funding Filter: only allow SHORT if funding is positive (Longs pay Shorts)
         if FUNDING_FILTER_ENABLED and direction == "SHORT" and funding_rate < 0.0:
-            logger.debug("  %s: funding is negative (%.4f%%), skipping SHORT entry.", symbol, funding_rate * 100)
+            logger.debug(
+                "  %s: funding is negative (%.4f%%), skipping SHORT entry.",
+                symbol,
+                funding_rate * 100,
+            )
             return None
 
         # 2. Fetch klines
-        candles = get_candles(symbol, timeframe=cfg["TIMEFRAME"], limit=cfg.get("CANDLES", 50), rps=cfg.get("RATE_LIMIT_RPS"))
+        candles = get_candles(
+            symbol,
+            timeframe=cfg["TIMEFRAME"],
+            limit=cfg.get("CANDLES", 50),
+            rps=cfg.get("RATE_LIMIT_RPS"),
+        )
         if not candles:
-            logger.debug("  %s: no candles returned for timeframe %s, skipping.", symbol, cfg["TIMEFRAME"])
+            logger.debug(
+                "  %s: no candles returned for timeframe %s, skipping.",
+                symbol,
+                cfg["TIMEFRAME"],
+            )
             return None
-        
-        logger.debug("  %s: fetched %d candles for timeframe %s", symbol, len(candles), cfg["TIMEFRAME"])
+
+        logger.debug(
+            "  %s: fetched %d candles for timeframe %s",
+            symbol,
+            len(candles),
+            cfg["TIMEFRAME"],
+        )
 
         ohlc, highs, lows, closes, vols = [], [], [], [], []
         for candle in candles:
             try:
                 # API mapping: [timestamp, interval, last, open, high, low, close, volume, ...]
                 # REF: [Tier 3] Descriptive Naming
-                open_px, high_px, low_px, close_px = float(candle[3]), float(candle[4]), float(candle[5]), float(candle[6])
+                open_px, high_px, low_px, close_px = (
+                    float(candle[3]),
+                    float(candle[4]),
+                    float(candle[5]),
+                    float(candle[6]),
+                )
                 volume = float(candle[7]) if len(candle) > 7 else 0.0
                 ohlc.append((open_px, high_px, low_px, close_px, volume))
                 highs.append(high_px)
@@ -1788,14 +2028,16 @@ def unified_analyse(
         # Slice data if a specific window is requested
         window = cfg.get("window")
         if window and window > 0 and len(closes) > window:
-            ohlc   = ohlc[-window:]
-            highs  = highs[-window:]
-            lows   = lows[-window:]
+            ohlc = ohlc[-window:]
+            highs = highs[-window:]
+            lows = lows[-window:]
             closes = closes[-window:]
-            vols   = vols[-window:]
+            vols = vols[-window:]
 
         if not closes:
-            logger.debug("  %s: no valid close prices parsed from candles, skipping.", symbol)
+            logger.debug(
+                "  %s: no valid close prices parsed from candles, skipping.", symbol
+            )
             return None
 
         # 3. Indicator calculation (cheap — always executed)
@@ -1810,17 +2052,25 @@ def unified_analyse(
             atr = calc_atr(highs, lows, closes)
 
             # ── Volatility Filter (Upgrade #6) ──────────────────────────────────
-            vol_ok, vol_reason = check_volatility_filter(atr, last, symbol, min_ratio=cfg.get("vol_min"))
+            vol_ok, vol_reason = check_volatility_filter(
+                atr, last, symbol, min_ratio=cfg.get("vol_min")
+            )
             if not vol_ok:
-                logger.debug("  %s: volatility filter failed: %s, skipping.", symbol, vol_reason)
+                logger.debug(
+                    "  %s: volatility filter failed: %s, skipping.", symbol, vol_reason
+                )
                 return None
 
             vol_spike = calc_volume_spike(vols)
             adx = calc_adx(highs, lows, closes)
             regime, entropy = calc_market_regime(closes)
             kalman_series = calc_kalman_series(closes)
-            kalman_price  = kalman_series[-1] if kalman_series else None
-            kalman_slope  = kalman_series[-1] - kalman_series[-2] if len(kalman_series) >= 2 else 0.0
+            kalman_price = kalman_series[-1] if kalman_series else None
+            kalman_slope = (
+                kalman_series[-1] - kalman_series[-2]
+                if len(kalman_series) >= 2
+                else 0.0
+            )
 
             # Pattern & Divergence detection (Moved up for pre-score gate)
             raw_patterns = detect_patterns_func(ohlc)
@@ -1834,15 +2084,32 @@ def unified_analyse(
         # 3.5 Pre-score gate (Performance Optimization)
         # Avoid expensive API calls if basic indicators don't show potential.
         data_pre = TickerData(
-            inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
-            change_24h=pct_change(last, open24), funding_rate=funding_rate, patterns=raw_patterns,
-            dist_low_pct=pct_change(last, low24), dist_high_pct=pct_change(last, high24),
-            vol_spike=vol_spike, has_div=has_div, rsi_1h=None, rsi_4h=None,
-            fr_change=funding_rate_change or 0.0, spread=None,
-            ema_slope=ema_slope, slope_change=slope_change,
-            adx=adx, poc_price=None,
-            raw_ohlc=ohlc[-10:], vol_24h=vol24,
-            regime=regime, entropy=entropy, kalman_slope=kalman_slope,
+            inst_id=symbol,
+            price=last,
+            rsi=rsi,
+            prev_rsi=prev_rsi,
+            bb=bb,
+            ema21=ema21,
+            change_24h=pct_change(last, open24),
+            funding_rate=funding_rate,
+            patterns=raw_patterns,
+            dist_low_pct=pct_change(last, low24),
+            dist_high_pct=pct_change(last, high24),
+            vol_spike=vol_spike,
+            has_div=has_div,
+            rsi_1h=None,
+            rsi_4h=None,
+            fr_change=funding_rate_change or 0.0,
+            spread=None,
+            ema_slope=ema_slope,
+            slope_change=slope_change,
+            adx=adx,
+            poc_price=None,
+            raw_ohlc=ohlc[-10:],
+            vol_24h=vol24,
+            regime=regime,
+            entropy=entropy,
+            kalman_slope=kalman_slope,
         )
         pre_score, _ = score_func(data_pre)
         if pre_score < cfg.get("score_threshold", _PRE_SCORE_GATE_DEFAULT):
@@ -1850,14 +2117,18 @@ def unified_analyse(
 
         # 4. Expensive API calls
         # [T1-02] Use get_order_book_with_volumes (Upgrade #10 imbalance) — was get_order_book
-        best_bid, best_ask, spread, depth, ob_imbalance, bids, asks = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        best_bid, best_ask, spread, depth, ob_imbalance, bids, asks = (
+            get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        )
 
         # ── Sector & Spectre Integration ────────────────────────────────────
         symbol_sector = sector_manager.get_sector(symbol)
         spectre_data = spectre.analyze_book(bids, asks)
 
         # ── Spread Filter (Upgrade #1) ──────────────────────────────────────
-        spread_ok, _ = check_spread_filter(spread, symbol, max_pct=cfg.get("spread_max_pct"))
+        spread_ok, _ = check_spread_filter(
+            spread, symbol, max_pct=cfg.get("spread_max_pct")
+        )
         if not spread_ok:
             return None
 
@@ -1874,13 +2145,17 @@ def unified_analyse(
 
         rsi_1h, rsi_4h = None, None
         if not cfg.get("no_htf"):
-            c1h = get_candles(symbol, timeframe="1H", limit=50, rps=cfg.get("RATE_LIMIT_RPS"))
+            c1h = get_candles(
+                symbol, timeframe="1H", limit=50, rps=cfg.get("RATE_LIMIT_RPS")
+            )
             if c1h:
                 cl1h = [float(c[6]) for c in c1h]
                 if cl1h:
                     rsi_1h, _, _ = calc_rsi(cl1h)
 
-            c4h = get_candles(symbol, timeframe="4H", limit=50, rps=cfg.get("RATE_LIMIT_RPS"))
+            c4h = get_candles(
+                symbol, timeframe="4H", limit=50, rps=cfg.get("RATE_LIMIT_RPS")
+            )
             if c4h:
                 cl4h = [float(c[6]) for c in c4h]
                 if cl4h:
@@ -1892,30 +2167,58 @@ def unified_analyse(
         # 3c. Pre-score gate (Upgrade #15)
         # Avoid expensive API calls if indicators already look weak.
         pre_data = TickerData(
-            inst_id=symbol, price=last, rsi=rsi, prev_rsi=prev_rsi, bb=bb, ema21=ema21,
-            change_24h=pct_change(last, open24), funding_rate=funding_rate, patterns=raw_patterns,
-            dist_low_pct=pct_change(last, low24), dist_high_pct=pct_change(last, high24),
-            vol_spike=vol_spike, has_div=has_div, rsi_1h=rsi_1h, rsi_4h=rsi_4h,
-            fr_change=funding_rate_change or 0.0, spread=0.0,
-            dist_to_node_below=dist_to_node_below, dist_to_node_above=dist_to_node_above,
-            ema_slope=ema_slope, slope_change=slope_change,
-            raw_ohlc=ohlc[-10:], vol_24h=vol24, regime=regime, entropy=entropy,
-            kalman_slope=kalman_slope, ema200=ema200,
-            adx=adx, poc_price=poc_price,
+            inst_id=symbol,
+            price=last,
+            rsi=rsi,
+            prev_rsi=prev_rsi,
+            bb=bb,
+            ema21=ema21,
+            change_24h=pct_change(last, open24),
+            funding_rate=funding_rate,
+            patterns=raw_patterns,
+            dist_low_pct=pct_change(last, low24),
+            dist_high_pct=pct_change(last, high24),
+            vol_spike=vol_spike,
+            has_div=has_div,
+            rsi_1h=rsi_1h,
+            rsi_4h=rsi_4h,
+            fr_change=funding_rate_change or 0.0,
+            spread=0.0,
+            dist_to_node_below=dist_to_node_below,
+            dist_to_node_above=dist_to_node_above,
+            ema_slope=ema_slope,
+            slope_change=slope_change,
+            raw_ohlc=ohlc[-10:],
+            vol_24h=vol24,
+            regime=regime,
+            entropy=entropy,
+            kalman_slope=kalman_slope,
+            ema200=ema200,
+            adx=adx,
+            poc_price=poc_price,
         )
         pre_score, _ = score_func(pre_data)
 
         gate_val = cfg.get("pre_score_gate", _PRE_SCORE_GATE_DEFAULT)
         if pre_score < gate_val:
-            logger.debug("  %s: pre-score %d < gate %d, skipping expensive calls.", symbol, pre_score, gate_val)
+            logger.debug(
+                "  %s: pre-score %d < gate %d, skipping expensive calls.",
+                symbol,
+                pre_score,
+                gate_val,
+            )
             return None
 
         # 4. Expensive API calls
         # [T1-02] Use get_order_book_with_volumes (Upgrade #10 imbalance) — was get_order_book
-        best_bid, best_ask, spread, depth, ob_imbalance, bids, asks = get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        best_bid, best_ask, spread, depth, ob_imbalance, bids, asks = (
+            get_order_book_with_volumes(symbol, rps=cfg.get("RATE_LIMIT_RPS"))
+        )
 
         # ── Spread Filter (Upgrade #1) ──────────────────────────────────────
-        spread_ok, _ = check_spread_filter(spread, symbol, max_pct=cfg.get("spread_max_pct"))
+        spread_ok, _ = check_spread_filter(
+            spread, symbol, max_pct=cfg.get("spread_max_pct")
+        )
         if not spread_ok:
             return None
 
@@ -1948,25 +2251,52 @@ def unified_analyse(
         # REF: Tier 3: Temporal Inconsistency
         now_utc_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         result = {
-            "inst_id": symbol, "direction": direction, "price": last, "change_24h": data.change_24h,
-            "vol_24h": vol24, "rsi": rsi, "prev_rsi": prev_rsi, "bb_pct": bb_pct,
-            "ema21": ema21, "funding_pct": funding_rate * 100.0 if funding_rate is not None else None,
-            "score": score, "signals": signals, "patterns": raw_patterns,  # [T1-FIX] was `patterns` (NameError)
-            "confidence": confidence, "conf_color": conf_color, "conf_notes": conf_notes,
-            "dist_low": data.dist_low_pct, "dist_high": data.dist_high_pct,
-            "vol_spike": vol_spike, "bb_width": bb["width_pct"] if bb else 0.0,
-            "atr_stop_pct": stop_pct, "raw_ohlc": ohlc[-10:], "spread": spread,
-            "dist_to_node_below": dist_to_node_below, "dist_to_node_above": dist_to_node_above,
-            "ema_slope": ema_slope, "slope_change": slope_change, "fr_change": funding_rate_change,
-            "rsi_1h": rsi_1h, "rsi_4h": rsi_4h, "scan_timestamp": now_utc_iso,
-            "regime": regime, "entropy": entropy, "kalman_price": kalman_price, "kalman_slope": kalman_slope,
-            "adx": adx, "poc_price": poc_price,
-            "ema200": ema200, "adx": adx, "poc_price": poc_price,
-            "sector": data.sector, "spectre_score": data.spectre_score,
+            "inst_id": symbol,
+            "direction": direction,
+            "price": last,
+            "change_24h": data.change_24h,
+            "vol_24h": vol24,
+            "rsi": rsi,
+            "prev_rsi": prev_rsi,
+            "bb_pct": bb_pct,
+            "ema21": ema21,
+            "funding_pct": funding_rate * 100.0 if funding_rate is not None else None,
+            "score": score,
+            "signals": signals,
+            "patterns": raw_patterns,  # [T1-FIX] was `patterns` (NameError)
+            "confidence": confidence,
+            "conf_color": conf_color,
+            "conf_notes": conf_notes,
+            "dist_low": data.dist_low_pct,
+            "dist_high": data.dist_high_pct,
+            "vol_spike": vol_spike,
+            "bb_width": bb["width_pct"] if bb else 0.0,
+            "atr_stop_pct": stop_pct,
+            "raw_ohlc": ohlc[-10:],
+            "spread": spread,
+            "dist_to_node_below": dist_to_node_below,
+            "dist_to_node_above": dist_to_node_above,
+            "ema_slope": ema_slope,
+            "slope_change": slope_change,
+            "fr_change": funding_rate_change,
+            "rsi_1h": rsi_1h,
+            "rsi_4h": rsi_4h,
+            "scan_timestamp": now_utc_iso,
+            "regime": regime,
+            "entropy": entropy,
+            "kalman_price": kalman_price,
+            "kalman_slope": kalman_slope,
+            "adx": adx,
+            "poc_price": poc_price,
+            "ema200": ema200,
+            "adx": adx,
+            "poc_price": poc_price,
+            "sector": data.sector,
+            "spectre_score": data.spectre_score,
             # ── Upgrade fields ────────────────────────────────────────────────
-            "best_bid":    best_bid,       # Upgrade #1 slippage / #10 imbalance
-            "best_ask":    best_ask,
-            "depth":       depth,          # Upgrade #17: Liquidity Guard 2.0
+            "best_bid": best_bid,  # Upgrade #1 slippage / #10 imbalance
+            "best_ask": best_ask,
+            "depth": depth,  # Upgrade #17: Liquidity Guard 2.0
             "ob_imbalance": ob_imbalance,  # Upgrade #10: order book imbalance ratio
             # ── Audit fields (Upgrade #16) ───────────────────────────────────
             "raw_signals": {
@@ -1982,19 +2312,35 @@ def unified_analyse(
                 "rsi_4h": rsi_4h,
                 "ema200": ema200,
                 "adx": adx,
-                "poc_price": poc_price
-            }
+                "poc_price": poc_price,
+            },
         }
 
         # 11. Entity API Hook
         if enable_entity and ENTITY_API_KEY:
-            pc_res = make_entity_request("ScanResult", method="POST", data={
-                "scan_id": scan_id, "timestamp": now_utc_iso,
-                "inst_id": symbol, "price": last, "change_24h": data.change_24h or 0.0,
-                "rsi": rsi or 50.0, "funding_rate": round(funding_rate * 100, 8) if funding_rate is not None else 0.0,
-                "score": score, "signals": signals, "atr_stop_pct": stop_pct or 0.0,
-                "vol_spike": vol_spike or 0.0, "spread": spread or 0.0, "direction": direction.capitalize()
-            })
+            pc_res = make_entity_request(
+                "ScanResult",
+                method="POST",
+                data={
+                    "scan_id": scan_id,
+                    "timestamp": now_utc_iso,
+                    "inst_id": symbol,
+                    "price": last,
+                    "change_24h": data.change_24h or 0.0,
+                    "rsi": rsi or 50.0,
+                    "funding_rate": (
+                        round(funding_rate * 100, 8)
+                        if funding_rate is not None
+                        else 0.0
+                    ),
+                    "score": score,
+                    "signals": signals,
+                    "atr_stop_pct": stop_pct or 0.0,
+                    "vol_spike": vol_spike or 0.0,
+                    "spread": spread or 0.0,
+                    "direction": direction.capitalize(),
+                },
+            )
             if pc_res and isinstance(pc_res, dict):
                 result["entity_id"] = pc_res.get("id")
 
@@ -2004,7 +2350,10 @@ def unified_analyse(
         logger.error(f"Error in unified_analyse for {symbol}: {e}")
         return None
 
-def make_entity_request(entity_name: str, method: str = "POST", data: dict = None, entity_id: str = None):
+
+def make_entity_request(
+    entity_name: str, method: str = "POST", data: dict = None, entity_id: str = None
+):
     if not ENTITY_API_KEY:
         return None
     url = f"{ENTITY_API_BASE_URL}/api/apps/{ENTITY_APP_ID}/entities/{entity_name}"
@@ -2023,6 +2372,7 @@ def make_entity_request(entity_name: str, method: str = "POST", data: dict = Non
         return response.json()
     except Exception:
         return None
+
 
 def call_deepseek(
     prompt: str,
@@ -2049,15 +2399,23 @@ def call_deepseek(
     if not DEEPSEEK_API_KEY:
         return None
     url = "https://api.deepseek.com/chat/completions"
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {DEEPSEEK_API_KEY.strip()}"}
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY.strip()}",
+    }
     payload = {
         "model": "deepseek-chat",
-        "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
         "temperature": 0.7,
-        "stream": stream
+        "stream": stream,
     }
     try:
-        resp = safe_request("POST", url, json_data=payload, headers=headers, stream=stream)
+        resp = safe_request(
+            "POST", url, json_data=payload, headers=headers, stream=stream
+        )
         if not resp:
             return None
         if stream:
@@ -2067,7 +2425,7 @@ def call_deepseek(
                     continue
                 line_str = line.decode("utf-8")
                 if line_str.startswith("data: "):
-                    data_raw = line_str[len("data: "):]
+                    data_raw = line_str[len("data: ") :]
                     if data_raw == "[DONE]":
                         break
                     try:

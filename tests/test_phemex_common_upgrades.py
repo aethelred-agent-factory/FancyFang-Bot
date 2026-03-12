@@ -1,8 +1,11 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
-from unittest.mock import MagicMock
+
 import core.phemex_common as pc
+
 
 class TestPhemexCommonUpgrades(unittest.TestCase):
 
@@ -11,12 +14,16 @@ class TestPhemexCommonUpgrades(unittest.TestCase):
         # Spread = 101 - 99 = 2. Half spread = 1.
         # Factor 0.5 -> Slippage = 0.5
         # Long: 100 + 0.5 = 100.5
-        fill, slip = pc.calc_slippage(100.0, "LONG", best_bid=99.0, best_ask=101.0, slippage_factor=0.5)
+        fill, slip = pc.calc_slippage(
+            100.0, "LONG", best_bid=99.0, best_ask=101.0, slippage_factor=0.5
+        )
         self.assertAlmostEqual(fill, 100.5)
         self.assertAlmostEqual(slip, 0.5)
 
         # Short: 100 - 0.5 = 99.5
-        fill, slip = pc.calc_slippage(100.0, "SHORT", best_bid=99.0, best_ask=101.0, slippage_factor=0.5)
+        fill, slip = pc.calc_slippage(
+            100.0, "SHORT", best_bid=99.0, best_ask=101.0, slippage_factor=0.5
+        )
         self.assertAlmostEqual(fill, 99.5)
         self.assertAlmostEqual(slip, 0.5)
 
@@ -31,12 +38,16 @@ class TestPhemexCommonUpgrades(unittest.TestCase):
         # Stop mult 1.5 -> Stop dist 15
         # Trail mult 1.0 -> Trail dist 10
         # Long stop = 100 - 15 = 85
-        stop, trail = pc.calc_atr_stops(100.0, 10.0, "LONG", stop_mult=1.5, trail_mult=1.0)
+        stop, trail = pc.calc_atr_stops(
+            100.0, 10.0, "LONG", stop_mult=1.5, trail_mult=1.0
+        )
         self.assertEqual(stop, 85.0)
         self.assertEqual(trail, 10.0)
 
         # Short stop = 100 + 15 = 115
-        stop, trail = pc.calc_atr_stops(100.0, 10.0, "SHORT", stop_mult=1.5, trail_mult=1.0)
+        stop, trail = pc.calc_atr_stops(
+            100.0, 10.0, "SHORT", stop_mult=1.5, trail_mult=1.0
+        )
         self.assertEqual(stop, 115.0)
         self.assertEqual(trail, 10.0)
 
@@ -81,7 +92,7 @@ class TestPhemexCommonUpgrades(unittest.TestCase):
         # 1, 2, 4, 8, 16...
         closes = [float(2**i) for i in range(30)]
         regime, entropy = pc.calc_market_regime(closes, period=20)
-        
+
         # Debug info if failure
         if regime != "TRENDING":
             print(f"DEBUG: regime={regime}, entropy={entropy}")
@@ -92,6 +103,7 @@ class TestPhemexCommonUpgrades(unittest.TestCase):
         # Ranging/Volatile would be random noise, harder to deterministic test without seeding
         # but we can verify it returns valid strings
         import random
+
         random.seed(42)
         closes_random = [random.random() * 100 for _ in range(30)]
         regime, entropy = pc.calc_market_regime(closes_random, period=20)
@@ -105,9 +117,15 @@ class TestPhemexCommonUpgrades(unittest.TestCase):
 
     def test_calc_order_book_imbalance(self):
         # Bids: [[price, qty], ...]
-        bids = [["100", "10"], ["99", "10"]] # Total bid vol 100*10 + 99*10 = 1000 + 990 = 1990
-        asks = [["101", "5"], ["102", "5"]]  # Total ask vol 101*5 + 102*5 = 505 + 510 = 1015
-        
+        bids = [
+            ["100", "10"],
+            ["99", "10"],
+        ]  # Total bid vol 100*10 + 99*10 = 1000 + 990 = 1990
+        asks = [
+            ["101", "5"],
+            ["102", "5"],
+        ]  # Total ask vol 101*5 + 102*5 = 505 + 510 = 1015
+
         # Ratio approx 1990 / 1015 ≈ 1.96
         ratio = pc.calc_order_book_imbalance(bids, asks, depth_levels=2)
         self.assertIsNotNone(ratio)
@@ -116,5 +134,6 @@ class TestPhemexCommonUpgrades(unittest.TestCase):
         # Empty data
         self.assertIsNone(pc.calc_order_book_imbalance([], []))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

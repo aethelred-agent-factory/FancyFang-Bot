@@ -30,17 +30,19 @@ Short bias logic:
 """
 
 from __future__ import annotations
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import logging
+import os
 from typing import Any, List, Optional, Tuple
 
-from colorama import init, Fore
-from dotenv import load_dotenv
-
 import core.phemex_common as pc
+from colorama import Fore, init
+from dotenv import load_dotenv
 from modules.feature_builder import FeatureBuilder
 from modules.prediction_engine import PredictionEngine
 
@@ -57,8 +59,13 @@ prediction_engine_short = PredictionEngine()
 # CONFIG & EXPORTS
 # ----------------------------
 __all__ = [
-    "analyse", "get_tickers", "get_candles", "prefetch_all_funding_rates",
-    "BASE_URL", "TIMEFRAME_MAP", "DEFAULTS"
+    "analyse",
+    "get_tickers",
+    "get_candles",
+    "prefetch_all_funding_rates",
+    "BASE_URL",
+    "TIMEFRAME_MAP",
+    "DEFAULTS",
 ]
 
 BASE_URL = pc.BASE_URL
@@ -66,27 +73,29 @@ TIMEFRAME_MAP = pc.TIMEFRAME_MAP
 DEFAULTS = pc.DEFAULTS
 
 # Strategy thresholds
-MIN_NEGATIVE_FUNDING = -0.02       # skip if funding too negative (crowded shorts = bad for shorts)
+MIN_NEGATIVE_FUNDING = (
+    -0.02
+)  # skip if funding too negative (crowded shorts = bad for shorts)
 THREE_BLACK_CROWS_RSI_GATE = 45
 DIVERGENCE_WINDOW = 60
-DIV_PRICE_THRESHOLD = 1.005        # 0.5% higher high
-DIV_RSI_THRESHOLD = 3.0            # 3.0 RSI points lower high
+DIV_PRICE_THRESHOLD = 1.005  # 0.5% higher high
+DIV_RSI_THRESHOLD = 3.0  # 3.0 RSI points lower high
 RSI_OVERSOLD_ZONE = 35.0
 RSI_OVERBOUGHT_ZONE = 65.0
 
 # Score weights
 WEIGHTS = {
     "divergence": 20,
-    "rsi_rollover": 25,        # RSI rolling over from highs
-    "rsi_overbought": 22,        # deep overbought reading
-    "bb_upper_90": 30,         # price above/at BB upper
-    "bb_upper_75": 22,         # price near BB upper
-    "ema_stretch_3": 15,       # price significantly above EMA21 (mean reversion)
-    "ema_stretch_200": 25,     # price significantly above EMA200 (Macro divergence)
-    "vol_spike_2": 15,         # volume spike
-    "funding_high": 22,        # positive funding = crowded longs = fade fuel
-    "htf_align_overbought": 15, # 1H RSI overbought confirms LTF short
-    "funding_momentum": 10,    # funding becoming more positive (building fade)
+    "rsi_rollover": 25,  # RSI rolling over from highs
+    "rsi_overbought": 22,  # deep overbought reading
+    "bb_upper_90": 30,  # price above/at BB upper
+    "bb_upper_75": 22,  # price near BB upper
+    "ema_stretch_3": 15,  # price significantly above EMA21 (mean reversion)
+    "ema_stretch_200": 25,  # price significantly above EMA200 (Macro divergence)
+    "vol_spike_2": 15,  # volume spike
+    "funding_high": 22,  # positive funding = crowded longs = fade fuel
+    "htf_align_overbought": 15,  # 1H RSI overbought confirms LTF short
+    "funding_momentum": 10,  # funding becoming more positive (building fade)
 }
 
 TRADE_LOG_FILE = os.path.dirname(os.path.abspath(__file__)) + "/trade_log_short.json"
@@ -104,6 +113,7 @@ logger.addHandler(logging.NullHandler())
 # confidence functions added in the upgrade pass.
 TickerData = pc.TickerData
 
+
 # ----------------------------
 # Indicator Logic
 # ----------------------------
@@ -119,7 +129,10 @@ def find_peaks(values: List[float], min_separation: int = 3) -> List[int]:
                 peaks.append(i)
     return peaks
 
-def detect_bearish_divergence(closes: List[float], rsi_values: List[Optional[float]]) -> bool:
+
+def detect_bearish_divergence(
+    closes: List[float], rsi_values: List[Optional[float]]
+) -> bool:
     """
     Bearish divergence: price makes a higher high while RSI makes a lower high.
     This signals exhaustion of buyers and a likely reversal downward.
@@ -139,7 +152,10 @@ def detect_bearish_divergence(closes: List[float], rsi_values: List[Optional[flo
         return False
 
     # Time-alignment check — ensure price and RSI peaks occur within 5 candles of each other
-    if abs(price_peaks[-1] - rsi_peaks[-1]) > 5 or abs(price_peaks[-2] - rsi_peaks[-2]) > 5:
+    if (
+        abs(price_peaks[-1] - rsi_peaks[-1]) > 5
+        or abs(price_peaks[-2] - rsi_peaks[-2]) > 5
+    ):
         return False
 
     p1 = price_window[price_peaks[-2]]
@@ -148,7 +164,12 @@ def detect_bearish_divergence(closes: List[float], rsi_values: List[Optional[flo
     r2 = rsi_window[rsi_peaks[-1]]
 
     # Apply stricter thresholds and ensure second RSI peak is in overbought zone
-    return (p2 > p1 * DIV_PRICE_THRESHOLD) and (r2 < r1 - DIV_RSI_THRESHOLD) and (r2 > RSI_OVERBOUGHT_ZONE - 10)
+    return (
+        (p2 > p1 * DIV_PRICE_THRESHOLD)
+        and (r2 < r1 - DIV_RSI_THRESHOLD)
+        and (r2 > RSI_OVERBOUGHT_ZONE - 10)
+    )
+
 
 def detect_patterns(ohlc: List[Tuple[float, float, float, float]]) -> List:
     """Detect bearish reversal / continuation candle patterns."""
@@ -156,50 +177,76 @@ def detect_patterns(ohlc: List[Tuple[float, float, float, float]]) -> List:
     if len(ohlc) < 3:
         return patterns
 
-    def body(c): return abs(c[3] - c[0])
-    def upper_wick(c): return c[1] - max(c[0], c[3])
-    def lower_wick(c): return min(c[0], c[3]) - c[2]
-    def is_bear(c): return c[3] < c[0]
-    def is_bull(c): return c[3] > c[0]
+    def body(c):
+        return abs(c[3] - c[0])
+
+    def upper_wick(c):
+        return c[1] - max(c[0], c[3])
+
+    def lower_wick(c):
+        return min(c[0], c[3]) - c[2]
+
+    def is_bear(c):
+        return c[3] < c[0]
+
+    def is_bull(c):
+        return c[3] > c[0]
 
     c0, c1, c2 = ohlc[-3], ohlc[-2], ohlc[-1]
 
     # Shooting Star — long upper wick, small body, at high area
-    if (upper_wick(c2) > 2 * body(c2)
-            and lower_wick(c2) < body(c2) * 0.4
-            and body(c2) > 0):
+    if (
+        upper_wick(c2) > 2 * body(c2)
+        and lower_wick(c2) < body(c2) * 0.4
+        and body(c2) > 0
+    ):
         patterns.append(("Shooting Star 🌠", 15, 1.0))
 
     # Gravestone Doji at high (supply spike)
-    if (upper_wick(c2) > 2.5 * body(c2)
-            and body(c2) < (c2[1] - c2[2]) * 0.2
-            and c2[1] > c1[1]):
+    if (
+        upper_wick(c2) > 2.5 * body(c2)
+        and body(c2) < (c2[1] - c2[2]) * 0.2
+        and c2[1] > c1[1]
+    ):
         patterns.append(("Gravestone Doji ⚰️", 14, 1.0))
 
     # Bearish Engulfing — bull candle followed by larger bear candle
-    if (is_bull(c1) and is_bear(c2)
-            and c2[3] <= c1[0] and c2[0] >= c1[3]
-            and body(c2) > body(c1)):
+    if (
+        is_bull(c1)
+        and is_bear(c2)
+        and c2[3] <= c1[0]
+        and c2[0] >= c1[3]
+        and body(c2) > body(c1)
+    ):
         patterns.append(("Bearish Engulfing 🔴", 18, 1.0))
 
     # Evening Star — bull, small body (indecision), bear (3-candle reversal)
-    if (is_bull(c0)
-            and body(c1) < body(c0) * 0.5
-            and is_bear(c2)
-            and c2[3] < (c0[0] + c0[3]) / 2):
+    if (
+        is_bull(c0)
+        and body(c1) < body(c0) * 0.5
+        and is_bear(c2)
+        and c2[3] < (c0[0] + c0[3]) / 2
+    ):
         patterns.append(("Evening Star 🌙", 20, 1.0))
 
     # Dark Cloud Cover — bull candle, bear opens above high, closes below midpoint
-    if (is_bull(c1) and is_bear(c2)
-            and c2[0] > c1[1]
-            and c2[3] < (c1[0] + c1[3]) / 2
-            and c2[3] > c1[0]):
+    if (
+        is_bull(c1)
+        and is_bear(c2)
+        and c2[0] > c1[1]
+        and c2[3] < (c1[0] + c1[3]) / 2
+        and c2[3] > c1[0]
+    ):
         patterns.append(("Dark Cloud Cover ☁️", 16, 1.0))
 
     # Bearish Harami — bull followed by smaller bear inside it
-    if (is_bull(c1) and is_bear(c2)
-            and c2[0] < c1[3] and c2[3] > c1[0]
-            and body(c2) < body(c1)):
+    if (
+        is_bull(c1)
+        and is_bear(c2)
+        and c2[0] < c1[3]
+        and c2[3] > c1[0]
+        and body(c2) < body(c1)
+    ):
         patterns.append(("Bearish Harami 🟥", 12, 1.0))
 
     # Doji at High — indecision after uptrend (reversal warning)
@@ -207,24 +254,46 @@ def detect_patterns(ohlc: List[Tuple[float, float, float, float]]) -> List:
         patterns.append(("Doji at High — Reversal Watch 🔄", 10, 1.0))
 
     # Three Black Crows — three consecutive bear candles
-    if (is_bear(c0) and is_bear(c1) and is_bear(c2)
-            and c1[3] < c0[3] and c2[3] < c1[3]
-            and body(c0) > 0 and body(c1) > 0 and body(c2) > 0):
+    if (
+        is_bear(c0)
+        and is_bear(c1)
+        and is_bear(c2)
+        and c1[3] < c0[3]
+        and c2[3] < c1[3]
+        and body(c0) > 0
+        and body(c1) > 0
+        and body(c2) > 0
+    ):
         patterns.append(("Three Black Crows 🐦‍⬛", 18, 1.0))
 
     # Bearish Marubozu — strong bear with almost no wicks (momentum)
-    if (is_bear(c2)
-            and upper_wick(c2) < body(c2) * 0.1
-            and lower_wick(c2) < body(c2) * 0.1
-            and body(c2) > (c2[1] - c2[2]) * 0.85):
+    if (
+        is_bear(c2)
+        and upper_wick(c2) < body(c2) * 0.1
+        and lower_wick(c2) < body(c2) * 0.1
+        and body(c2) > (c2[1] - c2[2]) * 0.85
+    ):
         patterns.append(("Bearish Marubozu 📉", 14, 1.0))
 
     return patterns
 
+
 # ----------------------------
 # Confidence & Scoring — SHORT BIASED
 # ----------------------------
-def calc_confidence(rsi, bb_pct, ema21, price, change_24h, funding_rate, patterns, score, dist_high_pct, vol_spike, ema200=None):
+def calc_confidence(
+    rsi,
+    bb_pct,
+    ema21,
+    price,
+    change_24h,
+    funding_rate,
+    patterns,
+    score,
+    dist_high_pct,
+    vol_spike,
+    ema200=None,
+):
     """
     Short-biased confidence: counts bearish agreeing signals vs bullish conflicts.
     """
@@ -302,10 +371,17 @@ def _calc_confidence_adapter(data: pc.TickerData, score: int, bb_pct) -> tuple:
     [T1-02] Bridges the legacy positional signature to the unified calling convention.
     """
     return calc_confidence(
-        data.rsi, bb_pct, data.ema21, data.price,
-        data.change_24h, data.funding_rate, data.patterns,
-        score, data.dist_high_pct, data.vol_spike,
-        ema200=data.ema200
+        data.rsi,
+        bb_pct,
+        data.ema21,
+        data.price,
+        data.change_24h,
+        data.funding_rate,
+        data.patterns,
+        score,
+        data.dist_high_pct,
+        data.vol_spike,
+        ema200=data.ema200,
     )
 
 
@@ -375,12 +451,14 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
     # 7. Volume-Price Divergence (VPD) — Hollow Pump detection
     if len(data.raw_ohlc) >= 5:
         recent_window = data.raw_ohlc[-5:]
-        prices = [c[3] for c in recent_window] # Closes
-        vols   = [c[4] for c in recent_window] # Volumes
-        
-        price_increasing = all(prices[i] >= prices[i-1] for i in range(1, len(prices)))
-        volume_decreasing = all(vols[i] <= vols[i-1] for i in range(1, len(vols)))
-        
+        prices = [c[3] for c in recent_window]  # Closes
+        vols = [c[4] for c in recent_window]  # Volumes
+
+        price_increasing = all(
+            prices[i] >= prices[i - 1] for i in range(1, len(prices))
+        )
+        volume_decreasing = all(vols[i] <= vols[i - 1] for i in range(1, len(vols)))
+
         if price_increasing and volume_decreasing:
             score += 20
             signals.append("Volume-Price Divergence (Hollow Pump)")
@@ -396,39 +474,44 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
         elif data.adx < 20:
             # Weak trend, mean-reversion signals are better here.
             score += 10
-            signals.append(f"Ranging Market — Mean Reversion Favored (ADX:{data.adx:.1f})")
+            signals.append(
+                f"Ranging Market — Mean Reversion Favored (ADX:{data.adx:.1f})"
+            )
 
     # 2. POC Distance (Volume Profile)
     if data.poc_price is not None and data.price is not None:
         dist_to_poc = pc.pct_change(data.price, data.poc_price)
-        if dist_to_poc > 2.0: # Price is significantly above POC
+        if dist_to_poc > 2.0:  # Price is significantly above POC
             score += 12
-            signals.append(f"Price Above POC ({dist_to_poc:.1f}%) — Gravitational pull down")
+            signals.append(
+                f"Price Above POC ({dist_to_poc:.1f}%) — Gravitational pull down"
+            )
 
     # 3. Regime Scaling
     if data.regime == "VOLATILE":
         score -= 20
         signals.append("Regime: Volatile — High Risk Penalty")
-    elif data.regime == "TRENDING" and data.ema_slope is not None and data.ema_slope < 0:
+    elif (
+        data.regime == "TRENDING" and data.ema_slope is not None and data.ema_slope < 0
+    ):
         score += 10
         signals.append("Regime: Bearish Trending")
 
     # ── New Predictive Engine Integration ────────────────────────────────────
     features = feature_builder_short.build_features(data)
     predictive_score = prediction_engine_short.get_prediction_score(features, "SHORT")
-    
+
     # Scale predictive score into the 0-200 range logic
     predictive_bonus = int(predictive_score * 30)
     score += predictive_bonus
-    
+
     signals.append(f"PREDICTIVE_SCORE_RAW:{predictive_score:.4f}")
     if predictive_score > 1.0:
         signals.append("PREDICTIVE: STRONG BEARISH BIAS")
-    
+
     # Final cap for compatibility
     final_score = max(0, min(250, score))
     return final_score, signals
-
 
 
 # ----------------------------
@@ -437,16 +520,26 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
 def get_tickers(rps: float = None) -> List[dict]:
     return pc.get_tickers(rps)
 
-def get_candles(symbol: str, timeframe: str = "15m", limit: int = 100, rps: float = None) -> List[List[Any]]:
+
+def get_candles(
+    symbol: str, timeframe: str = "15m", limit: int = 100, rps: float = None
+) -> List[List[Any]]:
     return pc.get_candles(symbol, timeframe, limit, rps)
 
+
 prefetch_all_funding_rates = pc.prefetch_all_funding_rates
+
 
 # ----------------------------
 # Main Analysis
 # ----------------------------
-def analyse(ticker: dict, cfg: dict, enable_ai: bool = True, enable_entity: bool = True,
-            scan_id: str = None) -> dict | None:
+def analyse(
+    ticker: dict,
+    cfg: dict,
+    enable_ai: bool = True,
+    enable_entity: bool = True,
+    scan_id: str = None,
+) -> dict | None:
     """
     Analyse a single Phemex USDT-M perpetual ticker for SHORT setups.
 
@@ -480,12 +573,19 @@ def analyse(ticker: dict, cfg: dict, enable_ai: bool = True, enable_entity: bool
     )
     if result:
         # Extract the actual predictive score that was embedded in signals.
-        predictive_score_str = next((s for s in result["signals"] if s.startswith("PREDICTIVE_SCORE_RAW:")), None)
+        predictive_score_str = next(
+            (s for s in result["signals"] if s.startswith("PREDICTIVE_SCORE_RAW:")),
+            None,
+        )
         if predictive_score_str:
             actual_predictive_score = float(predictive_score_str.split(":")[1].strip())
             result["predictive_score"] = actual_predictive_score
             # Remove this string from signals list, as it has its own dedicated field now
-            result["signals"] = [s for s in result["signals"] if not s.startswith("PREDICTIVE_SCORE_RAW:")]
+            result["signals"] = [
+                s
+                for s in result["signals"]
+                if not s.startswith("PREDICTIVE_SCORE_RAW:")
+            ]
         else:
-            result["predictive_score"] = 0.0 # Default if not found
+            result["predictive_score"] = 0.0  # Default if not found
     return result

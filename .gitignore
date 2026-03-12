@@ -57,3 +57,13 @@ node_modules/
 *.so
 *.c
 
+# Root outputs
+/*.csv
+/*.json
+/*.jsonl
+
+# Specific output files
+/backtest_results.*
+/baseline_results.*
+/bot_trades.jsonl
+

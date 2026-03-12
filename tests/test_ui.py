@@ -1,8 +1,12 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
+
 import core.ui as ui
-from colorama import Fore, Style
+from colorama import Fore
+
 
 class TestUI(unittest.TestCase):
     def test_hr_functions(self):
@@ -37,7 +41,7 @@ class TestUI(unittest.TestCase):
     def test_colored_values(self):
         self.assertIn(Fore.LIGHTGREEN_EX, ui.pnl_color(10.0))
         self.assertIn(Fore.RED, ui.pnl_color(-10.0))
-        
+
         colored_val = ui.colored(123.456, fmt=".2f")
         self.assertIn("123.46", colored_val)
 
@@ -55,5 +59,6 @@ class TestUI(unittest.TestCase):
         self.assertIsInstance(ui.box_bot(), str)
         self.assertIsInstance(ui.box_row("Text"), str)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

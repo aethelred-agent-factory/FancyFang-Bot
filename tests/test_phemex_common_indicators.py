@@ -1,9 +1,13 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import pytest
-import numpy as np
+from unittest.mock import patch
+
 import core.phemex_common as pc
-from unittest.mock import MagicMock, patch
+import numpy as np
+import pytest
+
 
 def test_calc_atr():
     """Test Average True Range (ATR) calculation."""
@@ -18,9 +22,10 @@ def test_calc_atr():
     atr = pc.calc_atr(highs, lows, closes, period=3)
     assert atr == 20.0
 
+
 def test_calc_bb():
     """Test Bollinger Bands calculation."""
-    prices = [10, 12, 14, 16, 18] # mean = 14
+    prices = [10, 12, 14, 16, 18]  # mean = 14
     # std = sqrt(((10-14)^2 + (12-14)^2 + (14-14)^2 + (16-14)^2 + (18-14)^2) / 5)
     # std = sqrt((16 + 4 + 0 + 4 + 16) / 5) = sqrt(40 / 5) = sqrt(8) approx 2.828
     # upper = 14 + 2 * 2.828 = 19.656
@@ -30,6 +35,7 @@ def test_calc_bb():
     assert pytest.approx(bb["upper"]) == 14.0 + 2 * np.std(prices)
     assert pytest.approx(bb["lower"]) == 14.0 - 2 * np.std(prices)
 
+
 def test_update_atr_trail_long():
     """Test ATR-based trailing stop update for LONG position."""
     # Initial: price 100, stop 95, high 100, trail 5
@@ -38,12 +44,13 @@ def test_update_atr_trail_long():
     stop, high, low = pc.update_atr_trail(110, 95, 100, 100, 5.0, "LONG")
     assert stop == 105.0
     assert high == 110.0
-    
+
     # Price moves down to 108
     # High remains 110, stop remains 105
     stop, high, low = pc.update_atr_trail(108, 105, 110, 100, 5.0, "LONG")
     assert stop == 105.0
     assert high == 110.0
+
 
 def test_update_atr_trail_short():
     """Test ATR-based trailing stop update for SHORT position."""
@@ -53,6 +60,7 @@ def test_update_atr_trail_short():
     stop, high, low = pc.update_atr_trail(90, 105, 100, 100, 5.0, "SHORT")
     assert stop == 95.0
     assert low == 90.0
+
 
 def test_rolling_normalizer():
     """Test RollingNormalizer z-score calculation."""
@@ -64,20 +72,22 @@ def test_rolling_normalizer():
     # (20 - 13.33) / 4.71 approx 1.414
     score = norm.update_and_score(20)
     assert score > 1.0
-    
+
     # Test reset
     norm.reset()
     assert norm.update_and_score(10) == 0.0
 
+
 def test_calc_order_book_imbalance():
     """Test order book imbalance ratio."""
-    bids = [[100, 10], [99, 20]] # volume = 1000 + 1980 = 2980
-    asks = [[101, 5], [102, 10]] # volume = 505 + 1020 = 1525
+    bids = [[100, 10], [99, 20]]  # volume = 1000 + 1980 = 2980
+    asks = [[101, 5], [102, 10]]  # volume = 505 + 1020 = 1525
     imbalance = pc.calc_order_book_imbalance(bids, asks, depth_levels=2)
     assert imbalance == 2980 / 1525
-    
+
     # Empty bids/asks
     assert pc.calc_order_book_imbalance([], asks) is None
+
 
 def test_calc_shannon_entropy():
     """Test Shannon entropy of signals."""
@@ -89,47 +99,51 @@ def test_calc_shannon_entropy():
     entropy = pc.calc_shannon_entropy_signals(5, 5, 100)
     assert pytest.approx(entropy, abs=1e-4) == expected
 
+
 def test_calc_hurst_exponent():
     """Test Hurst exponent calculation for trending and random data."""
     # Trending series (persistent) -> H > 0.5
     trending = np.cumsum(np.random.normal(0.1, 0.01, 100)).tolist()
     h_trend = pc.calc_hurst_exponent(trending)
     # Hurst exponent can be noisy on small samples, but generally > 0.4 for strong trends
-    assert h_trend >= 0.0 
-    
+    assert h_trend >= 0.0
+
     # Mean-reverting series -> H < 0.5
     # (Simplified mean reversion)
     reverting = [100 + (i % 2) * 2 for i in range(100)]
     h_rev = pc.calc_hurst_exponent(reverting)
-    assert h_rev < 0.6 # Ideally lower, but Hurst estimation on small windows is loose
+    assert h_rev < 0.6  # Ideally lower, but Hurst estimation on small windows is loose
+
 
 def test_hawkes_tracker():
     """Test HawkesTracker intensity and decay."""
     tracker = pc.HawkesTracker(mu=0.1, alpha=1.0, beta=1.0)
     initial = tracker.get_intensity()
     assert initial == 0.1
-    
+
     # Update with event
     intensity = tracker.update(event_occurred=True)
     # intensity should be mu + alpha (approx, if dt is small)
     assert intensity > 1.0
-    
+
     # Wait and check decay
     with patch("time.time") as mock_time:
-        mock_time.return_value = tracker.last_time + 1.0 # 1 second later
+        mock_time.return_value = tracker.last_time + 1.0  # 1 second later
         decayed = tracker.update(event_occurred=False)
         # intensity = 0.1 + (prev_intensity - 0.1) * exp(-1.0 * 1.0)
         assert decayed < intensity
+
 
 def test_check_spread_filter():
     """Test spread filter."""
     # Max is 0.20 by default
     pass_ok, reason = pc.check_spread_filter(0.1, "BTC")
     assert pass_ok is True
-    
+
     pass_fail, reason = pc.check_spread_filter(0.3, "BTC")
     assert pass_fail is False
     assert "spread" in reason
+
 
 def test_check_volatility_filter():
     """Test volatility filter."""
@@ -137,7 +151,7 @@ def test_check_volatility_filter():
     # ATR/Price = 10 / 1000 = 0.01 (Pass)
     pass_ok, _ = pc.check_volatility_filter(10, 1000, "BTC")
     assert pass_ok is True
-    
+
     # ATR/Price = 1 / 1000 = 0.001 (Fail)
     pass_fail, _ = pc.check_volatility_filter(1, 1000, "BTC")
     assert pass_fail is False

@@ -1,13 +1,16 @@
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import unittest
-import sys
 import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os
+import sys
+import unittest
 
 # Add the root directory to sys.path to import project modules
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import modules.risk_manager as risk_manager
+
 
 class TestRiskManagerWith100USDT(unittest.TestCase):
 
@@ -28,9 +31,7 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
         # Confidence scalar = 0.5 + 0.5 * 1.0 = 1.0
         # Expected risk = $4.5 * 1.0 = $4.5
         risk_amount, _ = self.risk_manager.compute_dynamic_risk(
-            account_balance=self.balance,
-            signal_strength=1.0,
-            open_positions=[]
+            account_balance=self.balance, signal_strength=1.0, open_positions=[]
         )
         self.assertAlmostEqual(risk_amount, self.base_risk)
 
@@ -39,9 +40,7 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
         # Confidence scalar = 0.5 + 0.5 * 0.5 = 0.75
         # Expected risk = $4.5 * 0.75 = $3.375
         risk_amount, _ = self.risk_manager.compute_dynamic_risk(
-            account_balance=self.balance,
-            signal_strength=0.5,
-            open_positions=[]
+            account_balance=self.balance, signal_strength=0.5, open_positions=[]
         )
         self.assertAlmostEqual(risk_amount, 3.375)
 
@@ -50,12 +49,10 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
         # Confidence scalar = 0.5 + 0.5 * 0.0 = 0.5
         # Expected risk = $4.5 * 0.5 = $2.25
         risk_amount, _ = self.risk_manager.compute_dynamic_risk(
-            account_balance=self.balance,
-            signal_strength=0.0,
-            open_positions=[]
+            account_balance=self.balance, signal_strength=0.0, open_positions=[]
         )
         self.assertAlmostEqual(risk_amount, 2.25)
-        
+
     def test_position_sizing(self):
         """Test that position size is calculated correctly from risk amount."""
         # Risk = $4.5, stop distance = $10. Size = 4.5 / 10 = 0.45
@@ -63,7 +60,7 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
             account_balance=self.balance,
             signal_strength=1.0,
             stop_distance=10.0,
-            open_positions=[]
+            open_positions=[],
         )
         self.assertAlmostEqual(risk_amount, self.base_risk)
         self.assertAlmostEqual(position_size, 0.45)
@@ -86,9 +83,24 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
         """Test that get_open_position_risk falls back to margin when stop data is missing."""
         # When stop_price is 0 or missing, use margin as fallback
         open_positions = [
-            {"entry": 100.0, "stop_price": 0.0, "size": 1.0, "margin": 5.0},  # Missing stop, use margin
-            {"entry": 0.0, "stop_price": 190.0, "size": 0.5, "margin": 3.0},  # Missing entry, use margin
-            {"entry": 200.0, "stop_price": 195.0, "size": 0.0, "margin": 2.0},  # Missing size, use margin
+            {
+                "entry": 100.0,
+                "stop_price": 0.0,
+                "size": 1.0,
+                "margin": 5.0,
+            },  # Missing stop, use margin
+            {
+                "entry": 0.0,
+                "stop_price": 190.0,
+                "size": 0.5,
+                "margin": 3.0,
+            },  # Missing entry, use margin
+            {
+                "entry": 200.0,
+                "stop_price": 195.0,
+                "size": 0.0,
+                "margin": 2.0,
+            },  # Missing size, use margin
         ]
         total_risk = self.risk_manager.get_open_position_risk(open_positions)
         # Should sum margins: 5.0 + 3.0 + 2.0
@@ -110,7 +122,7 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
         """Test that trades are rejected when max portfolio risk is exceeded."""
         # Max portfolio risk on $100 balance is 30% = $30.
         # Base risk per trade is $4.5. 6 trades = $27 risk. 7 trades = $31.5 risk.
-        
+
         # 6 open positions should leave capacity for one more trade.
         # Create positions with stop/entry/size that calculate to $4.5 risk each
         # Risk = abs(100 - 95) * 0.9 = 5 * 0.9 = 4.5
@@ -121,20 +133,28 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
         self.assertAlmostEqual(current_risk, 27.0)
 
         # A new trade risking $3 should be allowed.
-        rejected, _ = self.risk_manager.should_reject_trade(3.0, self.balance, open_positions)
+        rejected, _ = self.risk_manager.should_reject_trade(
+            3.0, self.balance, open_positions
+        )
         self.assertFalse(rejected)
-        
+
         # A new trade risking $3.01 should be rejected ($27 + $3.01 > $30).
-        rejected, reason = self.risk_manager.should_reject_trade(3.01, self.balance, open_positions)
+        rejected, reason = self.risk_manager.should_reject_trade(
+            3.01, self.balance, open_positions
+        )
         self.assertTrue(rejected)
         self.assertIn("Portfolio risk cap", reason)
 
         # A new trade risking $3 should be allowed.
-        rejected, _ = self.risk_manager.should_reject_trade(3.0, self.balance, open_positions)
+        rejected, _ = self.risk_manager.should_reject_trade(
+            3.0, self.balance, open_positions
+        )
         self.assertFalse(rejected)
-        
+
         # A new trade risking $3.01 should be rejected ($27 + $3.01 > $30).
-        rejected, reason = self.risk_manager.should_reject_trade(3.01, self.balance, open_positions)
+        rejected, reason = self.risk_manager.should_reject_trade(
+            3.01, self.balance, open_positions
+        )
         self.assertTrue(rejected)
         self.assertIn("Portfolio risk cap", reason)
 
@@ -145,14 +165,15 @@ class TestRiskManagerWith100USDT(unittest.TestCase):
         open_positions = [
             {"entry": 100.0, "stop_price": 95.0, "size": 0.9, "margin": 999.0}
         ] * 6
-        
+
         # Even with full confidence, the risk amount should be capped at the remaining $3.
         risk_amount, _ = self.risk_manager.compute_dynamic_risk(
             account_balance=self.balance,
             signal_strength=1.0,
-            open_positions=open_positions
+            open_positions=open_positions,
         )
         self.assertAlmostEqual(risk_amount, 3.0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

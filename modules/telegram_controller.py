@@ -36,7 +36,10 @@ at runtime so this module has zero circular imports.
 """
 
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import logging
@@ -44,7 +47,7 @@ import os
 import re
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import requests
 
@@ -52,37 +55,38 @@ logger = logging.getLogger("tg_controller")
 logger.addHandler(logging.NullHandler())
 
 TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "")
-TG_CHAT_ID   = os.getenv("TG_CHAT_ID",   "")
+TG_CHAT_ID = os.getenv("TG_CHAT_ID", "")
 
 _BASE = f"https://api.telegram.org/bot{TG_BOT_TOKEN}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Internal state
 # ─────────────────────────────────────────────────────────────────────────────
-_lock        = threading.Lock()
-_offset      = 0
-_running     = False
-_halted      = False   # manual /stop override
+_lock = threading.Lock()
+_offset = 0
+_running = False
+_halted = False  # manual /stop override
 _thread: Optional[threading.Thread] = None
 
 # Injected callbacks — set by start()
-_get_balance:     Optional[Callable[[], float]]       = None
-_get_positions:   Optional[Callable[[], List[dict]]]  = None
-_get_session_pnl: Optional[Callable[[], dict]]      = None    # optional
-_get_logs:        Optional[Callable[[], str]]         = None    # optional
-_run_scan:        Optional[Callable[[], str]]        = None    # optional
-_get_chart:       Optional[Callable[[], Optional[str]]] = None # optional
-_run_backtest:    Optional[Callable[[str], str]]     = None    # optional
+_get_balance: Optional[Callable[[], float]] = None
+_get_positions: Optional[Callable[[], List[dict]]] = None
+_get_session_pnl: Optional[Callable[[], dict]] = None  # optional
+_get_logs: Optional[Callable[[], str]] = None  # optional
+_run_scan: Optional[Callable[[], str]] = None  # optional
+_get_chart: Optional[Callable[[], Optional[str]]] = None  # optional
+_run_backtest: Optional[Callable[[str], str]] = None  # optional
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
 
 def strip_ansi(s: str) -> str:
     """Strip ANSI escape sequences from a string."""
-    return ANSI_ESCAPE.sub('', s)
+    return ANSI_ESCAPE.sub("", s)
 
 
 def _send(text: str) -> None:
@@ -105,7 +109,11 @@ def _send_photo(photo_path: str, caption: str = "") -> None:
         with open(photo_path, "rb") as photo:
             requests.post(
                 f"{_BASE}/sendPhoto",
-                data={"chat_id": TG_CHAT_ID, "caption": caption, "parse_mode": "Markdown"},
+                data={
+                    "chat_id": TG_CHAT_ID,
+                    "caption": caption,
+                    "parse_mode": "Markdown",
+                },
                 files={"photo": photo},
                 timeout=20,
             )
@@ -120,7 +128,11 @@ def _get_updates() -> List[dict]:
     try:
         r = requests.get(
             f"{_BASE}/getUpdates",
-            params={"offset": current_offset, "timeout": 20, "allowed_updates": ["message"]},
+            params={
+                "offset": current_offset,
+                "timeout": 20,
+                "allowed_updates": ["message"],
+            },
             timeout=25,
         )
         data = r.json()
@@ -144,6 +156,7 @@ def is_halted() -> bool:
 # Command handlers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _handle_start(chat_id: str) -> None:
     global _halted
     with _lock:
@@ -162,7 +175,7 @@ def _handle_stop(chat_id: str) -> None:
 
 def _handle_status(chat_id: str) -> None:
     try:
-        import modules.drawdown_guard
+
         dd = drawdown_guard.get_status()
         dd_line = (
             f"Daily PnL: `{dd['daily_pnl']:+.4f}` USDT "
@@ -198,11 +211,11 @@ def _handle_status(chat_id: str) -> None:
 def _handle_profit(chat_id: str) -> None:
     if _get_session_pnl:
         stats = _get_session_pnl()
-        wins   = stats.get("wins", 0)
+        wins = stats.get("wins", 0)
         losses = stats.get("losses", 0)
-        total  = wins + losses
-        wr     = wins / total * 100 if total > 0 else 0.0
-        pnl    = stats.get("total_pnl", 0.0)
+        total = wins + losses
+        wr = wins / total * 100 if total > 0 else 0.0
+        pnl = stats.get("total_pnl", 0.0)
         msg = (
             "💰 *Session Profit Summary*\n\n"
             f"Trades: `{total}` (W:`{wins}` / L:`{losses}`)\n"
@@ -222,10 +235,10 @@ def _handle_positions(chat_id: str) -> None:
 
     lines = ["📋 *Open Positions*\n"]
     for p in positions:
-        sym   = p.get("symbol", "?")
-        side  = p.get("side", "?")
+        sym = p.get("symbol", "?")
+        side = p.get("side", "?")
         entry = p.get("entry", 0.0)
-        pnl   = p.get("pnl", 0.0)
+        pnl = p.get("pnl", 0.0)
         score = p.get("entry_score", "?")
         arrow = "🟢▲" if side == "Buy" or side == "Long" else "🔴▼"
         lines.append(
@@ -287,7 +300,7 @@ def _handle_help(chat_id: str) -> None:
 
 def _handle_block(chat_id: str, text: str) -> None:
     try:
-        import modules.event_filter
+
         parts = text.split()
         mins = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 60
         event_filter.filter.block_manual(mins)
@@ -298,7 +311,7 @@ def _handle_block(chat_id: str, text: str) -> None:
 
 def _handle_unblock(chat_id: str) -> None:
     try:
-        import modules.event_filter
+
         event_filter.filter.unblock()
         _send("✅ *Manual Block CLEARED* — events/news filters still active.")
     except Exception as e:
@@ -332,25 +345,26 @@ def _handle_backtest(chat_id: str, text: str) -> None:
 
 
 _COMMAND_MAP: Dict[str, Callable] = {
-    "/start":     _handle_start,
-    "/stop":      _handle_stop,
-    "/status":    _handle_status,
-    "/profit":    _handle_profit,
+    "/start": _handle_start,
+    "/stop": _handle_stop,
+    "/status": _handle_status,
+    "/profit": _handle_profit,
     "/positions": _handle_positions,
-    "/snapshot":  _handle_snapshot,
-    "/scan":      _handle_scan,
-    "/logs":      _handle_logs,
-    "/help":      _handle_help,
-    "/block":     _handle_block,
-    "/unblock":   _handle_unblock,
-    "/chart":     _handle_chart,
-    "/backtest":  _handle_backtest,
+    "/snapshot": _handle_snapshot,
+    "/scan": _handle_scan,
+    "/logs": _handle_logs,
+    "/help": _handle_help,
+    "/block": _handle_block,
+    "/unblock": _handle_unblock,
+    "/chart": _handle_chart,
+    "/backtest": _handle_backtest,
 }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Poll loop
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _poll_loop() -> None:
     global _running
@@ -367,12 +381,15 @@ def _poll_loop() -> None:
             chat_id = str(msg.get("chat", {}).get("id", ""))
             # Only respond to the configured chat ID (security gate)
             if TG_CHAT_ID and chat_id != str(TG_CHAT_ID):
-                logger.warning(f"tg_controller: ignoring message from unknown chat {chat_id}")
+                logger.warning(
+                    f"tg_controller: ignoring message from unknown chat {chat_id}"
+                )
                 continue
-            
+
             handler = _COMMAND_MAP.get(cmd)
             if handler:
                 logger.info(f"tg_controller: handling command '{cmd}'")
+
                 # Run handler in a separate thread to keep poll loop responsive
                 def _wrap(h=handler, c_id=chat_id, txt=raw_text, c=cmd):
                     try:
@@ -399,14 +416,15 @@ def _poll_loop() -> None:
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def start(
-    get_balance_fn:     Callable[[], float],
-    get_positions_fn:   Callable[[], List[dict]],
+    get_balance_fn: Callable[[], float],
+    get_positions_fn: Callable[[], List[dict]],
     get_session_pnl_fn: Optional[Callable[[], dict]] = None,
-    get_logs_fn:        Optional[Callable[[], str]] = None,
-    run_scan_fn:        Optional[Callable[[], str]] = None,
-    get_chart_fn:       Optional[Callable[[], Optional[str]]] = None,
-    run_backtest_fn:    Optional[Callable[[str], str]] = None,
+    get_logs_fn: Optional[Callable[[], str]] = None,
+    run_scan_fn: Optional[Callable[[], str]] = None,
+    get_chart_fn: Optional[Callable[[], Optional[str]]] = None,
+    run_backtest_fn: Optional[Callable[[str], str]] = None,
 ) -> None:
     """
     Start the Telegram control interface in a daemon thread.
@@ -424,16 +442,18 @@ def start(
     global _running, _thread, _get_balance, _get_positions, _get_session_pnl, _get_logs, _run_scan, _get_chart, _run_backtest
 
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
-        logger.warning("tg_controller: TG_BOT_TOKEN or TG_CHAT_ID not set — Telegram control disabled")
+        logger.warning(
+            "tg_controller: TG_BOT_TOKEN or TG_CHAT_ID not set — Telegram control disabled"
+        )
         return
 
-    _get_balance     = get_balance_fn
-    _get_positions   = get_positions_fn
+    _get_balance = get_balance_fn
+    _get_positions = get_positions_fn
     _get_session_pnl = get_session_pnl_fn
-    _get_logs        = get_logs_fn
-    _run_scan        = run_scan_fn
-    _get_chart       = get_chart_fn
-    _run_backtest    = run_backtest_fn
+    _get_logs = get_logs_fn
+    _run_scan = run_scan_fn
+    _get_chart = get_chart_fn
+    _run_backtest = run_backtest_fn
 
     with _lock:
         if _running:

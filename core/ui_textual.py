@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
+import threading
+
+from core.debug_log import dbg_log
+from core.ui_rich import (
+    get_account_summary,
+    get_log_view,
+    get_market_overview,
+    get_performance_stats,
+    get_position_row,
+)
+from rich.console import Group
+from rich.panel import Panel
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Static, TabbedContent, TabPane
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
-from rich.panel import Panel
-from rich.console import Group
-from core.ui_rich import (
-    get_account_summary, 
-    get_position_row, 
-    get_market_overview, 
-    get_performance_stats, 
-    get_log_view
-)
-import datetime
-import threading
-from core.debug_log import dbg_log
+from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
+
 
 class Dashboard(Static):
     """Main terminal dashboard with 2-column layout."""
+
     balance = reactive(0.0)
     upnl = reactive(0.0)
     locked_margin = reactive(0.0)
@@ -35,13 +37,18 @@ class Dashboard(Static):
                 yield Static(id="positions-header")
                 yield Static(id="positions-list")
 
-    def watch_balance(self, value: float) -> None: self.update_ui()
-    def watch_upnl(self, value: float) -> None: self.update_ui()
-    def watch_positions(self, value: list) -> None: self.update_ui()
+    def watch_balance(self, value: float) -> None:
+        self.update_ui()
+
+    def watch_upnl(self, value: float) -> None:
+        self.update_ui()
+
+    def watch_positions(self, value: list) -> None:
+        self.update_ui()
 
     def update_ui(self) -> None:
         try:
-            #region agent log
+            # region agent log
             dbg_log(
                 hypothesisId="A",
                 location="core/ui_textual.py:update_ui",
@@ -51,57 +58,89 @@ class Dashboard(Static):
                     "upnl": self.upnl,
                     "locked_margin": self.locked_margin,
                     "entropy_penalty": self.entropy_penalty,
-                    "positions_len": len(self.positions) if isinstance(self.positions, list) else None,
-                    "market_len": len(self.market_data) if isinstance(self.market_data, list) else None,
+                    "positions_len": (
+                        len(self.positions)
+                        if isinstance(self.positions, list)
+                        else None
+                    ),
+                    "market_len": (
+                        len(self.market_data)
+                        if isinstance(self.market_data, list)
+                        else None
+                    ),
                 },
             )
-            #endregion
+            # endregion
             summary = self.query_one("#account-summary")
-            summary.update(get_account_summary(self.balance, self.upnl, self.locked_margin, self.entropy_penalty, self.initial_balance))
-            
+            summary.update(
+                get_account_summary(
+                    self.balance,
+                    self.upnl,
+                    self.locked_margin,
+                    self.entropy_penalty,
+                    self.initial_balance,
+                )
+            )
+
             market = self.query_one("#market-overview")
             market.update(get_market_overview(self.market_data))
-            
+
             pos_list = self.query_one("#positions-list")
             panels = [
                 get_position_row(
-                    p["symbol"], p["side"], p["entry"], p.get("current", p["entry"]),
-                    p["size"], p["margin"], p.get("pnl", 0.0), p.get("stop_price", p["entry"])
-                ) for p in self.positions
+                    p["symbol"],
+                    p["side"],
+                    p["entry"],
+                    p.get("current", p["entry"]),
+                    p["size"],
+                    p["margin"],
+                    p.get("pnl", 0.0),
+                    p.get("stop_price", p["entry"]),
+                )
+                for p in self.positions
             ]
-            pos_list.update(Group(*panels) if panels else Panel("Searching for signals...", border_style="fb.dim"))
+            pos_list.update(
+                Group(*panels)
+                if panels
+                else Panel("Searching for signals...", border_style="fb.dim")
+            )
         except Exception as e:
-            #region agent log
+            # region agent log
             dbg_log(
                 hypothesisId="A",
                 location="core/ui_textual.py:update_ui",
                 message="Dashboard.update_ui exception",
                 data={"exc_type": type(e).__name__, "exc": repr(e)},
             )
-            #endregion
+            # endregion
             pass
+
 
 class PerformanceStats(Static):
     """Page for deep performance analytics."""
+
     stats_data = reactive({})
 
     def render(self) -> Panel:
         return Panel(
             get_performance_stats(self.stats_data),
             title="[bold fb.cyan]PERFORMANCE ANALYTICS[/bold fb.cyan]",
-            border_style="fb.cyan"
+            border_style="fb.cyan",
         )
+
 
 class SystemLogs(Static):
     """Page for full-screen scrolling logs."""
+
     logs = reactive([])
 
     def render(self) -> Panel:
         return get_log_view(self.logs)
 
+
 class FancyBotApp(App):
     """Professional Trading Terminal App."""
-    
+
     CSS = """
     Screen { background: #000b1e; color: white; }
     .column { width: 1fr; padding: 1; }
@@ -148,8 +187,8 @@ class FancyBotApp(App):
         with self.bot_state.lock:
             dash.balance = self.bot_state.balance
             dash.positions = self.bot_state.positions[:]
-            dash.entropy_penalty = getattr(self.bot_state, 'entropy_penalty', 0.0)
-            
+            dash.entropy_penalty = getattr(self.bot_state, "entropy_penalty", 0.0)
+
             # Calculate total uPnL from positions
             total_upnl = 0.0
             locked_margin = 0.0
@@ -157,14 +196,18 @@ class FancyBotApp(App):
                 locked_margin += p.get("margin", 0.0)
                 now = self.bot_state.live_prices.get(p["symbol"])
                 if now:
-                    upnl = (now - p['entry']) * p['size'] if p['side'] == "Buy" else (p['entry'] - now) * p['size']
+                    upnl = (
+                        (now - p["entry"]) * p["size"]
+                        if p["side"] == "Buy"
+                        else (p["entry"] - now) * p["size"]
+                    )
                     total_upnl += upnl
                     p["current"] = now
                     p["pnl"] = upnl
-            
+
             dash.upnl = total_upnl
             dash.locked_margin = locked_margin
-            
+
             # Update Stats
             stats_view = self.query_one("#stats-view")
             wins = self.bot_state.rolling_stats["wins"]
@@ -172,11 +215,32 @@ class FancyBotApp(App):
             total = wins + losses
             stats_view.stats_data = {
                 "win_rate": (wins / total * 100) if total > 0 else 0,
-                "profit_factor": (self.bot_state.rolling_stats["win_pnl"] / abs(self.bot_state.rolling_stats["loss_pnl"])) if self.bot_state.rolling_stats["loss_pnl"] != 0 else 0,
-                "expectancy": (self.bot_state.rolling_stats["win_pnl"] + self.bot_state.rolling_stats["loss_pnl"]) / total if total > 0 else 0,
-                "avg_win": self.bot_state.rolling_stats["win_pnl"] / wins if wins > 0 else 0,
-                "avg_loss": self.bot_state.rolling_stats["loss_pnl"] / losses if losses > 0 else 0,
-                "max_dd": 0.0 # To be implemented via drawdown_guard if needed
+                "profit_factor": (
+                    (
+                        self.bot_state.rolling_stats["win_pnl"]
+                        / abs(self.bot_state.rolling_stats["loss_pnl"])
+                    )
+                    if self.bot_state.rolling_stats["loss_pnl"] != 0
+                    else 0
+                ),
+                "expectancy": (
+                    (
+                        self.bot_state.rolling_stats["win_pnl"]
+                        + self.bot_state.rolling_stats["loss_pnl"]
+                    )
+                    / total
+                    if total > 0
+                    else 0
+                ),
+                "avg_win": (
+                    self.bot_state.rolling_stats["win_pnl"] / wins if wins > 0 else 0
+                ),
+                "avg_loss": (
+                    self.bot_state.rolling_stats["loss_pnl"] / losses
+                    if losses > 0
+                    else 0
+                ),
+                "max_dd": 0.0,  # To be implemented via drawdown_guard if needed
             }
 
         # Update Logs
@@ -186,6 +250,7 @@ class FancyBotApp(App):
     def action_switch_tab(self, tab: str) -> None:
         self.query_one(TabbedContent).active = tab
 
+
 if __name__ == "__main__":
     # Mock for testing
     class MockState:
@@ -194,7 +259,12 @@ if __name__ == "__main__":
             self.balance = 1200.0
             self.positions = []
             self.live_prices = {}
-            self.rolling_stats = {"wins": 5, "losses": 3, "win_pnl": 150.0, "loss_pnl": -80.0}
-    
+            self.rolling_stats = {
+                "wins": 5,
+                "losses": 3,
+                "win_pnl": 150.0,
+                "loss_pnl": -80.0,
+            }
+
     app = FancyBotApp(bot_state=MockState())
     app.run()

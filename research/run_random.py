@@ -10,22 +10,26 @@ PnL values are colored green (positive) or red (negative).
 Usage:
   python backtest.py [args] | python filter_output.py
 """
-import sys
+
 import re
+import sys
 
 GREEN = "\033[92m"
-RED   = "\033[91m"
+RED = "\033[91m"
 RESET = "\033[0m"
 
-EXIT_KEYS      = ("trail_stop", "hard_stop", "take_profit", "max_hold")
+EXIT_KEYS = ("trail_stop", "hard_stop", "take_profit", "max_hold")
 DIRECTION_KEYS = ("LONG  :", "SHORT :")
+
 
 def colorize(line):
     def replacer(m):
         val = m.group(0)
         color = GREEN if val.startswith("+") else RED
         return f"{color}{val}{RESET}"
+
     return re.sub(r"[+-]\d+\.\d+", replacer, line)
+
 
 in_box = False
 

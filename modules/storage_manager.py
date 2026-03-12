@@ -1,20 +1,24 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import sqlite3
+import datetime
 import json
 import logging
-import datetime
+import sqlite3
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("storage_manager")
 
+
 class StorageManager:
     """
     SQLite-based storage manager for FancyBot.
     Provides a clean abstraction for account state and trade history.
     """
+
     def __init__(self, db_path: Path):
         self.db_path = db_path
         self._lock = threading.RLock()
@@ -142,13 +146,19 @@ class StorageManager:
                 # Ensure columns exist in trade_history (Migration)
                 cursor.execute("PRAGMA table_info(trade_history)")
                 cols = [c[1] for c in cursor.fetchall()]
-                if 'signals_json' not in cols:
-                    cursor.execute("ALTER TABLE trade_history ADD COLUMN signals_json TEXT")
-                if 'raw_signals_json' not in cols:
-                    cursor.execute("ALTER TABLE trade_history ADD COLUMN raw_signals_json TEXT")
-                if 'slippage' not in cols:
-                    cursor.execute("ALTER TABLE trade_history ADD COLUMN slippage REAL DEFAULT 0.0")
-                
+                if "signals_json" not in cols:
+                    cursor.execute(
+                        "ALTER TABLE trade_history ADD COLUMN signals_json TEXT"
+                    )
+                if "raw_signals_json" not in cols:
+                    cursor.execute(
+                        "ALTER TABLE trade_history ADD COLUMN raw_signals_json TEXT"
+                    )
+                if "slippage" not in cols:
+                    cursor.execute(
+                        "ALTER TABLE trade_history ADD COLUMN slippage REAL DEFAULT 0.0"
+                    )
+
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to initialize database: {e}")
@@ -168,10 +178,10 @@ class StorageManager:
                 cursor = conn.cursor()
                 cursor.execute("SELECT balance FROM account WHERE id = 1")
                 row = cursor.fetchone()
-                balance = float(row['balance']) if row else initial_balance
+                balance = float(row["balance"]) if row else initial_balance
 
                 cursor.execute("SELECT data_json FROM positions")
-                positions = [json.loads(r['data_json']) for r in cursor.fetchall()]
+                positions = [json.loads(r["data_json"]) for r in cursor.fetchall()]
 
                 return {"balance": balance, "positions": positions}
             finally:
@@ -186,27 +196,39 @@ class StorageManager:
                 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
                 # Update balance
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO account (id, balance, updated_at)
                     VALUES (1, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET balance=excluded.balance, updated_at=excluded.updated_at
-                """, (balance, now))
+                """,
+                    (balance, now),
+                )
 
                 # Update positions
                 cursor.execute("DELETE FROM positions")
                 for pos in positions:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO positions (
                             symbol, side, size, margin, leverage, entry,
                             stop_price, take_profit, entry_time, entry_score, data_json
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        pos['symbol'], pos['side'], pos['size'], pos['margin'],
-                        pos.get('leverage', 0), pos['entry'],
-                        pos.get('stop_price'), pos.get('take_profit'),
-                        pos.get('entry_time', now), pos.get('entry_score', 0),
-                        json.dumps(pos)
-                    ))
+                    """,
+                        (
+                            pos["symbol"],
+                            pos["side"],
+                            pos["size"],
+                            pos["margin"],
+                            pos.get("leverage", 0),
+                            pos["entry"],
+                            pos.get("stop_price"),
+                            pos.get("take_profit"),
+                            pos.get("entry_time", now),
+                            pos.get("entry_score", 0),
+                            json.dumps(pos),
+                        ),
+                    )
                 conn.commit()
             except sqlite3.Error as e:
                 conn.rollback()
@@ -220,25 +242,31 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO trade_history (
                         symbol, direction, entry, exit, pnl, hold_time_s,
                         score, reason, timestamp, signals_json, slippage, raw_signals_json
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    record.get('symbol', 'UNKNOWN'),
-                    record.get('direction', 'UNKNOWN'),
-                    record.get('entry', 0.0),
-                    record.get('exit', 0.0),
-                    record.get('pnl', 0.0),
-                    record.get('hold_time_s'),
-                    record.get('score'),
-                    record.get('reason'),
-                    record.get('timestamp', datetime.datetime.now(datetime.timezone.utc).isoformat()),
-                    json.dumps(record.get('signals', [])),
-                    record.get('slippage', 0.0),
-                    json.dumps(record.get('raw_signals', {}))
-                ))
+                """,
+                    (
+                        record.get("symbol", "UNKNOWN"),
+                        record.get("direction", "UNKNOWN"),
+                        record.get("entry", 0.0),
+                        record.get("exit", 0.0),
+                        record.get("pnl", 0.0),
+                        record.get("hold_time_s"),
+                        record.get("score"),
+                        record.get("reason"),
+                        record.get(
+                            "timestamp",
+                            datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        ),
+                        json.dumps(record.get("signals", [])),
+                        record.get("slippage", 0.0),
+                        json.dumps(record.get("raw_signals", {})),
+                    ),
+                )
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to append trade: {e}")
@@ -251,17 +279,20 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM trade_history ORDER BY timestamp DESC LIMIT ?
-                """, (limit,))
+                """,
+                    (limit,),
+                )
                 rows = cursor.fetchall()
                 history = []
                 for r in rows:
                     item = dict(r)
-                    signals_json = item.pop('signals_json', None)
-                    item['signals'] = json.loads(signals_json) if signals_json else []
-                    raw_sig = item.pop('raw_signals_json', None)
-                    item['raw_signals'] = json.loads(raw_sig) if raw_sig else {}
+                    signals_json = item.pop("signals_json", None)
+                    item["signals"] = json.loads(signals_json) if signals_json else []
+                    raw_sig = item.pop("raw_signals_json", None)
+                    item["raw_signals"] = json.loads(raw_sig) if raw_sig else {}
                     history.append(item)
                 return history
             finally:
@@ -289,7 +320,7 @@ class StorageManager:
                 row = cursor.fetchone()
                 if row:
                     res = dict(row)
-                    res['killed'] = bool(res['killed'])
+                    res["killed"] = bool(res["killed"])
                     return res
                 return None
             finally:
@@ -301,7 +332,8 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO drawdown_state (day, start_balance, daily_pnl, killed, kill_reason, kill_count_today)
                     VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(day) DO UPDATE SET
@@ -310,11 +342,16 @@ class StorageManager:
                         killed=excluded.killed,
                         kill_reason=excluded.kill_reason,
                         kill_count_today=excluded.kill_count_today
-                """, (
-                    state_dict['day'], state_dict['start_balance'], state_dict['daily_pnl'],
-                    1 if state_dict['killed'] else 0, state_dict['kill_reason'],
-                    state_dict['kill_count_today']
-                ))
+                """,
+                    (
+                        state_dict["day"],
+                        state_dict["start_balance"],
+                        state_dict["daily_pnl"],
+                        1 if state_dict["killed"] else 0,
+                        state_dict["kill_reason"],
+                        state_dict["kill_count_today"],
+                    ),
+                )
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to save drawdown state: {e}")
@@ -333,14 +370,14 @@ class StorageManager:
                 rows = cursor.fetchall()
                 stats = {}
                 for r in rows:
-                    name = r['signal_name']
+                    name = r["signal_name"]
                     stats[name] = {
-                        "trade_count": r['trade_count'],
-                        "win_count": r['win_count'],
-                        "loss_count": r['loss_count'],
-                        "gross_wins": r['gross_wins'],
-                        "gross_losses": r['gross_losses'],
-                        "pnl_list": json.loads(r['pnl_list_json'])
+                        "trade_count": r["trade_count"],
+                        "win_count": r["win_count"],
+                        "loss_count": r["loss_count"],
+                        "gross_wins": r["gross_wins"],
+                        "gross_losses": r["gross_losses"],
+                        "pnl_list": json.loads(r["pnl_list_json"]),
                     }
                 return stats
             finally:
@@ -353,7 +390,8 @@ class StorageManager:
             try:
                 cursor = conn.cursor()
                 for name, b in stats.items():
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO signal_stats (
                             signal_name, trade_count, win_count, loss_count,
                             gross_wins, gross_losses, pnl_list_json
@@ -365,10 +403,17 @@ class StorageManager:
                             gross_wins=excluded.gross_wins,
                             gross_losses=excluded.gross_losses,
                             pnl_list_json=excluded.pnl_list_json
-                    """, (
-                        name, b['trade_count'], b['win_count'], b['loss_count'],
-                        b['gross_wins'], b['gross_losses'], json.dumps(b['pnl_list'])
-                    ))
+                    """,
+                        (
+                            name,
+                            b["trade_count"],
+                            b["win_count"],
+                            b["loss_count"],
+                            b["gross_wins"],
+                            b["gross_losses"],
+                            json.dumps(b["pnl_list"]),
+                        ),
+                    )
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to save signal stats: {e}")
@@ -385,14 +430,14 @@ class StorageManager:
                 rows = cursor.fetchall()
                 stats = {}
                 for r in rows:
-                    hour = r['hour']
+                    hour = r["hour"]
                     stats[hour] = {
-                        "trade_count": r['trade_count'],
-                        "win_count": r['win_count'],
-                        "loss_count": r['loss_count'],
-                        "gross_wins": r['gross_wins'],
-                        "gross_losses": r['gross_losses'],
-                        "pnl_list": json.loads(r['pnl_list_json'])
+                        "trade_count": r["trade_count"],
+                        "win_count": r["win_count"],
+                        "loss_count": r["loss_count"],
+                        "gross_wins": r["gross_wins"],
+                        "gross_losses": r["gross_losses"],
+                        "pnl_list": json.loads(r["pnl_list_json"]),
                     }
                 return stats
             finally:
@@ -405,7 +450,8 @@ class StorageManager:
             try:
                 cursor = conn.cursor()
                 for hour, b in stats.items():
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO hour_stats (
                             hour, trade_count, win_count, loss_count,
                             gross_wins, gross_losses, pnl_list_json
@@ -417,10 +463,17 @@ class StorageManager:
                             gross_wins=excluded.gross_wins,
                             gross_losses=excluded.gross_losses,
                             pnl_list_json=excluded.pnl_list_json
-                    """, (
-                        hour, b['trade_count'], b['win_count'], b['loss_count'],
-                        b['gross_wins'], b['gross_losses'], json.dumps(b['pnl_list'])
-                    ))
+                    """,
+                        (
+                            hour,
+                            b["trade_count"],
+                            b["win_count"],
+                            b["loss_count"],
+                            b["gross_wins"],
+                            b["gross_losses"],
+                            json.dumps(b["pnl_list"]),
+                        ),
+                    )
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to save hour stats: {e}")
@@ -438,10 +491,13 @@ class StorageManager:
                 cursor.execute("DELETE FROM correlation_matrix")
                 for s1, row in matrix.items():
                     for s2, corr in row.items():
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             INSERT INTO correlation_matrix (symbol1, symbol2, correlation, updated_at)
                             VALUES (?, ?, ?, ?)
-                        """, (s1, s2, corr, now))
+                        """,
+                            (s1, s2, corr, now),
+                        )
                 conn.commit()
             except sqlite3.Error as e:
                 conn.rollback()
@@ -449,7 +505,9 @@ class StorageManager:
             finally:
                 conn.close()
 
-    def load_correlation_matrix(self) -> Tuple[Dict[str, Dict[str, float]], Optional[str]]:
+    def load_correlation_matrix(
+        self,
+    ) -> Tuple[Dict[str, Dict[str, float]], Optional[str]]:
         """Loads the most recent correlation matrix and its update timestamp."""
         with self._lock:
             conn = self._get_connection()
@@ -460,8 +518,8 @@ class StorageManager:
                 matrix = {}
                 updated_at = None
                 for r in rows:
-                    s1, s2, corr = r['symbol1'], r['symbol2'], r['correlation']
-                    updated_at = r['updated_at']
+                    s1, s2, corr = r["symbol1"], r["symbol2"], r["correlation"]
+                    updated_at = r["updated_at"]
                     if s1 not in matrix:
                         matrix[s1] = {}
                     matrix[s1][s2] = corr
@@ -478,14 +536,20 @@ class StorageManager:
                 # Simple strategy: clear and replace
                 cursor.execute("DELETE FROM events")
                 for e in events:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO events (name, time, buffer_before_mins, buffer_after_mins, impact, source)
                         VALUES (?, ?, ?, ?, ?, ?)
-                    """, (
-                        e.get('name', 'Unknown'), e.get('time'),
-                        e.get('buffer_before', 90), e.get('buffer_after', 30),
-                        e.get('impact'), e.get('source')
-                    ))
+                    """,
+                        (
+                            e.get("name", "Unknown"),
+                            e.get("time"),
+                            e.get("buffer_before", 90),
+                            e.get("buffer_after", 30),
+                            e.get("impact"),
+                            e.get("source"),
+                        ),
+                    )
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to save events: {e}")
@@ -538,7 +602,9 @@ class StorageManager:
 
     # Blacklist API --------------------------------------------------------
 
-    def add_to_blacklist(self, symbol: str, reason: str, expires_at: Optional[datetime.datetime] = None):
+    def add_to_blacklist(
+        self, symbol: str, reason: str, expires_at: Optional[datetime.datetime] = None
+    ):
         """Adds or updates a blacklisted symbol with an optional expiry."""
         self._init_ledger_tables()
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -582,7 +648,9 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("SELECT symbol, reason, created_at, expires_at FROM blacklist")
+                cursor.execute(
+                    "SELECT symbol, reason, created_at, expires_at FROM blacklist"
+                )
                 rows = cursor.fetchall()
                 for r in rows:
                     exp = r["expires_at"]
@@ -608,7 +676,9 @@ class StorageManager:
 
     # System configuration API ---------------------------------------------
 
-    def set_system_config(self, name: str, params: Dict[str, Any], activate: bool = False):
+    def set_system_config(
+        self, name: str, params: Dict[str, Any], activate: bool = False
+    ):
         """
         Upserts a named configuration regime.
         When activate=True, marks this config as the single active regime.
@@ -631,7 +701,10 @@ class StorageManager:
                     (name, params_json, now, 1 if activate else 0),
                 )
                 if activate:
-                    cursor.execute("UPDATE system_config SET is_active = CASE WHEN name = ? THEN 1 ELSE 0 END", (name,))
+                    cursor.execute(
+                        "UPDATE system_config SET is_active = CASE WHEN name = ? THEN 1 ELSE 0 END",
+                        (name,),
+                    )
                 conn.commit()
             finally:
                 conn.close()
@@ -643,7 +716,10 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("SELECT name, params_json, created_at, is_active FROM system_config WHERE name = ?", (name,))
+                cursor.execute(
+                    "SELECT name, params_json, created_at, is_active FROM system_config WHERE name = ?",
+                    (name,),
+                )
                 row = cursor.fetchone()
                 if not row:
                     return None
@@ -692,7 +768,9 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("UPDATE sim_state SET is_current = 0 WHERE is_current = 1")
+                cursor.execute(
+                    "UPDATE sim_state SET is_current = 0 WHERE is_current = 1"
+                )
                 cursor.execute(
                     """
                     INSERT INTO sim_state (snapshot_json, created_at, is_current)
@@ -728,20 +806,25 @@ class StorageManager:
             try:
                 cursor = conn.cursor()
                 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM events WHERE time > ? ORDER BY time ASC LIMIT ?
-                """, (now, limit))
+                """,
+                    (now, limit),
+                )
                 rows = cursor.fetchall()
                 events = []
                 for r in rows:
-                    events.append({
-                        "name": r['name'],
-                        "time": r['time'],
-                        "buffer_before": r['buffer_before_mins'],
-                        "buffer_after": r['buffer_after_mins'],
-                        "impact": r['impact'],
-                        "source": r['source']
-                    })
+                    events.append(
+                        {
+                            "name": r["name"],
+                            "time": r["time"],
+                            "buffer_before": r["buffer_before_mins"],
+                            "buffer_after": r["buffer_after_mins"],
+                            "impact": r["impact"],
+                            "source": r["source"],
+                        }
+                    )
                 return events
             finally:
                 conn.close()

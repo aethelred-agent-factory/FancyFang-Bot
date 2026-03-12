@@ -1,11 +1,12 @@
-import unittest
 import os
 import sys
+import unittest
 
 # Add the root directory to sys.path to import project modules
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import modules.risk_manager as risk_manager
+
 
 class TestLiquidityGuard(unittest.TestCase):
 
@@ -34,7 +35,7 @@ class TestLiquidityGuard(unittest.TestCase):
             account_balance=self.balance,
             signal_strength=1.0,
             stop_distance=0.02,
-            available_liquidity=5000.0
+            available_liquidity=5000.0,
         )
         self.assertAlmostEqual(risk_amount, 5.0)
         self.assertAlmostEqual(position_size, 250.0)
@@ -49,7 +50,7 @@ class TestLiquidityGuard(unittest.TestCase):
             account_balance=self.balance,
             signal_strength=1.0,
             stop_distance=0.02,
-            available_liquidity=1000.0
+            available_liquidity=1000.0,
         )
         self.assertAlmostEqual(position_size, 100.0)
         self.assertAlmostEqual(risk_amount, 2.0)
@@ -63,7 +64,7 @@ class TestLiquidityGuard(unittest.TestCase):
             signal_strength=1.0,
             stop_distance=0.02,
             available_liquidity=1000.0,
-            max_liquidity_ratio=0.05
+            max_liquidity_ratio=0.05,
         )
         self.assertAlmostEqual(position_size, 50.0)
         self.assertAlmostEqual(risk_amount, 1.0)
@@ -75,10 +76,11 @@ class TestLiquidityGuard(unittest.TestCase):
             account_balance=self.balance,
             signal_strength=1.0,
             stop_distance=0.02,
-            available_liquidity=0.0
+            available_liquidity=0.0,
         )
         self.assertAlmostEqual(position_size, 250.0)
         self.assertAlmostEqual(risk_amount, 5.0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

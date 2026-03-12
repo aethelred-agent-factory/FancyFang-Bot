@@ -8,6 +8,7 @@ filter_output.py — pipe backtest.py output through this to show only:
 Usage:
   python backtest.py [args] | python filter_output.py
 """
+
 import sys
 
 EXIT_KEYS = ("trail_stop", "hard_stop", "take_profit", "max_hold")

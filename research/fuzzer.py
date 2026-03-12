@@ -1,9 +1,9 @@
-import subprocess
-import random
 import json
-import uuid
 import os
+import random
+import subprocess
 import time
+import uuid
 
 TIMEFRAME = "5m"
 CANDLES = 1000
@@ -23,7 +23,7 @@ RANGES = {
     "take-profit-pct": (0.01, 0.15),
     "cooldown": (0, 50),
     "min-score-gap": (0.0, 2.0),
-    "window": (50, 200)
+    "window": (50, 200),
 }
 
 DIRECTIONS = ["LONG", "SHORT", "BOTH"]
@@ -38,6 +38,7 @@ start_time = time.time()
 # random helper
 # ---------------------------------
 
+
 def rand(a, b):
     if isinstance(a, int) and isinstance(b, int):
         return random.randint(a, b)
@@ -47,6 +48,7 @@ def rand(a, b):
 # ---------------------------------
 # generate parameter set
 # ---------------------------------
+
 
 def generate_params():
 
@@ -64,6 +66,7 @@ def generate_params():
 # run backtest
 # ---------------------------------
 
+
 def run_backtest(params):
 
     outfile = f"fuzz_{uuid.uuid4().hex}.json"
@@ -76,7 +79,7 @@ def run_backtest(params):
         "--candles",
         str(CANDLES),
         "--output",
-        outfile
+        outfile,
     ]
 
     for k, v in params.items():

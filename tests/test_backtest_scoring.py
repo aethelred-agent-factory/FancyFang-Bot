@@ -1,13 +1,16 @@
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import unittest
-import sys
 import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os
+import sys
+import unittest
 
 # Add the root directory to sys.path to import research.backtest as backtest
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from research.backtest import score_window_unified
+
 
 class TestBacktestScoring(unittest.TestCase):
     def setUp(self):
@@ -24,7 +27,18 @@ class TestBacktestScoring(unittest.TestCase):
 
     def test_long_oversold_rsi(self):
         # Create a price drop to trigger oversold RSI
-        closes = [100.0] * 80 + [90.0, 80.0, 70.0, 60.0, 50.0, 40.0, 30.0, 25.0, 20.0, 15.0]
+        closes = [100.0] * 80 + [
+            90.0,
+            80.0,
+            70.0,
+            60.0,
+            50.0,
+            40.0,
+            30.0,
+            25.0,
+            20.0,
+            15.0,
+        ]
         # Window format: (open, high, low, close, volume)
         window = [(c, c + 1, c - 1, c, 1000.0) for c in closes]
 
@@ -47,15 +61,14 @@ class TestBacktestScoring(unittest.TestCase):
     def test_funding_signals(self):
         # Negative funding should boost long score
         l_score_base, _ = score_window_unified(
-            "BTCUSDT", self.neutral_window, "LONG",
-            funding=0.0
+            "BTCUSDT", self.neutral_window, "LONG", funding=0.0
         )
         l_score_neg, l_sigs = score_window_unified(
-            "BTCUSDT", self.neutral_window, "LONG",
-            funding=-0.001 # -0.1%
+            "BTCUSDT", self.neutral_window, "LONG", funding=-0.001  # -0.1%
         )
         self.assertGreater(l_score_neg, l_score_base)
         self.assertTrue(any("Negative Funding" in s for s in l_sigs))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

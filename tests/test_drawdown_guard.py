@@ -1,16 +1,17 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os
+import sys
 import unittest
-import time
 from unittest.mock import patch
 
-import sys
-import os
-
 # Add the root directory to sys.path to import project modules
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from modules.drawdown_guard import DrawdownGuard
+
 
 class TestDrawdownGuardExhaustive(unittest.TestCase):
     def setUp(self):
@@ -31,7 +32,7 @@ class TestDrawdownGuardExhaustive(unittest.TestCase):
         pnl = -5.0
         self.balance += pnl
         self.guard.record_pnl(pnl, self.balance)
-        
+
         ok, reason = self.guard.can_open_trade(self.balance)
         self.assertTrue(ok)
 
@@ -52,24 +53,26 @@ class TestDrawdownGuardExhaustive(unittest.TestCase):
         pnl = -15.0
         self.balance += pnl
         self.guard.record_pnl(pnl, self.balance)
-        
+
         ok, reason = self.guard.can_open_trade(self.balance)
         self.assertFalse(ok)
         self.assertIn("Daily loss 15.00%", reason)
-        
+
     def test_kill_switch_persists(self):
         """Once the kill switch is active, it should remain active for the day."""
         # Lose $15, activating the switch.
         self.guard.record_pnl(-15.0, 85.0)
         ok, _ = self.guard.can_open_trade(85.0)
         self.assertFalse(ok, "Trade should be blocked after initial breach.")
-        
-        # A subsequent winning trade should not deactivate the switch.
-        self.guard.record_pnl(5.0, 90.0) # PnL is now -10, but switch should persist.
-        ok, _ = self.guard.can_open_trade(90.0)
-        self.assertFalse(ok, "Kill switch should persist even if PnL recovers slightly.")
 
-    @patch('modules.drawdown_guard.DrawdownGuard._today')
+        # A subsequent winning trade should not deactivate the switch.
+        self.guard.record_pnl(5.0, 90.0)  # PnL is now -10, but switch should persist.
+        ok, _ = self.guard.can_open_trade(90.0)
+        self.assertFalse(
+            ok, "Kill switch should persist even if PnL recovers slightly."
+        )
+
+    @patch("modules.drawdown_guard.DrawdownGuard._today")
     def test_daily_reset_logic(self, mock_today):
         """Test that the drawdown state and kill switch reset on a new day."""
         # --- Day 1: Get killed ---
@@ -78,22 +81,27 @@ class TestDrawdownGuardExhaustive(unittest.TestCase):
         self.guard.record_pnl(-15.0, 85.0)
         ok, _ = self.guard.can_open_trade(85.0)
         self.assertFalse(ok, "Trade should be blocked on Day 1.")
-        
+
         # --- Day 2: Should reset and allow trades ---
         mock_today.return_value = "2026-03-10"
-        
+
         # The reset happens on the first action of the new day.
         # Let's check can_open_trade. The start_balance will be reset to the current 85.0.
         ok, reason = self.guard.can_open_trade(85.0)
         self.assertTrue(ok, "Kill switch should reset on a new day.")
-        self.assertEqual(self.guard._state.start_balance, 85.0, "Start balance should reset.")
+        self.assertEqual(
+            self.guard._state.start_balance, 85.0, "Start balance should reset."
+        )
         self.assertEqual(self.guard._state.daily_pnl, 0.0, "Daily PnL should reset.")
 
         # Now, a 10% loss from the *new* start balance should trigger the switch.
         # 10% of 85.0 is 8.5
         self.guard.record_pnl(-8.6, 76.4)
         ok, _ = self.guard.can_open_trade(76.4)
-        self.assertFalse(ok, "Kill switch should re-trigger based on the new day's start balance.")
+        self.assertFalse(
+            ok, "Kill switch should re-trigger based on the new day's start balance."
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

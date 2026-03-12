@@ -1,0 +1,13 @@
+[MASTER]
+ignore=venv,.venv,__pycache__
+extension-pkg-whitelist=
+
+[FORMAT]
+max-line-length=88
+
+[MESSAGES CONTROL]
+# Disable duplicate-code warnings and allow some leniency on line length
+disable=R0801
+
+[REPORTS]
+output-format=colorized

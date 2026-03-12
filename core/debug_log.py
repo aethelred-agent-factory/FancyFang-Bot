@@ -1,10 +1,20 @@
-import json, time, uuid
+import json
+import time
+import uuid
 from pathlib import Path
 
 _LOG_PATH = Path("debug-3b23fa.log")
 _SESSION_ID = "3b23fa"
 
-def dbg_log(*, hypothesisId: str, location: str, message: str, data: dict | None = None, runId: str = "pre-fix") -> None:
+
+def dbg_log(
+    *,
+    hypothesisId: str,
+    location: str,
+    message: str,
+    data: dict | None = None,
+    runId: str = "pre-fix",
+) -> None:
     try:
         payload = {
             "sessionId": _SESSION_ID,
@@ -16,6 +26,8 @@ def dbg_log(*, hypothesisId: str, location: str, message: str, data: dict | None
             "runId": runId,
             "hypothesisId": hypothesisId,
         }
-        _LOG_PATH.open("a", encoding="utf-8").write(json.dumps(payload, ensure_ascii=False) + "\n")
+        _LOG_PATH.open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
     except Exception:
         pass

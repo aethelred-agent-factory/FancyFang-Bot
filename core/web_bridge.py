@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-import threading
-import time
-import datetime
-import uvicorn
 import json
 import subprocess
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from typing import List, Dict, Any, Optional
+import threading
 
 import research.strategy_analyzer as analyzer
-import research.param_optimizer as optimizer
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="FancyBot Web Bridge")
 
@@ -35,19 +33,23 @@ app.add_middleware(
 _bot_state = None
 _bot_logs = []
 
+
 def inject_state(state, logs):
     global _bot_state, _bot_logs
     _bot_state = state
     _bot_logs = logs
+
 
 @app.get("/")
 async def get_index():
     """Serve the main dashboard HTML."""
     return FileResponse(os.path.join(WEB_DIR, "index.html"))
 
+
 # Mount static files if needed (for CSS/JS in subfolders)
 if os.path.exists(WEB_DIR):
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+
 
 def _max_positions_from_state():
     """Default max positions when not provided by state."""
@@ -56,18 +58,19 @@ def _max_positions_from_state():
     # Optional: get_dynamic_max_positions(balance) if available
     return getattr(_bot_state, "max_positions", 8)
 
+
 @app.get("/api/summary")
 async def get_summary():
     if not _bot_state:
         return {"error": "Bot state not connected"}
-    
+
     with _bot_state.lock:
         wins = _bot_state.rolling_stats["wins"]
         losses = _bot_state.rolling_stats["losses"]
         total = wins + losses
         win_pnl = _bot_state.rolling_stats["win_pnl"]
         loss_pnl = _bot_state.rolling_stats["loss_pnl"]
-        
+
         # Calculate uPnL
         total_upnl = 0.0
         locked_margin = 0.0
@@ -75,7 +78,11 @@ async def get_summary():
             locked_margin += p.get("margin", 0.0)
             now = _bot_state.live_prices.get(p["symbol"])
             if now:
-                upnl = (now - p['entry']) * p['size'] if p['side'] == "Buy" else (p['entry'] - now) * p['size']
+                upnl = (
+                    (now - p["entry"]) * p["size"]
+                    if p["side"] == "Buy"
+                    else (p["entry"] - now) * p["size"]
+                )
                 total_upnl += upnl
 
         equity = round(_bot_state.balance + locked_margin + total_upnl, 2)
@@ -96,7 +103,7 @@ async def get_summary():
             "day_pnl": total_pnl,
             "locked_margin": round(locked_margin, 2),
             "equity": equity,
-            "entropy": round(getattr(_bot_state, 'entropy_penalty', 0.0), 3),
+            "entropy": round(getattr(_bot_state, "entropy_penalty", 0.0), 3),
             "account_health": account_health,
             "position_load": n_pos,
             "max_positions": max_pos,
@@ -109,49 +116,59 @@ async def get_summary():
                 "wins": wins,
                 "losses": losses,
                 "win_rate": win_rate,
-                "profit_factor": round((win_pnl / abs(loss_pnl)) if loss_pnl != 0 else 0, 2),
+                "profit_factor": round(
+                    (win_pnl / abs(loss_pnl)) if loss_pnl != 0 else 0, 2
+                ),
                 "total_pnl": total_pnl,
                 "total_trades": total,
                 "avg_win": avg_win,
                 "avg_loss": avg_loss,
-            }
+            },
         }
+
 
 @app.get("/api/positions")
 async def get_positions():
     if not _bot_state:
         return []
-    
+
     with _bot_state.lock:
         pos_list = []
         for p in _bot_state.positions:
             now = _bot_state.live_prices.get(p["symbol"], p["entry"])
-            upnl = (now - p['entry']) * p['size'] if p['side'] == "Buy" else (p['entry'] - now) * p['size']
+            upnl = (
+                (now - p["entry"]) * p["size"]
+                if p["side"] == "Buy"
+                else (p["entry"] - now) * p["size"]
+            )
             entry = p["entry"]
             notional = entry * p["size"] if entry and p.get("size") else 0
             pnl_pct = (upnl / notional * 100) if notional else 0
             side = "Long" if p["side"] == "Buy" else "Short"
             stop = p.get("stop_price") or p.get("original_stop") or entry
             target = p.get("take_profit")
-            pos_list.append({
-                "symbol": p["symbol"],
-                "side": side,
-                "entry": entry,
-                "current": now,
-                "stop": stop,
-                "target": target,
-                "size": p.get("margin", p.get("size", 0)),
-                "margin": p.get("margin", 0),
-                "pnl": round(upnl, 2),
-                "pnl_pct": round(pnl_pct, 2),
-                "stop_price": stop,
-                "score": p.get("entry_score") or p.get("score") or 0,
-                "rsi": None,
-                "regime": None,
-                "kalman": None,
-                "tsl": bool(p.get("trail_dist")),
-            })
+            pos_list.append(
+                {
+                    "symbol": p["symbol"],
+                    "side": side,
+                    "entry": entry,
+                    "current": now,
+                    "stop": stop,
+                    "target": target,
+                    "size": p.get("margin", p.get("size", 0)),
+                    "margin": p.get("margin", 0),
+                    "pnl": round(upnl, 2),
+                    "pnl_pct": round(pnl_pct, 2),
+                    "stop_price": stop,
+                    "score": p.get("entry_score") or p.get("score") or 0,
+                    "rsi": None,
+                    "regime": None,
+                    "kalman": None,
+                    "tsl": bool(p.get("trail_dist")),
+                }
+            )
         return pos_list
+
 
 @app.get("/api/logs")
 async def get_logs():
@@ -179,7 +196,12 @@ async def get_logs():
                 typ = "ERROR"
             elif "SKIP" in msg_part or "THROTTLE" in msg_part or "WARN" in msg_part:
                 typ = "WARN"
-            elif "CLOSED" in msg_part or "ENTRY" in msg_part or "ENTERED" in msg_part or "SCALED" in msg_part:
+            elif (
+                "CLOSED" in msg_part
+                or "ENTRY" in msg_part
+                or "ENTERED" in msg_part
+                or "SCALED" in msg_part
+            ):
                 typ = "TRADE"
             elif "Scan" in msg_part or "scan" in msg_part or "Scored" in msg_part:
                 typ = "SCAN"
@@ -198,16 +220,22 @@ async def get_scanner():
     # Expect list of dicts with symbol, price, score, dir, rsi, etc.
     return list(candidates) if isinstance(candidates, list) else []
 
+
 @app.get("/api/backtest/stats")
 async def get_backtest_stats():
     """Returns analyzed stats from backtest_results.json."""
     root = os.path.dirname(os.path.dirname(__file__))
     path = os.path.join(root, "backtest_results.json")
     if not os.path.exists(path):
-        return {"error": "backtest_results.json not found", "symbols": [], "signals": []}
-    
+        return {
+            "error": "backtest_results.json not found",
+            "symbols": [],
+            "signals": [],
+        }
+
     stats = analyzer.analyze_results(path)
     return stats
+
 
 @app.get("/api/backtest/optimizer")
 async def get_optimizer_results():
@@ -216,12 +244,13 @@ async def get_optimizer_results():
     path = os.path.join(root, "research", "optimizer_results.json")
     if not os.path.exists(path):
         return []
-    
+
     try:
         with open(path, "r") as f:
             return json.load(f)
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.post("/api/backtest/run")
 async def run_backtest():
@@ -232,6 +261,7 @@ async def run_backtest():
     subprocess.Popen([sys.executable, script, "--candles", "300"], cwd=root)
     return {"status": "started"}
 
+
 @app.post("/api/backtest/optimize")
 async def run_optimize():
     """Trigger an optimizer run in the background."""
@@ -241,17 +271,20 @@ async def run_optimize():
     subprocess.Popen([sys.executable, script], cwd=root)
     return {"status": "started"}
 
+
 def run_bridge(host="0.0.0.0", port=8080):
-    print(f"\n  🚀 FANCYBOT WEB SERVER ACTIVE")
+    print("\n  🚀 FANCYBOT WEB SERVER ACTIVE")
     print(f"  🌐 INTERFACE: http://localhost:{port}")
     print(f"  📡 API BASE:  http://localhost:{port}/api\n")
     uvicorn.run(app, host=host, port=port, log_level="info")
+
 
 def start_bridge_thread(state, logs, port=8080):
     inject_state(state, logs)
     t = threading.Thread(target=run_bridge, kwargs={"port": port}, daemon=True)
     t.start()
     return t
+
 
 if __name__ == "__main__":
     # Standalone test mode
@@ -261,7 +294,12 @@ if __name__ == "__main__":
             self.balance = 10000.0
             self.positions = []
             self.live_prices = {}
-            self.rolling_stats = {"wins": 0, "losses": 0, "win_pnl": 0.0, "loss_pnl": 0.0}
-    
+            self.rolling_stats = {
+                "wins": 0,
+                "losses": 0,
+                "win_pnl": 0.0,
+                "loss_pnl": 0.0,
+            }
+
     _bot_state = MockState()
     run_bridge(port=8080)

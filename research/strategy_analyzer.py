@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import json
 from collections import defaultdict
-from typing import Dict, Any, List
+from typing import Any, Dict
+
 
 def analyze_results(filepath: str) -> Dict[str, Any]:
     """
@@ -15,10 +16,16 @@ def analyze_results(filepath: str) -> Dict[str, Any]:
     }
     """
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             trades = json.load(f)
     except Exception as e:
-        return {"error": str(e), "symbols": [], "signals": [], "total_trades": 0, "total_pnl": 0}
+        return {
+            "error": str(e),
+            "symbols": [],
+            "signals": [],
+            "total_trades": 0,
+            "total_pnl": 0,
+        }
 
     symbol_map = defaultdict(lambda: {"pnl": 0.0, "trades": 0, "wins": 0})
     signal_map = defaultdict(lambda: {"pnl": 0.0, "trades": 0, "wins": 0})
@@ -26,8 +33,8 @@ def analyze_results(filepath: str) -> Dict[str, Any]:
     total_trades = 0
 
     for trade in trades:
-        sym = trade.get('symbol')
-        pnl = trade.get('pnl_usdt')
+        sym = trade.get("symbol")
+        pnl = trade.get("pnl_usdt")
         if sym is None or pnl is None:
             continue
 
@@ -39,13 +46,13 @@ def analyze_results(filepath: str) -> Dict[str, Any]:
         if pnl > 0:
             symbol_map[sym]["wins"] += 1
 
-        for signal in trade.get('signals', []):
+        for signal in trade.get("signals", []):
             # Clean up signal string (remove values in parentheses, e.g. "RSI (70.1)" -> "RSI")
-            sig_name = signal.split('(')[0].strip()
+            sig_name = signal.split("(")[0].strip()
             # Also handle key:value style if present
-            if ':' in sig_name and not sig_name.startswith('PREDICTIVE'):
-                sig_name = sig_name.split(':')[0].strip()
-            
+            if ":" in sig_name and not sig_name.startswith("PREDICTIVE"):
+                sig_name = sig_name.split(":")[0].strip()
+
             signal_map[sig_name]["pnl"] += pnl
             signal_map[sig_name]["trades"] += 1
             if pnl > 0:
@@ -54,40 +61,46 @@ def analyze_results(filepath: str) -> Dict[str, Any]:
     # Format for frontend
     symbols_list = []
     for sym, stats in symbol_map.items():
-        wr = (stats['wins'] / stats['trades'] * 100) if stats['trades'] > 0 else 0
-        symbols_list.append({
-            "symbol": sym,
-            "trades": stats['trades'],
-            "pnl": stats['pnl'],
-            "win_rate": wr
-        })
-    
+        wr = (stats["wins"] / stats["trades"] * 100) if stats["trades"] > 0 else 0
+        symbols_list.append(
+            {
+                "symbol": sym,
+                "trades": stats["trades"],
+                "pnl": stats["pnl"],
+                "win_rate": wr,
+            }
+        )
+
     # Sort symbols by PnL descending
-    symbols_list.sort(key=lambda x: x['pnl'], reverse=True)
+    symbols_list.sort(key=lambda x: x["pnl"], reverse=True)
 
     signals_list = []
     for sig, stats in signal_map.items():
-        wr = (stats['wins'] / stats['trades'] * 100) if stats['trades'] > 0 else 0
-        signals_list.append({
-            "signal": sig,
-            "trades": stats['trades'],
-            "pnl": stats['pnl'],
-            "win_rate": wr
-        })
-    
+        wr = (stats["wins"] / stats["trades"] * 100) if stats["trades"] > 0 else 0
+        signals_list.append(
+            {
+                "signal": sig,
+                "trades": stats["trades"],
+                "pnl": stats["pnl"],
+                "win_rate": wr,
+            }
+        )
+
     # Sort signals by PnL descending
-    signals_list.sort(key=lambda x: x['pnl'], reverse=True)
+    signals_list.sort(key=lambda x: x["pnl"], reverse=True)
 
     return {
         "symbols": symbols_list,
         "signals": signals_list,
         "total_trades": total_trades,
-        "total_pnl": total_pnl
+        "total_pnl": total_pnl,
     }
 
+
 if __name__ == "__main__":
-    import sys
     import os
+    import sys
+
     path = sys.argv[1] if len(sys.argv) > 1 else "backtest_results.json"
     if os.path.exists(path):
         res = analyze_results(path)

@@ -21,14 +21,17 @@ Refactored into a class to eliminate global state and improve testability.
 """
 
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import logging
 import os
 import threading
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("risk_manager")
 logger.addHandler(logging.NullHandler())
@@ -36,15 +39,16 @@ logger.addHandler(logging.NullHandler())
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration Constants
 # ─────────────────────────────────────────────────────────────────────────────
-RISK_MODEL           = os.getenv("RISK_MODEL",           "dynamic_kelly")
+RISK_MODEL = os.getenv("RISK_MODEL", "dynamic_kelly")
 FIXED_RISK_PER_TRADE = float(os.getenv("FIXED_RISK_PER_TRADE", "1.0"))
-RISK_PCT_PER_TRADE   = float(os.getenv("RISK_PCT_PER_TRADE",   "0.01"))   # 1 %
-MAX_PORTFOLIO_RISK   = float(os.getenv("MAX_PORTFOLIO_RISK",   "0.30"))   # 30 %
+RISK_PCT_PER_TRADE = float(os.getenv("RISK_PCT_PER_TRADE", "0.01"))  # 1 %
+MAX_PORTFOLIO_RISK = float(os.getenv("MAX_PORTFOLIO_RISK", "0.30"))  # 30 %
 MIN_ACCOUNT_RISK_PCT = float(os.getenv("MIN_ACCOUNT_RISK_PCT", "0.005"))  # 0.5 %
-MAX_ACCOUNT_RISK_PCT = float(os.getenv("MAX_ACCOUNT_RISK_PCT", "0.05"))   # 5 %
+MAX_ACCOUNT_RISK_PCT = float(os.getenv("MAX_ACCOUNT_RISK_PCT", "0.05"))  # 5 %
 
 _SMALL_ACCOUNT_THRESHOLD = 50.0
 _LARGE_ACCOUNT_THRESHOLD = 500.0
+
 
 @dataclass
 class PerformanceStats:
@@ -52,6 +56,7 @@ class PerformanceStats:
     losses: float = 0.0
     gross_wins: float = 0.0
     gross_loss: float = 0.0
+
 
 class RiskManager:
     """Thread-safe Risk Manager for position sizing and portfolio protection."""
@@ -101,19 +106,23 @@ class RiskManager:
             return MAX_ACCOUNT_RISK_PCT
         if account_balance >= _LARGE_ACCOUNT_THRESHOLD:
             return MIN_ACCOUNT_RISK_PCT
-        
+
         ratio = (account_balance - _SMALL_ACCOUNT_THRESHOLD) / (
             _LARGE_ACCOUNT_THRESHOLD - _SMALL_ACCOUNT_THRESHOLD
         )
-        return MAX_ACCOUNT_RISK_PCT - ratio * (MAX_ACCOUNT_RISK_PCT - MIN_ACCOUNT_RISK_PCT)
+        return MAX_ACCOUNT_RISK_PCT - ratio * (
+            MAX_ACCOUNT_RISK_PCT - MIN_ACCOUNT_RISK_PCT
+        )
 
-    def _kelly_risk_amount(self, account_balance: float, signal_confidence: float) -> float:
+    def _kelly_risk_amount(
+        self, account_balance: float, signal_confidence: float
+    ) -> float:
         """Half-Kelly risk sizing based on rolling trade history."""
         # REF: [Tier 3] Descriptive Naming
         with self._lock:
-            wins         = self._perf.wins
-            losses       = self._perf.losses
-            gross_wins   = self._perf.gross_wins
+            wins = self._perf.wins
+            losses = self._perf.losses
+            gross_wins = self._perf.gross_wins
             gross_losses = self._perf.gross_loss
 
         total_trades = wins + losses
@@ -123,14 +132,14 @@ class RiskManager:
             return account_balance * base_percentage * confidence_scalar
 
         win_rate = wins / total_trades
-        average_win  = gross_wins / wins if wins > 0 else 0.0
+        average_win = gross_wins / wins if wins > 0 else 0.0
         average_loss = gross_losses / losses if losses > 0 else 0.0
 
         if average_loss == 0 or average_win == 0:
             return account_balance * self._adaptive_risk_pct(account_balance)
 
         win_loss_ratio = average_win / average_loss
-        loss_rate      = 1.0 - win_rate
+        loss_rate = 1.0 - win_rate
         kelly_fraction = (win_rate * win_loss_ratio - loss_rate) / win_loss_ratio
 
         if kelly_fraction <= 0:
@@ -184,7 +193,7 @@ class RiskManager:
         remaining_capacity = max(0.0, portfolio_cap - current_risk)
 
         risk_amount = max(0.0, min(risk_amount, remaining_capacity))
-        
+
         position_size = 0.0
         if stop_distance and stop_distance > 0 and risk_amount > 0:
             position_size = risk_amount / stop_distance
@@ -212,18 +221,21 @@ class RiskManager:
         open_positions: List[Dict[str, Any]],
     ) -> Tuple[bool, str]:
         """Final gate: reject the trade if portfolio risk would be exceeded."""
-        current_risk  = self.get_open_position_risk(open_positions)
+        current_risk = self.get_open_position_risk(open_positions)
         portfolio_cap = account_balance * MAX_PORTFOLIO_RISK
         if current_risk + risk_amount > portfolio_cap:
             return True, f"Portfolio risk cap ({MAX_PORTFOLIO_RISK:.0%}) exceeded"
 
         return False, ""
 
+
 # Singleton instance for legacy module-level access
 _instance = RiskManager()
 
+
 def record_trade_result(pnl: float) -> None:
     _instance.record_trade_result(pnl)
+
 
 def compute_dynamic_risk(
     account_balance: float,
@@ -235,12 +247,19 @@ def compute_dynamic_risk(
     max_liquidity_ratio: float = 0.10,
 ) -> Tuple[float, float]:
     return _instance.compute_dynamic_risk(
-        account_balance, signal_strength, stop_distance,
-        open_positions, risk_model, available_liquidity, max_liquidity_ratio
+        account_balance,
+        signal_strength,
+        stop_distance,
+        open_positions,
+        risk_model,
+        available_liquidity,
+        max_liquidity_ratio,
     )
+
 
 def should_reject_trade(*args, **kwargs) -> Tuple[bool, str]:
     return _instance.should_reject_trade(*args, **kwargs)
+
 
 def get_open_position_risk(open_positions: List[Dict[str, Any]]) -> float:
     return _instance.get_open_position_risk(open_positions)

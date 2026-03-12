@@ -30,34 +30,37 @@ import sys
 import tempfile
 import threading
 import time
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-DEFAULT_SH       = "allday.sh"
-DEFAULT_WORKERS  = 6
-MASTER_FILE      = "master_results.json"
-SUMMARY_FILE     = "run_summary.json"
-PROGRESS_FILE    = "progress.txt"
-SAVE_EVERY       = 50     # flush to disk every N completed runs
-TIMEOUT_SECONDS  = 120    # kill a run if it takes longer than this
+DEFAULT_SH = "allday.sh"
+DEFAULT_WORKERS = 6
+MASTER_FILE = "master_results.json"
+SUMMARY_FILE = "run_summary.json"
+PROGRESS_FILE = "progress.txt"
+SAVE_EVERY = 50  # flush to disk every N completed runs
+TIMEOUT_SECONDS = 120  # kill a run if it takes longer than this
 
 # ── PARAM PARSER ──────────────────────────────────────────────────────────────
-PARAM_RE = re.compile(r'--([\w-]+)\s+(\S+)')
-FLAG_RE  = re.compile(r'--(no-htf|csv)\b')
+PARAM_RE = re.compile(r"--([\w-]+)\s+(\S+)")
+FLAG_RE = re.compile(r"--(no-htf|csv)\b")
+
 
 def parse_params(cmd: str) -> dict:
     """Extract all --key value pairs and boolean flags from a command string."""
     params = {}
     for key, val in PARAM_RE.findall(cmd):
-        try:    params[key] = float(val) if '.' in val else int(val)
-        except: params[key] = val
+        try:
+            params[key] = float(val) if "." in val else int(val)
+        except:
+            params[key] = val
     for flag in FLAG_RE.findall(cmd):
         params[flag] = True
-    params.setdefault('no-htf', False)
-    params.setdefault('csv', False)
+    params.setdefault("no-htf", False)
+    params.setdefault("csv", False)
     return params
+
 
 # ── SINGLE RUN ────────────────────────────────────────────────────────────────
 def run_one(cmd: str, run_id: int) -> dict | None:
@@ -71,7 +74,7 @@ def run_one(cmd: str, run_id: int) -> dict | None:
         result = subprocess.run(
             cmd,
             shell=True,
-            cwd=os.getcwd(),           # run from your project dir
+            cwd=os.getcwd(),  # run from your project dir
             capture_output=True,
             text=True,
             timeout=TIMEOUT_SECONDS,
@@ -108,77 +111,94 @@ def run_one(cmd: str, run_id: int) -> dict | None:
 
         if not trades:
             return {
-                "run_id":  run_id,
-                "cmd":     cmd,
-                "params":  parse_params(cmd),
-                "status":  "no_trades",
-                "trades":  [],
-                "stats":   {},
+                "run_id": run_id,
+                "cmd": cmd,
+                "params": parse_params(cmd),
+                "status": "no_trades",
+                "trades": [],
+                "stats": {},
             }
 
         params = parse_params(cmd)
 
         # Tag every trade with run metadata
         for t in trades:
-            t["run_id"]    = run_id
-            t["params"]    = params
+            t["run_id"] = run_id
+            t["params"] = params
 
         # Quick stats for summary
-        wins  = [t for t in trades if t.get("pnl_usdt", 0) > 0]
+        wins = [t for t in trades if t.get("pnl_usdt", 0) > 0]
         total_pnl = sum(t.get("pnl_usdt", 0) for t in trades)
         stats = {
-            "n_trades":    len(trades),
-            "n_wins":      len(wins),
-            "win_rate":    round(len(wins) / len(trades) * 100, 2) if trades else 0,
-            "total_pnl":   round(total_pnl, 4),
-            "expectancy":  round(total_pnl / len(trades), 4) if trades else 0,
+            "n_trades": len(trades),
+            "n_wins": len(wins),
+            "win_rate": round(len(wins) / len(trades) * 100, 2) if trades else 0,
+            "total_pnl": round(total_pnl, 4),
+            "expectancy": round(total_pnl / len(trades), 4) if trades else 0,
         }
 
         return {
             "run_id": run_id,
-            "cmd":    cmd,
+            "cmd": cmd,
             "params": params,
             "status": "ok",
             "trades": trades,
-            "stats":  stats,
+            "stats": stats,
         }
 
     except subprocess.TimeoutExpired:
-        return {"run_id": run_id, "cmd": cmd, "params": parse_params(cmd),
-                "status": "timeout", "trades": [], "stats": {}}
+        return {
+            "run_id": run_id,
+            "cmd": cmd,
+            "params": parse_params(cmd),
+            "status": "timeout",
+            "trades": [],
+            "stats": {},
+        }
     except Exception as e:
-        return {"run_id": run_id, "cmd": cmd, "params": parse_params(cmd),
-                "status": f"error:{e}", "trades": [], "stats": {}}
+        return {
+            "run_id": run_id,
+            "cmd": cmd,
+            "params": parse_params(cmd),
+            "status": f"error:{e}",
+            "trades": [],
+            "stats": {},
+        }
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
 
 # ── PROGRESS BAR ─────────────────────────────────────────────────────────────
 lock = threading.Lock()
 completed = 0
 total_runs = 0
 
+
 def progress(done, total, pnl, errors):
     bar_len = 30
-    filled  = int(bar_len * done / total) if total else 0
-    bar     = "█" * filled + "░" * (bar_len - filled)
-    pct     = done / total * 100 if total else 0
+    filled = int(bar_len * done / total) if total else 0
+    bar = "█" * filled + "░" * (bar_len - filled)
+    pct = done / total * 100 if total else 0
     sys.stdout.write(
         f"\r  [{bar}] {pct:>5.1f}%  {done}/{total}  "
         f"PnL: {pnl:>+10.2f}  errors: {errors}   "
     )
     sys.stdout.flush()
 
+
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
     global completed, total_runs
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sh",      default=DEFAULT_SH)
+    ap.add_argument("--sh", default=DEFAULT_SH)
     ap.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
-    ap.add_argument("--start",   type=int, default=0,
-                    help="Skip first N commands (resume)")
-    ap.add_argument("--limit",   type=int, default=0,
-                    help="Only run this many commands (0 = all)")
+    ap.add_argument(
+        "--start", type=int, default=0, help="Skip first N commands (resume)"
+    )
+    ap.add_argument(
+        "--limit", type=int, default=0, help="Only run this many commands (0 = all)"
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -203,25 +223,27 @@ def main():
 
     cmds = cmds[start:]
     if args.limit:
-        cmds = cmds[:args.limit]
+        cmds = cmds[: args.limit]
 
     total_runs = len(cmds)
     print(f"  Running {total_runs:,} commands with {args.workers} workers\n")
 
     if args.dry_run:
-        for c in cmds[:5]: print(f"  {c}")
+        for c in cmds[:5]:
+            print(f"  {c}")
         return
 
     # ── Setup output ───────────────────────────────────────────────────────
-    all_trades   = []
+    all_trades = []
     all_summaries = []
-    running_pnl  = 0.0
-    errors       = 0
-    batch        = []
+    running_pnl = 0.0
+    errors = 0
+    batch = []
 
     def flush(force=False):
         nonlocal all_trades, all_summaries
-        if not batch: return
+        if not batch:
+            return
         with open(MASTER_FILE, "a") as f:
             for t in batch:
                 f.write(json.dumps(t) + "\n")
@@ -252,11 +274,13 @@ def main():
                 else:
                     pnl = result["stats"].get("total_pnl", 0)
                     running_pnl += pnl
-                    all_summaries.append({
-                        "run_id": result["run_id"],
-                        "params": result["params"],
-                        "stats":  result["stats"],
-                    })
+                    all_summaries.append(
+                        {
+                            "run_id": result["run_id"],
+                            "params": result["params"],
+                            "stats": result["stats"],
+                        }
+                    )
                     batch.extend(result["trades"])
 
                 # Save progress
@@ -285,11 +309,14 @@ def main():
     # ── Quick top 10 param combos by expectancy ────────────────────────────
     if all_summaries:
         print("  TOP 10 RUNS BY EXPECTANCY:")
-        top = sorted(all_summaries,
-                     key=lambda x: x["stats"].get("expectancy", -999),
-                     reverse=True)[:10]
+        top = sorted(
+            all_summaries,
+            key=lambda x: x["stats"].get("expectancy", -999),
+            reverse=True,
+        )[:10]
         for r in top:
-            s = r["stats"]; p = r["params"]
+            s = r["stats"]
+            p = r["params"]
             print(
                 f"  exp={s['expectancy']:>+7.3f} | "
                 f"WR={s['win_rate']:>5.1f}% | "

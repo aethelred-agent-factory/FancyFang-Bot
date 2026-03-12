@@ -1,8 +1,12 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import unittest
 from pathlib import Path
+
 from modules.storage_manager import StorageManager
+
 
 class TestStorageManager(unittest.TestCase):
     def setUp(self):
@@ -18,7 +22,13 @@ class TestStorageManager(unittest.TestCase):
     def test_account_save_load(self):
         balance = 500.0
         positions = [
-            {"symbol": "BTCUSDT", "side": "Buy", "size": 0.1, "margin": 50.0, "entry": 50000.0}
+            {
+                "symbol": "BTCUSDT",
+                "side": "Buy",
+                "size": 0.1,
+                "margin": 50.0,
+                "entry": 50000.0,
+            }
         ]
         self.storage.save_account_state(balance, positions)
 
@@ -36,7 +46,7 @@ class TestStorageManager(unittest.TestCase):
             "pnl": 10.0,
             "timestamp": "2026-03-08T20:00:00Z",
             "reason": "tp",
-            "signals": ["RSI Oversold"]
+            "signals": ["RSI Oversold"],
         }
         self.storage.append_trade(trade)
 
@@ -46,5 +56,6 @@ class TestStorageManager(unittest.TestCase):
         self.assertEqual(history[0]["pnl"], 10.0)
         self.assertEqual(history[0]["signals"], ["RSI Oversold"])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
