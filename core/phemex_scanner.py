@@ -171,6 +171,7 @@ def print_direction_results(
     direction: str,
     cfg: dict,
     limit: int,
+    args: any = None,
 ):
     dir_color = Fore.GREEN if direction == "LONG" else Fore.RED
     dir_label = "BULLISH" if direction == "LONG" else "BEARISH"
@@ -227,15 +228,28 @@ def print_direction_results(
         vol_spike = scan_res.get("vol_spike", 1.0)
         atr_stop = scan_res.get("atr_stop_pct")
 
+        # Simulated setup
+        sl_pct = (args.stop_loss_pct * 100.0) if (args and args.stop_loss_pct) else (atr_stop if atr_stop else 0.0)
+        tp_pct = (args.take_profit_pct * 100.0) if (args and args.take_profit_pct) else 0.0
+        if not tp_pct:
+             tp_pct = (pc.TAKE_PROFIT_PCT * 100.0) # default fallback
+
+        sim_line = (
+            f" {Fore.YELLOW}Simulated Setup:{Style.RESET_ALL} "
+            f"Lev: {args.leverage if args else 30}x | "
+            f"Margin: ${args.margin if args else 10.0} | "
+            f"SL: {Fore.RED}{sl_pct:.2f}%{Style.RESET_ALL} | "
+            f"TP: {Fore.GREEN}{tp_pct:.2f}%{Style.RESET_ALL}"
+        )
+
         extra_line = "  ".join(filter(None, [
             bb_str,
             f"BB Width: {scan_res.get('bb_width', 0):.2f}%" if scan_res.get("bb_width") else None,
             f"Vol Spike: {Fore.MAGENTA}{vol_spike:.2f}x{Style.RESET_ALL}",
-            f"ATR Stop: {Fore.RED}{atr_stop:.2f}%{Style.RESET_ALL}" if atr_stop else None,
             f"Conf: {cc}{conf}{Style.RESET_ALL}"
         ]))
 
-        card_lines = [title_line, stat_line, extra_line]
+        card_lines = [title_line, stat_line, sim_line, extra_line]
 
         # Key signals (top 5)
         signals = scan_res.get("signals", [])
@@ -256,7 +270,7 @@ def print_direction_results(
 # Display — combined top-N across both directions
 # ────────────────────────────────────────────────────────────────────
 
-def print_combined(long_results: List[dict], short_results: List[dict], n: int, cfg: dict):
+def print_combined(long_results: List[dict], short_results: List[dict], n: int, cfg: dict, args: any = None):
     if n <= 0:
         return
 
@@ -276,8 +290,8 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
     # Header row
     print(Fore.CYAN +
           f"  {'#':>3}  {'Symbol':<16} {'Dir':^6} {'Gr':^4} {'Score':>5}  "
-          f"{'Price':>10}  {'Chg%':>6}  {'RSI':>5}  {'Funding%':>9}  "
-          f"{'Vol 24h':>8}  {'Conf':<7}")
+          f"{'Price':>10}  {'SL%':>6}  {'TP%':>6}  {'RSI':>5}  {'Funding%':>9}  "
+          f"{'Vol 24h':>8}")
     print(Fore.CYAN + hr("─"))
 
     for i, r in enumerate(top, 1):
@@ -293,8 +307,9 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
         rsi_str = f"{rsi_val:.1f}" if rsi_val is not None else " N/A"
         rsi_bar = ui.braille_progress_bar(rsi_val, width=10) if rsi_val else " " * 10
 
-        conf = r.get("confidence", "N/A")
-        cc = r.get("conf_color", Fore.WHITE)
+        atr_stop = r.get("atr_stop_pct", 0.0)
+        sl_pct = (args.stop_loss_pct * 100.0) if (args and args.stop_loss_pct) else (atr_stop if atr_stop else 0.0)
+        tp_pct = (args.take_profit_pct * 100.0) if (args and args.take_profit_pct) else (pc.TAKE_PROFIT_PCT * 100.0)
 
         print(
             f"  {Fore.WHITE}{i:>3}{Style.RESET_ALL}  "
@@ -303,11 +318,11 @@ def print_combined(long_results: List[dict], short_results: List[dict], n: int, 
             f"{gc}{g:^4}{Style.RESET_ALL} "
             f"{gc}{r['score']:>5}{Style.RESET_ALL}  "
             f"{r['price']:>10.4g}  "
-            f"{r.get('change_24h', 0):>+6.2f}  "
+            f"{Fore.RED}{sl_pct:>6.2f}{Style.RESET_ALL}  "
+            f"{Fore.GREEN}{tp_pct:>6.2f}{Style.RESET_ALL}  "
             f"[{rsi_bar}] "
             f"{fp_str:>9}  "
-            f"{pc.fmt_vol(r.get('vol_24h', 0)):>8}  "
-            f"{cc}{conf:<7}{Style.RESET_ALL}"
+            f"{pc.fmt_vol(r.get('vol_24h', 0)):>8}"
         )
 
     print()
@@ -377,9 +392,11 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--timeframe",  default="15m",       help="Candle timeframe")
+    parser.add_argument("--candles",    type=int, default=500, help="Number of candles to fetch")
     parser.add_argument("--min-vol",    type=int, default=1_000_000, help="Min 24h USDT turnover")
     parser.add_argument("--top",        type=int, default=20,  help="Top N per direction")
     parser.add_argument("--min-score",  type=int, default=25, help="Min score to display")
+    parser.add_argument("--min-signals", type=int, default=3, help="Minimum signals required")
     parser.add_argument("--workers",    type=int, default=100,   help="Worker threads per scanner")
     parser.add_argument("--rate",       type=float, default=100.0, help="Requests/sec per scanner")
     parser.add_argument("--combined",   type=int, default=10,  help="Unified top-N table (0 = off)")
@@ -390,6 +407,19 @@ def main():
     parser.add_argument("--short-only", action="store_true",   help="Run only short scanner")
     parser.add_argument("-time", "--time", action="store_true", help="Print estimated scan duration and exit")
     parser.add_argument("--debug",      action="store_true",   help="Enable debug logging")
+    
+    # ── Simulation parity arguments ──────────────────────────────────
+    parser.add_argument("--leverage",   type=int, default=30,  help="Leverage for simulated cards")
+    parser.add_argument("--margin",     type=float, default=10.0, help="Margin for simulated cards")
+    parser.add_argument("--max-margin", type=float, default=150.0, help="Max margin for simulated cards")
+    parser.add_argument("--trail-pct",  type=float, default=0.01, help="Trailing stop %")
+    parser.add_argument("--stop-loss-pct", type=float, default=None, help="Hard stop loss %")
+    parser.add_argument("--take-profit-pct", type=float, default=None, help="Take profit %")
+    parser.add_argument("--max-hold",   type=int, default=None, help="Max hold time in hours")
+    parser.add_argument("--window",     type=int, default=100, help="Window size for indicators")
+    parser.add_argument("--symbols",    type=str, default=None, help="Comma-separated symbols to scan")
+    parser.add_argument("--no-htf",     action="store_true", help="Disable HTF RSI check")
+    
     args = parser.parse_args()
 
     if args.long_only and args.short_only:
@@ -407,6 +437,11 @@ def main():
         "MIN_SCORE":       args.min_score,
         "MAX_WORKERS":     max(1, args.workers),
         "RATE_LIMIT_RPS":  max(0.0, args.rate),
+        "CANDLES":         args.candles,
+        "SYMBOLS":         args.symbols.split(",") if args.symbols else None,
+        "no_htf":          args.no_htf,
+        "window":          args.window,
+        "min_signals":     args.min_signals,
     }
 
     run_long  = not args.short_only
@@ -511,18 +546,18 @@ def main():
     # ── Per-direction results ─────────────────────────────────────────
     if run_long:
         cfg_long = dict(cfg, MIN_SCORE=eff_min_long)
-        print_direction_results(long_results, "LONG", cfg_long, limit=args.top)
+        print_direction_results(long_results, "LONG", cfg_long, limit=args.top, args=args)
 
     if run_short:
         cfg_short = dict(cfg, MIN_SCORE=eff_min_short)
-        print_direction_results(short_results, "SHORT", cfg_short, limit=args.top)
+        print_direction_results(short_results, "SHORT", cfg_short, limit=args.top, args=args)
 
     # ── Combined table ───────────────────────────────────────────────
     if run_long and run_short and args.combined > 0:
         # Use the average of effective minimums for combined table
         combined_min = (eff_min_long + eff_min_short) // 2
         cfg_combined = dict(cfg, MIN_SCORE=combined_min)
-        print_combined(long_results, short_results, args.combined, cfg_combined)
+        print_combined(long_results, short_results, args.combined, cfg_combined, args=args)
 
     # ── Summary ───────────────────────────────────────────────────────
     print_summary(long_results, short_results, elapsed, cfg)

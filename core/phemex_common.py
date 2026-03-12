@@ -1785,6 +1785,15 @@ def unified_analyse(
             except Exception:
                 continue
 
+        # Slice data if a specific window is requested
+        window = cfg.get("window")
+        if window and window > 0 and len(closes) > window:
+            ohlc   = ohlc[-window:]
+            highs  = highs[-window:]
+            lows   = lows[-window:]
+            closes = closes[-window:]
+            vols   = vols[-window:]
+
         if not closes:
             logger.debug("  %s: no valid close prices parsed from candles, skipping.", symbol)
             return None
@@ -1864,17 +1873,18 @@ def unified_analyse(
                 dist_to_node_above = abs(pct_change(last, min(nodes_above)))
 
         rsi_1h, rsi_4h = None, None
-        c1h = get_candles(symbol, timeframe="1H", limit=50, rps=cfg.get("RATE_LIMIT_RPS"))
-        if c1h:
-            cl1h = [float(c[6]) for c in c1h]
-            if cl1h:
-                rsi_1h, _, _ = calc_rsi(cl1h)
+        if not cfg.get("no_htf"):
+            c1h = get_candles(symbol, timeframe="1H", limit=50, rps=cfg.get("RATE_LIMIT_RPS"))
+            if c1h:
+                cl1h = [float(c[6]) for c in c1h]
+                if cl1h:
+                    rsi_1h, _, _ = calc_rsi(cl1h)
 
-        c4h = get_candles(symbol, timeframe="4H", limit=50, rps=cfg.get("RATE_LIMIT_RPS"))
-        if c4h:
-            cl4h = [float(c[6]) for c in c4h]
-            if cl4h:
-                rsi_4h, _, _ = calc_rsi(cl4h)
+            c4h = get_candles(symbol, timeframe="4H", limit=50, rps=cfg.get("RATE_LIMIT_RPS"))
+            if c4h:
+                cl4h = [float(c[6]) for c in c4h]
+                if cl4h:
+                    rsi_4h, _, _ = calc_rsi(cl4h)
 
         raw_patterns = detect_patterns_func(ohlc)
         has_div = detect_div_func(closes, rsi_hist)

@@ -1095,7 +1095,7 @@ def main():
     parser.add_argument("--min-signals", type=int, default=3, help="Minimum number of signals required to consider a candidate (default: 3)")
     parser.add_argument("--trail-pct",  type=float, default=0.02)
     parser.add_argument("--leverage",   type=int,   default=30)
-    parser.add_argument("--margin",     type=float, default=5.0,
+    parser.add_argument("--margin",     type=float, default=10.0,
                         help="USDT margin per trade")
     parser.add_argument("--max-margin", type=float, default=150.0,
                         help="Max total USDT margin for scaling in.")

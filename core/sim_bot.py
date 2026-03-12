@@ -343,7 +343,7 @@ _SPARK_CHARS = "▁▂▃▄▅▆▇█"
 
 # TUI log buffer
 _bot_logs: deque[str] = deque(maxlen=100)
-
+_CSV_LOG_ENABLED = False
 
 def update_pnl_history(symbol: str, current_pnl: float):
     """Adds a new PnL data point to the history for the given symbol."""
@@ -969,6 +969,13 @@ def _log_closed_trade(
     with state.file_io_lock:
         try:
             state.storage.append_trade(record)
+            
+            # Write to CSV if enabled
+            if _CSV_LOG_ENABLED:
+                csv_path = SCRIPT_DIR.parent / "data" / "logs" / "sim_trades.csv"
+                # timestamp,symbol,direction,entry,exit,pnl,score,reason,hold_time_s
+                with open(csv_path, "a") as f:
+                    f.write(f"{record['timestamp']},{symbol},{record['direction']},{entry},{exit_price},{pnl:.4f},{entry_score},{reason},{hold_time_seconds}\n")
         except Exception as e:
             logger.error(f"Failed to append trade to history: {e}")
 
@@ -1382,6 +1389,20 @@ def update_pnl_and_stops(args) -> None:
                     exit_reason, exit_price = f"Reversal (Score {opp_score})", current_price
                     pnl = (exit_price - pos["entry"]) * pos["size"] if side == "Buy" else (pos["entry"] - exit_price) * pos["size"]
 
+            # ── Check for max-hold exit ───────────────────────────
+            if not exit_reason and getattr(args, 'max_hold', None):
+                if pos.get("entry_time"):
+                    try:
+                        entry_time_dt = datetime.datetime.fromisoformat(pos["entry_time"])
+                        if entry_time_dt.tzinfo is None:
+                            entry_time_dt = entry_time_dt.replace(tzinfo=datetime.timezone.utc)
+                        hold_hours = (datetime.datetime.now(datetime.timezone.utc) - entry_time_dt).total_seconds() / 3600
+                        if hold_hours >= args.max_hold:
+                            exit_reason, exit_price = f"Max Hold ({args.max_hold}h)", current_price
+                            pnl = (exit_price - pos["entry"]) * pos["size"] if side == "Buy" else (pos["entry"] - exit_price) * pos["size"]
+                    except Exception:
+                        pass
+
             if exit_reason:
                 # Store the exit data for processing after the lock is released
                 exits_to_process.append({
@@ -1575,7 +1596,7 @@ def _calculate_dynamic_cooldown(pnl: float, entropy_penalty: int) -> int:
     final_cooldown = max(0, cooldown - reduction)
     return min(final_cooldown, MAX_COOLDOWN_S)
 
-def execute_sim_setup(result: dict, direction: str) -> bool:
+def execute_sim_setup(result: dict, direction: str, args: Any) -> bool:
     """
     Opens a new simulated position or scales into an existing one.
     Returns True on success, False if the trade is skipped.
@@ -1628,7 +1649,7 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             # If scaling in, we skip the cooldown check since we already have skin in the game
         else:
             last_exit_info = state.last_exit_info.get(symbol)
-            if last_exit_info:
+            if last_exit_info and len(last_exit_info) == 2:
                 last_exit_timestamp, last_pnl = last_exit_info
                 
                 # Dynamic cooldown calculation
@@ -1696,21 +1717,25 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             account_balance  = current_balance,
             open_positions   = state.positions,
         )
-        if rejected:
+        if rejected and not getattr(args, 'margin', None):
             tui_log(f"RISK MGR: {symbol} SKIP — {rej_reason}", event_type="SKIP")
             return False
 
         margin_to_use = round(risk_amount, 2)
-        tui_log(
-            f"RISK MGR [{risk_mgr.RISK_MODEL}]: {symbol} margin={margin_to_use:.4f} ",
-            event_type="RISK"
-        )
+        if getattr(args, 'margin', None):
+            margin_to_use = args.margin
+            tui_log(f"FIXED MARGIN: {symbol} using ${margin_to_use}", event_type="RISK")
+        else:
+            tui_log(
+                f"RISK MGR [{risk_mgr.RISK_MODEL}]: {symbol} margin={margin_to_use:.4f} ",
+                event_type="RISK"
+            )
 
     elif is_low_liq:
         # Low-liquidity fallback (unchanged from original)
         active_leverage  = p_bot.LOW_LIQ_LEVERAGE
         active_trail_pct = p_bot.LOW_LIQ_TRAIL_PCT
-        margin_to_use    = p_bot.LOW_LIQ_MARGIN
+        margin_to_use    = getattr(args, 'margin', p_bot.LOW_LIQ_MARGIN)
         tui_log(f"{symbol}: LOW-LIQ MODE — {active_leverage}x lev, "
                 f"{active_trail_pct*100:.1f}% trail, ${margin_to_use} margin")
     else:
@@ -1718,7 +1743,9 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
         total_trades  = current_stats["wins"] + current_stats["losses"]
         max_per_trade = current_balance * 0.20  # cap any single trade at 20% of balance
 
-        if total_trades < 10:
+        if getattr(args, 'margin', None):
+            margin_to_use = args.margin
+        elif total_trades < 10:
             margin_to_use = round(max_per_trade, 2)
         else:
             win_rate = current_stats["wins"] / total_trades
@@ -1731,13 +1758,17 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             )
             margin_to_use = round(min(kelly_margin, max_per_trade), 2)
 
+    # Apply max-margin cap if provided
+    if getattr(args, 'max_margin', None):
+        margin_to_use = min(margin_to_use, args.max_margin)
+
     if margin_to_use <= 0 or current_balance < margin_to_use:
         tui_log(f"MARGIN FAIL: ${margin_to_use} calculated, but balance ${current_balance:.2f} is insufficient.")
         return False
 
     # Determine leverage / trail parameters — leverage is now ATR-driven
     vol_spike = result.get("vol_spike", 1.0)
-    active_leverage  = pick_sim_leverage(atr_stop_pct, vol_spike, is_low_liq)
+    active_leverage  = getattr(args, 'leverage', pick_sim_leverage(atr_stop_pct, vol_spike, is_low_liq))
     active_trail_pct = p_bot.LOW_LIQ_TRAIL_PCT if is_low_liq else p_bot.TRAIL_PCT
     tui_log(f"LEV SELECT: {symbol} → {active_leverage}x (ATR%={atr_stop_pct}, spike={vol_spike:.1f}x, low_liq={is_low_liq})", event_type="INFO")
 
@@ -1765,7 +1796,15 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
     fee = notional * pc.TAKER_FEE
     
     # ── Upgrade #2: ATR-based stop-loss and trailing stop ─────────────────
-    if raw_atr and raw_atr > 0:
+    if getattr(args, 'stop_loss_pct', None):
+        # Override with fixed stop-loss %
+        if direction == "LONG":
+            stop_px = entry_price * (1.0 - args.stop_loss_pct)
+        else:
+            stop_px = entry_price * (1.0 + args.stop_loss_pct)
+        trail_dist = None # No trailing if fixed stop
+        tui_log(f"FIXED STOP: {symbol} stop={stop_px:.6g} ({args.stop_loss_pct*100:.1f}%)", event_type="STOP")
+    elif raw_atr and raw_atr > 0:
         atr_stop_mult  = float(os.getenv("ATR_STOP_MULT",  "1.5"))
         atr_trail_mult = float(os.getenv("ATR_TRAIL_MULT", "1.0"))
         stop_px, trail_dist = pc.calc_atr_stops(
@@ -1787,13 +1826,23 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
             stop_px = entry_price * (1.0 + active_trail_pct)
         trail_dist = entry_price * active_trail_pct
 
-    # Take-profit unchanged
+    # Take-profit
+    if getattr(args, 'take_profit_pct', None):
+        if direction == "LONG":
+            tp_px = entry_price * (1.0 + args.take_profit_pct)
+        else:
+            tp_px = entry_price * (1.0 - args.take_profit_pct)
+        tui_log(f"FIXED TP: {symbol} tp={tp_px:.6g} ({args.take_profit_pct*100:.1f}%)")
+    else:
+        if direction == "LONG":
+            tp_px      = entry_price * (1.0 + p_bot.TAKE_PROFIT_PCT)
+        else:
+            tp_px      = entry_price * (1.0 - p_bot.TAKE_PROFIT_PCT)
+
     if direction == "LONG":
-        tp_px      = entry_price * (1.0 + p_bot.TAKE_PROFIT_PCT)
         high_water = entry_price
         low_water  = None
     else:
-        tp_px      = entry_price * (1.0 - p_bot.TAKE_PROFIT_PCT)
         high_water = None
         low_water  = entry_price
 
@@ -1963,7 +2012,7 @@ def _get_cluster_threshold_penalty(intensity: float) -> float:
     return 0.0
 
 # REF: Tier 3: Non-Descriptive Variable Naming (r -> scan_res)
-def on_scan_result(scan_res: dict, direction: str) -> None:
+def on_scan_result(scan_res: dict, direction: str, args: Any) -> None:
     result_time_raw = scan_res.get("scan_timestamp")
     if result_time_raw:
         try:
@@ -2033,7 +2082,7 @@ def on_scan_result(scan_res: dict, direction: str) -> None:
     try:
         verified_result = verify_sim_candidate(scan_res["inst_id"], direction, predictive_score)
         if verified_result:
-            execute_sim_setup(verified_result, direction)
+            execute_sim_setup(verified_result, direction, args)
     except Exception as e:
         import traceback
         tui_log(f"CRITICAL ERROR in on_scan_result for {scan_res['inst_id']}: {e}", event_type="ERROR")
@@ -2051,8 +2100,9 @@ def sim_bot_loop(args) -> None:
     Periodically scans the market, evaluates signals, and manages simulated positions.
     Exits gracefully when the global _running flag is False.
     """
-    global COOLDOWN_SECONDS
+    global COOLDOWN_SECONDS, _CSV_LOG_ENABLED
     state.no_tui = getattr(args, 'no_tui', False)
+    _CSV_LOG_ENABLED = getattr(args, 'csv', False)
 
     # Calculate dynamic cooldown based on timeframe and cooldown argument (T3-16)
     tf_sec = p_bot.get_tf_seconds(args.timeframe)
@@ -2066,7 +2116,10 @@ def sim_bot_loop(args) -> None:
         "MIN_SCORE":      0,
         "MAX_WORKERS":    args.workers,
         "RATE_LIMIT_RPS": args.rate,
-        "CANDLES":        500,
+        "CANDLES":        args.candles,
+        "SYMBOLS":        args.symbols.split(",") if args.symbols else None,
+        "no_htf":         args.no_htf,
+        "window":         args.window,
     }
 
     _ensure_ws_started()
@@ -2083,6 +2136,14 @@ def sim_bot_loop(args) -> None:
     else:
         state.load_account()
     load_sim_cooldowns()
+
+    # Create CSV log if requested
+    if args.csv:
+        csv_path = SCRIPT_DIR.parent / "data" / "logs" / "sim_trades.csv"
+        if not csv_path.exists():
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(csv_path, "w") as f:
+                f.write("timestamp,symbol,direction,entry,exit,pnl,score,reason,hold_time_s\n")
 
     with state.lock:
         balance = state.balance
@@ -2146,7 +2207,7 @@ def sim_bot_loop(args) -> None:
             tui_log(f"Scanning LIVE market ({args.timeframe})...")
             state.display_paused_event.set()
             t0 = time.time()
-            long_r, short_r = p_bot.run_scanner_both(cfg, args, on_result=on_scan_result)
+            long_r, short_r = p_bot.run_scanner_both(cfg, args, on_result=lambda r, d: on_scan_result(r, d, args))
             elapsed = time.time() - t0
             state.display_paused_event.clear()
             tui_log(f"Scan complete in {elapsed:.1f}s — L: {len(long_r)}  S: {len(short_r)}")
@@ -2201,6 +2262,7 @@ def sim_bot_loop(args) -> None:
                 direction_filter=args.direction,
                 symbols_in_position=in_pos_updated,
                 available_slots=9999,
+                min_signals=args.min_signals,
             )
 
             if candidates:
@@ -2217,7 +2279,7 @@ def sim_bot_loop(args) -> None:
                     try:
                         verified_result = verify_sim_candidate(res["inst_id"], direction, res["score"])
                         if verified_result:
-                            execute_sim_setup(verified_result, direction)
+                            execute_sim_setup(verified_result, direction, args)
                     except Exception as e:
                         import traceback
                         tui_log(f"CRITICAL ERROR in candidate loop for {res['inst_id']}: {e}", event_type="ERROR")
@@ -2270,12 +2332,23 @@ def main() -> None:
     parser.add_argument("--interval",       type=int,   default=300)
     parser.add_argument("--min-score",      type=int,   default=120)
     parser.add_argument("--min-score-gap",  type=int,   default=0)
+    parser.add_argument("--min-signals",    type=int,   default=3)
     parser.add_argument("--direction",      default="BOTH", choices=["LONG", "SHORT", "BOTH"])
     parser.add_argument("--timeframe",      default="1H")
+    parser.add_argument("--candles",        type=int,   default=500)
     parser.add_argument("--leverage",       type=int,   default=30)
+    parser.add_argument("--margin",         type=float, default=None)
+    parser.add_argument("--max-margin",     type=float, default=100.0)
     parser.add_argument("--trail-pct",      type=float, default=0.01) # 1.0% Trailing Stop
+    parser.add_argument("--stop-loss-pct",  type=float, default=None)
+    parser.add_argument("--take-profit-pct",type=float, default=None)
+    parser.add_argument("--max-hold",       type=int,   default=None, help="Max hold time in hours")
     parser.add_argument("--cooldown",       type=int,   default=5, help="Cooldown in candles after exit")
     parser.add_argument("--min-vol",        type=int,   default=1_000_000)
+    parser.add_argument("--window",         type=int,   default=100)
+    parser.add_argument("--symbols",        type=str,   default=None, help="Comma-separated list of symbols to scan")
+    parser.add_argument("--no-htf",         action="store_true", help="Disable HTF (1H/4H) RSI alignment checks")
+    parser.add_argument("--csv",            action="store_true", help="Log all trades to a CSV file")
     parser.add_argument("--workers",        type=int,   default=30)
     parser.add_argument("--rate",           type=float, default=20.0)
     parser.add_argument("--no-ai",          action="store_true")
