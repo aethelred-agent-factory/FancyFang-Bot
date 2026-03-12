@@ -84,7 +84,8 @@ class StorageManager:
                         tags_json TEXT,
                         primary_driver TEXT,
                         failure_mode TEXT,
-                        market_context_json TEXT
+                        market_context_json TEXT,
+                        ml_features_json TEXT
                     )
                 """)
 
@@ -177,6 +178,10 @@ class StorageManager:
                     cursor.execute(
                         "ALTER TABLE trade_history ADD COLUMN market_context_json TEXT"
                     )
+                if "ml_features_json" not in cols:
+                    cursor.execute(
+                        "ALTER TABLE trade_history ADD COLUMN ml_features_json TEXT"
+                    )
 
                 conn.commit()
             except sqlite3.Error as e:
@@ -266,8 +271,9 @@ class StorageManager:
                     INSERT INTO trade_history (
                         symbol, direction, entry, exit, pnl, hold_time_s,
                         score, reason, timestamp, signals_json, slippage, raw_signals_json,
-                        narrative, tags_json, primary_driver, failure_mode, market_context_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        narrative, tags_json, primary_driver, failure_mode, market_context_json,
+                        ml_features_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         record.get("symbol", "UNKNOWN"),
@@ -290,6 +296,7 @@ class StorageManager:
                         record.get("primary_driver"),
                         record.get("failure_mode"),
                         json.dumps(record.get("market_context", {})),
+                        json.dumps(record.get("ml_features", {})),
                     ),
                 )
                 trade_id = cursor.lastrowid
@@ -365,6 +372,11 @@ class StorageManager:
                         json.loads(market_ctx_json) if market_ctx_json else {}
                     )
 
+                    ml_feat_json = item.pop("ml_features_json", None)
+                    item["ml_features"] = (
+                        json.loads(ml_feat_json) if ml_feat_json else {}
+                    )
+
                     history.append(item)
                 return history
             finally:
@@ -397,6 +409,11 @@ class StorageManager:
 
                     market_ctx_json = item.pop("market_context_json", None)
                     item["market_context"] = json.loads(market_ctx_json) if market_ctx_json else {}
+
+                    ml_feat_json = item.pop("ml_features_json", None)
+                    item["ml_features"] = (
+                        json.loads(ml_feat_json) if ml_feat_json else {}
+                    )
 
                     history.append(item)
                 return history

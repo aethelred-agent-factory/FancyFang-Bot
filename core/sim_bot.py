@@ -28,6 +28,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import argparse
+import csv
 import datetime
 import json
 import logging
@@ -57,6 +58,7 @@ import core.web_bridge as web_bridge
 import modules.animations as animations
 import modules.hardware_bridge as hw
 import modules.market_context as market_context
+import modules.failure_guard as failure_guard
 import requests
 import websocket
 from colorama import Fore, Style, init
@@ -160,6 +162,8 @@ init(autoreset=True)
 
 PAPER_ACCOUNT_FILE = SCRIPT_DIR.parent / "data" / "state" / "paper_account.json"
 SIM_COOLDOWN_FILE = SCRIPT_DIR.parent / "data" / "state" / "sim_cooldowns.json"
+SIM_LOG_FILE = SCRIPT_DIR.parent / "data" / "logs" / "sim_trades.json"
+SIM_CSV_LOG_FILE = SCRIPT_DIR.parent / "data" / "logs" / "sim_trades.csv"
 INITIAL_BALANCE = float(os.getenv("INITIAL_BALANCE", "100.0"))
 TAKER_FEE_RATE = pc.TAKER_FEE  # Use common constant (0.06%)
 
@@ -315,7 +319,7 @@ class SimBotState:
     file_io_lock: threading.Lock = field(default_factory=threading.Lock)
     storage: StorageManager = field(
         default_factory=lambda: StorageManager(
-            SCRIPT_DIR.parent / "data" / "state" / "fancybot.db"
+            SCRIPT_DIR.parent / "data" / "state" / "fancybot_sim.db"
         )
     )
 
@@ -455,6 +459,50 @@ _SPARK_CHARS = "▁▂▃▄▅▆▇█"
 # TUI log buffer
 _bot_logs: deque[str] = deque(maxlen=100)
 _CSV_LOG_ENABLED = False
+_sim_log_lock = threading.Lock()
+
+
+def log_trade(entry: dict):
+    """Append a simulation trade entry to the JSON Lines and CSV logs."""
+    global _CSV_LOG_ENABLED
+    with _sim_log_lock:
+        # JSONL Log
+        log_file_jsonl = SIM_LOG_FILE.with_suffix(".jsonl")
+        try:
+            with open(log_file_jsonl, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to append to sim trade JSONL log: {e}")
+
+        # CSV Log
+        if _CSV_LOG_ENABLED:
+            try:
+                # Ensure header if not exists
+                if not SIM_CSV_LOG_FILE.exists():
+                    SIM_CSV_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    with open(SIM_CSV_LOG_FILE, "w") as f:
+                        f.write(
+                            "timestamp,symbol,direction,entry,exit,pnl,score,reason,hold_time_s\n"
+                        )
+
+                with open(SIM_CSV_LOG_FILE, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    # Flatten the dict for CSV row
+                    writer.writerow(
+                        [
+                            entry.get("timestamp"),
+                            entry.get("symbol"),
+                            entry.get("direction"),
+                            entry.get("price") or entry.get("entry"),
+                            entry.get("exit_price") or entry.get("exit"),
+                            entry.get("pnl"),
+                            entry.get("score"),
+                            entry.get("reason") or entry.get("status"),
+                            entry.get("hold_time_seconds") or entry.get("hold_time_s"),
+                        ]
+                    )
+            except Exception as e:
+                logger.error(f"Failed to append to sim trade CSV log: {e}")
 
 
 def update_pnl_history(symbol: str, current_pnl: float):
@@ -705,19 +753,19 @@ def _close_all_positions() -> None:
         print(Fore.YELLOW + "  No positions to close.")
         return
 
-    print(Fore.CYAN + f"  Closing {len(positions)} positions...")
-
-    # --- Kill Cinematic ---
-    play_animation(animations.kill)
-    hw.bridge.signal("EXIT")
-
-    new_balance = balance
-    for pos in positions:
-        symbol = pos["symbol"]
-        side = pos["side"]
-        entry = pos["entry"]
-        size = float(pos["size"])
-
+            print(Fore.CYAN + f"  Closing {len(positions)} positions...")
+    
+        # --- Kill Cinematic ---
+        play_animation(animations.kill)
+        hw.bridge.signal("EXIT")
+    
+        new_balance = balance
+        now_utc = datetime.datetime.now(datetime.timezone.utc)  # Consistent timestamp for the batch
+        for pos in positions:
+            symbol = pos["symbol"]
+            side = pos["side"]
+            entry = pos["entry"]
+            size = float(pos["size"])
         now = state.get_price(symbol)
 
         if now is None:
@@ -769,6 +817,68 @@ def _close_all_positions() -> None:
     save_sim_cooldowns()
     state.slot_available_event.set()
     print(Fore.GREEN + Style.BRIGHT + "  All positions closed successfully.")
+
+
+def close_position(symbol: str) -> bool:
+    """Manually closes a single paper position at the current market price."""
+    with state.lock:
+        pos_to_close = next((p for p in state.positions if p["symbol"] == symbol), None)
+        if not pos_to_close:
+            logger.warning(f"No open sim position found for {symbol} to close.")
+            return False
+
+        balance = state.balance
+        entry = pos_to_close["entry"]
+        size = float(pos_to_close["size"])
+        side = pos_to_close["side"]
+        now = state.get_price(symbol)
+
+        if now is None:
+            try:
+                ticker = pc.get_tickers()
+                now = next(
+                    (float(t["lastRp"]) for t in ticker if t["symbol"] == symbol), entry
+                )
+            except Exception:
+                now = entry
+
+        pnl = (now - entry) * size if side == "Buy" else (entry - now) * size
+        new_balance = balance + pos_to_close.get("margin", 0.0) + pnl
+
+        state.balance = new_balance
+        state.positions = [p for p in state.positions if p["symbol"] != symbol]
+        state.last_exit_info[symbol] = (time.time(), pnl)
+
+    state.save_account()
+    save_sim_cooldowns()
+    state.slot_available_event.set()
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    pnl_emoji = "✅" if pnl > 0 else "❌"
+    send_telegram_message(
+        f"⏹ *SIM TRADE MANUALLY CLOSED*\n\n"
+        f"*Symbol:* {symbol}\n"
+        f"*Side:* {side}\n"
+        f"*Exit Price:* {now}\n"
+        f"*PnL:* {pnl_emoji} {pnl:+.4f} USDT\n"
+        f"*Time:* {now_utc.strftime('%H:%M:%S')}"
+    )
+
+    _log_closed_trade(
+        symbol,
+        side,
+        entry,
+        now,
+        size,
+        pos_to_close.get("entry_score", 0),
+        pos_to_close.get("entry_time"),
+        "manual_single",
+        signals=pos_to_close.get("signals"),
+        raw_signals=pos_to_close.get("raw_signals"),
+        market_context=pos_to_close.get("market_context"),
+    )
+    logger.info(f"Manually closed sim position {symbol} at {now}")
+    return True
 
 
 def save_sim_cooldowns() -> None:
@@ -830,6 +940,30 @@ def load_sim_cooldowns() -> None:
         logger.error(
             "Failed to load or parse simulation cooldowns — JSON may be invalid or malformed."
         )
+
+
+def get_sim_cooldowns() -> Dict[str, float]:
+    """Returns a dictionary of active cooldowns for Telegram."""
+    with state.lock:
+        active_cooldowns = {
+            s: info[0] + _calculate_dynamic_cooldown(info[1], state.entropy_penalty)
+            for s, info in state.last_exit_info.items()
+            if (info[0] + _calculate_dynamic_cooldown(info[1], state.entropy_penalty)) > time.time()
+        }
+        # Also add fast-track cooldowns
+        for s, ts in state.fast_track_cooldowns.items():
+            if (ts + FAST_TRACK_COOLDOWN_SECONDS) > time.time():
+                active_cooldowns[s] = ts + FAST_TRACK_COOLDOWN_SECONDS
+    return active_cooldowns
+
+
+def clear_sim_cooldowns() -> None:
+    """Clears all active simulation cooldowns."""
+    with state.lock:
+        state.last_exit_info.clear()
+        state.fast_track_cooldowns.clear()
+    save_sim_cooldowns()
+    logger.info("All simulation cooldowns cleared.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1198,7 +1332,9 @@ def _log_closed_trade(
                 target=narrate_and_update,
                 args=(trade_id, record.copy(), market_context or {}),
             ).start()
-        # ... (rest of the function, CSV logging, etc.)
+        
+        # Log to separate simulation log files (JSONL and CSV)
+        log_trade(record)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1898,6 +2034,19 @@ def verify_sim_candidate(
     except Exception as e:
         logger.warning(f"News suppression check failed: {e}")
 
+    # ── Failure Guard Check (Phase 3, Step 13) ───────────────────────────
+    try:
+        ml_features = last_result.get("ml_features", {})
+        if ml_features:
+            decision, reason, prob = failure_guard.failure_guard.evaluate_candidate(ml_features)
+            if decision == "SUPPRESS":
+                tui_log(f"FAILURE GUARD: {symbol} entry suppressed — {reason}", event_type="SUPPRESS")
+                return None
+            elif decision == "REDUCE_SIZE_50":
+                tui_log(f"FAILURE GUARD: {symbol} size reduced 50% — {reason}", event_type="GUARD")
+                last_result["reduce_size_50"] = True
+    except Exception as e:
+        logger.warning(f"Failure guard check failed: {e}")
 
     # Final overextension check - avoid chasing if it moved too far in our direction too fast
     final_change = pc.pct_change(last_result["price"], initial_price)
@@ -2132,6 +2281,11 @@ def execute_sim_setup(result: dict, direction: str, args: Any) -> bool:
     if getattr(args, "max_margin", None):
         margin_to_use = min(margin_to_use, args.max_margin)
 
+    # ── Failure Guard Size Reduction (Step 13) ───────────────────────────
+    if result.get("reduce_size_50"):
+        margin_to_use *= 0.5
+        tui_log(f"GUARD SCALE: {symbol} margin reduced to ${margin_to_use:.2f} (FailureGuard recommendation)", event_type="GUARD")
+
     if margin_to_use <= 0 or current_balance < margin_to_use:
         tui_log(
             f"MARGIN FAIL: ${margin_to_use} calculated, but balance ${current_balance:.2f} is insufficient."
@@ -2342,7 +2496,7 @@ def execute_sim_setup(result: dict, direction: str, args: Any) -> bool:
         f"*Time:* {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S')}"
     )
 
-    p_bot.log_trade(
+    log_trade(
         {
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "symbol": symbol,
@@ -2563,16 +2717,6 @@ def sim_bot_loop(args) -> None:
     else:
         state.load_account()
     load_sim_cooldowns()
-
-    # Create CSV log if requested
-    if args.csv:
-        csv_path = SCRIPT_DIR.parent / "data" / "logs" / "sim_trades.csv"
-        if not csv_path.exists():
-            csv_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(csv_path, "w") as f:
-                f.write(
-                    "timestamp,symbol,direction,entry,exit,pnl,score,reason,hold_time_s\n"
-                )
 
     with state.lock:
         balance = state.balance
@@ -2953,6 +3097,10 @@ def main() -> None:
             run_scan_fn=lambda: _manual_tg_scan(args),
             get_chart_fn=_get_session_chart,
             run_backtest_fn=lambda txt: _run_manual_backtest(txt, args),
+            close_position_fn=close_position,
+            close_all_positions_fn=_close_all_positions,
+            get_cooldowns_fn=get_sim_cooldowns,
+            clear_cooldowns_fn=clear_sim_cooldowns,
         )
         logger.info("telegram_controller: started")
 

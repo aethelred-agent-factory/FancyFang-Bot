@@ -71,11 +71,15 @@ _thread: Optional[threading.Thread] = None
 # Injected callbacks — set by start()
 _get_balance: Optional[Callable[[], float]] = None
 _get_positions: Optional[Callable[[], List[dict]]] = None
-_get_session_pnl: Optional[Callable[[], dict]] = None  # optional
-_get_logs: Optional[Callable[[], str]] = None  # optional
-_run_scan: Optional[Callable[[], str]] = None  # optional
-_get_chart: Optional[Callable[[], Optional[str]]] = None  # optional
-_run_backtest: Optional[Callable[[str], str]] = None  # optional
+_get_session_pnl: Optional[Callable[[], dict]] = None
+_get_logs: Optional[Callable[[], str]] = None
+_run_scan: Optional[Callable[[], str]] = None
+_get_chart: Optional[Callable[[], Optional[str]]] = None
+_run_backtest: Optional[Callable[[str], str]] = None
+_close_position: Optional[Callable[[str], bool]] = None
+_close_all_positions: Optional[Callable[[], None]] = None
+_get_cooldowns: Optional[Callable[[], Dict[str, float]]] = None
+_clear_cooldowns: Optional[Callable[[], None]] = None
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -293,6 +297,10 @@ def _handle_help(chat_id: str) -> None:
         "• /logs — Show recent system log lines\n"
         "• /block [mins] — Manually suppress trading\n"
         "• /unblock — Clear manual block\n"
+        "• /close <symbol> — Close a specific position\n"
+        "• /close_all — Close all open positions\n"
+        "• /cooldowns — View active symbol cooldowns\n"
+        "• /cooldowns clear — Clear all cooldowns\n"
         "• /help — Show this help message"
     )
     _send(help_text)
@@ -344,6 +352,58 @@ def _handle_backtest(chat_id: str, text: str) -> None:
         _send("_Backtest callback not registered._")
 
 
+def _handle_close(chat_id: str, text: str) -> None:
+    if not _close_position:
+        _send("❌ Close position callback not registered.")
+        return
+    parts = text.split()
+    if len(parts) < 2:
+        _send("⚠️ Please specify a symbol to close, e.g., `/close BTCUSDT`")
+        return
+    symbol = parts[1].upper()
+    _send(f"Attempting to close {symbol}...")
+    if _close_position(symbol):
+        _send(f"✅ Successfully initiated close for {symbol}.")
+    else:
+        _send(f"❌ Failed to close {symbol}. Check logs for details.")
+
+
+def _handle_close_all(chat_id: str) -> None:
+    if not _close_all_positions:
+        _send("❌ Close all positions callback not registered.")
+        return
+    _send("Attempting to close all open positions...")
+    _close_all_positions()
+    _send("✅ Close all command issued.")
+
+
+def _handle_cooldowns(chat_id: str, text: str) -> None:
+    parts = text.split()
+    if len(parts) > 1 and parts[1].lower() == "clear":
+        if _clear_cooldowns:
+            _clear_cooldowns()
+            _send("✅ All symbol cooldowns/blacklists have been cleared.")
+        else:
+            _send("❌ Clear cooldowns callback not registered.")
+        return
+
+    if not _get_cooldowns:
+        _send("❌ Get cooldowns callback not registered.")
+        return
+
+    cooldowns = _get_cooldowns()
+    if not cooldowns:
+        _send("No active cooldowns.")
+        return
+
+    lines = ["❄️ *Active Cooldowns*\n"]
+    for symbol, expiry in cooldowns.items():
+        remaining = expiry - time.time()
+        if remaining > 0:
+            lines.append(f"`{symbol}`: {remaining/60:.1f}m remaining")
+    _send("\n".join(lines))
+
+
 _COMMAND_MAP: Dict[str, Callable] = {
     "/start": _handle_start,
     "/stop": _handle_stop,
@@ -358,6 +418,9 @@ _COMMAND_MAP: Dict[str, Callable] = {
     "/unblock": _handle_unblock,
     "/chart": _handle_chart,
     "/backtest": _handle_backtest,
+    "/close": _handle_close,
+    "/close_all": _handle_close_all,
+    "/cooldowns": _handle_cooldowns,
 }
 
 
@@ -393,7 +456,7 @@ def _poll_loop() -> None:
                 # Run handler in a separate thread to keep poll loop responsive
                 def _wrap(h=handler, c_id=chat_id, txt=raw_text, c=cmd):
                     try:
-                        if c in ("/block", "/backtest"):
+                        if c in ("/block", "/backtest", "/close", "/cooldowns"):
                             h(c_id, txt)
                         else:
                             h(c_id)
@@ -425,21 +488,16 @@ def start(
     run_scan_fn: Optional[Callable[[], str]] = None,
     get_chart_fn: Optional[Callable[[], Optional[str]]] = None,
     run_backtest_fn: Optional[Callable[[str], str]] = None,
+    close_position_fn: Optional[Callable[[str], bool]] = None,
+    close_all_positions_fn: Optional[Callable[[], None]] = None,
+    get_cooldowns_fn: Optional[Callable[[], Dict[str, float]]] = None,
+    clear_cooldowns_fn: Optional[Callable[[], None]] = None,
 ) -> None:
     """
     Start the Telegram control interface in a daemon thread.
-
-    Args:
-        get_balance_fn      : callable returning current account balance (float)
-        get_positions_fn    : callable returning list of open position dicts
-        get_session_pnl_fn  : optional callable returning session stats dict
-                              with keys: wins, losses, total_pnl
-        get_logs_fn         : optional callable returning recent log lines (str)
-        run_scan_fn         : optional callable executing manual scan (returns str)
-        get_chart_fn        : optional callable generating a PnL chart (returns path)
-        run_backtest_fn     : optional callable running a backtest (returns report)
     """
     global _running, _thread, _get_balance, _get_positions, _get_session_pnl, _get_logs, _run_scan, _get_chart, _run_backtest
+    global _close_position, _close_all_positions, _get_cooldowns, _clear_cooldowns
 
     if not TG_BOT_TOKEN or not TG_CHAT_ID:
         logger.warning(
@@ -454,6 +512,10 @@ def start(
     _run_scan = run_scan_fn
     _get_chart = get_chart_fn
     _run_backtest = run_backtest_fn
+    _close_position = close_position_fn
+    _close_all_positions = close_all_positions_fn
+    _get_cooldowns = get_cooldowns_fn
+    _clear_cooldowns = clear_cooldowns_fn
 
     with _lock:
         if _running:

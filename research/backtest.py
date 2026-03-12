@@ -48,6 +48,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import argparse
+import datetime
 import concurrent.futures
 import csv
 import json
@@ -73,12 +74,14 @@ from core.phemex_short import feature_builder_short, score_short
 from dotenv import load_dotenv
 from modules.banner import BANNER
 from modules.trade_narrator import TradeNarrator
+from modules.storage_manager import StorageManager
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 load_dotenv()
 init(autoreset=True)
 
+SCRIPT_DIR = Path(__file__).parent
 narrator = TradeNarrator()
 
 BASE_URL = os.getenv("PHEMEX_BASE_URL", "https://api.phemex.com").replace(
@@ -347,7 +350,7 @@ def score_window_unified(
         "poc_price": poc_price,
     }
     
-    return score, signals, market_ctx, raw_signals
+    return score, signals, market_ctx, raw_signals, data.ml_features
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -375,6 +378,7 @@ class Trade:
     is_low_liq: bool = False
     market_context: Dict[str, Any] = field(default_factory=dict)
     raw_signals: Dict[str, Any] = field(default_factory=dict)
+    ml_features: Dict[str, float] = field(default_factory=dict)
     narrative: Optional[str] = None
     tags: List[str] = field(default_factory=list)
     primary_driver: Optional[str] = None
@@ -476,15 +480,15 @@ def backtest_symbol(
         lows_window = [x[2] for x in window_data]
         vols_window = [x[4] for x in window_data]
 
-        long_score, long_signals, long_ctx, long_raw = (
-            (0, [], {}, {})
+        long_score, long_signals, long_ctx, long_raw, long_ml = (
+            (0, [], {}, {}, {})
             if direction_upper == "SHORT"
             else score_window_unified(
                 symbol, window_data, "LONG", rsi_1h, funding, spread
             )
         )
-        short_score, short_signals, short_ctx, short_raw = (
-            (0, [], {}, {})
+        short_score, short_signals, short_ctx, short_raw, short_ml = (
+            (0, [], {}, {}, {})
             if direction_upper == "LONG"
             else score_window_unified(
                 symbol, window_data, "SHORT", rsi_1h, funding, spread
@@ -766,6 +770,7 @@ def backtest_symbol(
                             active_position.size = new_total_size
                             active_position.margin += unit_margin
                             active_position.market_context = long_ctx if new_direction == "LONG" else short_ctx
+                            active_position.ml_features = long_ml if new_direction == "LONG" else short_ml
 
                             # Reset watermarks and stops
                             atr_stop_dist = (
@@ -792,15 +797,15 @@ def backtest_symbol(
         lows_window = [x[2] for x in window_data]
         vols_window = [x[4] for x in window_data]
 
-        long_score, long_signals, long_ctx, long_raw = (
-            (0, [], {}, {})
+        long_score, long_signals, long_ctx, long_raw, long_ml = (
+            (0, [], {}, {}, {})
             if direction_upper == "SHORT"
             else score_window_unified(
                 symbol, window_data, "LONG", rsi_1h, funding, spread
             )
         )
-        short_score, short_signals, short_ctx, short_raw = (
-            (0, [], {}, {})
+        short_score, short_signals, short_ctx, short_raw, short_ml = (
+            (0, [], {}, {}, {})
             if direction_upper == "LONG"
             else score_window_unified(
                 symbol, window_data, "SHORT", rsi_1h, funding, spread
@@ -818,22 +823,24 @@ def backtest_symbol(
         if long_score >= short_score:
             if len(long_signals) < min_signals:
                 continue
-            direction_trade, entry_score, entry_signals, entry_market_ctx, entry_raw_signals = (
+            direction_trade, entry_score, entry_signals, entry_market_ctx, entry_raw_signals, entry_ml_features = (
                 "LONG",
                 long_score,
                 long_signals,
                 long_ctx,
                 long_raw,
+                long_ml,
             )
         else:
             if len(short_signals) < min_signals:
                 continue
-            direction_trade, entry_score, entry_signals, entry_market_ctx, entry_raw_signals = (
+            direction_trade, entry_score, entry_signals, entry_market_ctx, entry_raw_signals, entry_ml_features = (
                 "SHORT",
                 short_score,
                 short_signals,
                 short_ctx,
                 short_raw,
+                short_ml,
             )
 
         # ── Upgrade #3: Spread filter ─────────────────────────────────────────
@@ -892,6 +899,7 @@ def backtest_symbol(
             is_low_liq=is_low_liq,
             market_context=entry_market_ctx,
             raw_signals=entry_raw_signals,
+            ml_features=entry_ml_features,
         )
         is_in_position = True
 
@@ -1546,6 +1554,11 @@ def main():
         "--no-htf", action="store_true", help="Skip 1H RSI fetch (faster)"
     )
     parser.add_argument(
+        "--save-db",
+        action="store_true",
+        help="Save closed trades to the SQLite database",
+    )
+    parser.add_argument(
         "--window",
         type=int,
         default=100,
@@ -1837,6 +1850,34 @@ def main():
         if args.csv:
             csv_path = str(Path(args.output).with_suffix(".csv"))
             save_trades_csv(all_trades, csv_path)
+
+        if args.save_db:
+            db_path = Path(SCRIPT_DIR).parent / "data" / "state" / "backtest.db"
+            storage = StorageManager(db_path)
+            print(Fore.CYAN + f"  Saving {len(closed_trades)} trades to database...")
+            for trade in closed_trades:
+                record = {
+                    "symbol": trade.symbol,
+                    "direction": trade.direction,
+                    "entry": trade.entry_price,
+                    "exit": trade.exit_price,
+                    "pnl": trade.pnl_usdt,
+                    "hold_time_s": trade.hold_candles * TIMEFRAME_MAP.get(args.timeframe, 900),
+                    "score": trade.score,
+                    "reason": trade.exit_reason,
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "signals": trade.signals,
+                    "slippage": trade.slippage_pct / 100.0,
+                    "raw_signals": trade.raw_signals,
+                    "ml_features": trade.ml_features,
+                    "market_context": trade.market_context,
+                    "narrative": trade.narrative,
+                    "tags": trade.tags,
+                    "primary_driver": trade.primary_driver,
+                    "failure_mode": trade.failure_mode
+                }
+                storage.append_trade(record)
+            print(Fore.GREEN + "  Database save complete.")
 
     print(Fore.GREEN + f"\n  Results saved → {args.output}\n")
 

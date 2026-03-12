@@ -342,6 +342,7 @@ class TickerData:
     poc_price: Optional[float] = None
     sector: str = "OTHER"
     spectre_score: float = 0.0
+    ml_features: Dict[str, float] = field(default_factory=dict)
 
 
 # ----------------------------
@@ -2323,6 +2324,7 @@ def unified_analyse(
             "best_ask": best_ask,
             "depth": depth,  # Upgrade #17: Liquidity Guard 2.0
             "ob_imbalance": ob_imbalance,  # Upgrade #10: order book imbalance ratio
+            "ml_features": data.ml_features,
             # ── Audit fields (Upgrade #16) ───────────────────────────────────
             "raw_signals": {
                 "rsi": rsi,

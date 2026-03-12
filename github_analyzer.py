@@ -2,6 +2,7 @@ import requests
 import os
 import json
 import sys
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables from .env
@@ -29,6 +30,9 @@ def get_repo_info(repo_url):
     resp = requests.get(url)
     resp.raise_for_status()
     data = resp.json()
+    license_info = data.get('license')
+    license_name = license_info.get('name', 'None') if isinstance(license_info, dict) else 'None'
+    
     return {
         'fullName': data['full_name'],
         'description': data.get('description'),
@@ -37,7 +41,7 @@ def get_repo_info(repo_url):
         'language': data.get('language'),
         'lastCommit': data['updated_at'],
         'openIssues': data['open_issues_count'],
-        'license': data.get('license', {}).get('name', 'None'),
+        'license': license_name,
         'createdAt': data['created_at'],
     }
 
@@ -51,7 +55,10 @@ def analyze_with_ai(repo_data):
         'Content-Type': 'application/json'
     }
     
-    prompt = f"""Analyze this GitHub repository:
+    current_time = datetime.now().strftime("%A, %B %d, %Y %I:%M %p")
+    prompt = f"""Current date/time: {current_time}
+    
+Analyze this GitHub repository:
 {json.dumps(repo_data, indent=2)}
 
 Give a concise summary including:

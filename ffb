@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+# FancyFangBot (ffb) CLI helper
+
+VENV=".venv"
+if [ -d "$VENV" ]; then
+    source "$VENV/bin/activate"
+fi
+
+case "$1" in
+    sim)
+        shift
+        python3 core/sim_bot.py "$@"
+        ;;
+    live)
+        shift
+        python3 core/p_bot.py "$@"
+        ;;
+    backtest)
+        shift
+        python3 research/backtest.py "$@"
+        ;;
+    test)
+        shift
+        python3 -m pytest "$@"
+        ;;
+    annotate)
+        shift
+        python3 research/batch_annotate.py "$@"
+        ;;
+    export)
+        shift
+        python3 research/export_training_data.py "$@"
+        ;;
+    help|*)
+        echo "FancyFangBot (ffb) CLI"
+        echo "Usage: ./ffb [command] [args...]"
+        echo ""
+        echo "Commands:"
+        echo "  sim       Run the simulation (paper) bot"
+        echo "  live      Run the live bot"
+        echo "  backtest  Run the backtester"
+        echo "  test      Run unit tests"
+        echo "  annotate  Batch annotate trades"
+        echo "  export    Export training data"
+        echo "  help      Show this help"
+        ;;
+esac

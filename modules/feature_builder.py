@@ -75,6 +75,21 @@ class FeatureBuilder:
         if data.adx is not None:
             features["norm_adx"] = self._norm_adx.update_and_score(data.adx)
 
+        # ── ML Model Compatibility Features (Step 12) ───────────────────────────
+        # Add prefixed raw signals for the trained XGBoost model
+        features["sig_rsi"] = data.rsi or 50.0
+        features["sig_ema_slope"] = data.ema_slope or 0.0
+        features["sig_vol_spike"] = data.vol_spike or 1.0
+        features["sig_adx"] = data.adx or 0.0
+        features["sig_entropy"] = data.entropy or 0.0
+        features["sig_kalman_slope"] = data.kalman_slope or 0.0
+        features["sig_poc_price"] = data.poc_price or 0.0
+        features["sig_spread"] = data.spread or 0.0
+
+        # Add prefixed context features
+        features["ctx_btc_momentum_1h"] = market_context.get("btc_momentum_1h", 0.0)
+        features["ctx_global_entropy"] = market_context.get("global_entropy", 0.0)
+
         # External data features from market_context
         fear_greed = market_context.get("fear_greed_index")
         if fear_greed is not None:

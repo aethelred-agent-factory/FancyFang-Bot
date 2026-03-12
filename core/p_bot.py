@@ -91,6 +91,7 @@ import core.ui as ui
 import core.web_bridge as web_bridge
 import modules.animations as animations
 import modules.market_context as market_context
+import modules.failure_guard as failure_guard
 import requests
 from colorama import Fore, Style, init
 from dotenv import load_dotenv
@@ -2171,6 +2172,82 @@ def cancel_order_by_client_id(symbol: str, client_order_id: str) -> bool:
         return False
 
 
+def close_position(symbol: str) -> bool:
+    """Closes a specific position by symbol using a market order."""
+    positions = get_open_positions()
+    pos = next((p for p in positions if p["symbol"] == symbol), None)
+    if not pos:
+        logger.warning(f"No open position found for {symbol} to close.")
+        return False
+
+    # Side to close: if LONG (Buy), we need to SELL. If SHORT (Sell), we need to BUY.
+    side = "Sell" if pos["side"] == "Buy" else "Buy"
+    qty_str = str(pos["size"])
+    pos_side = pos.get("pos_side", "Merged")
+
+    logger.info(f"Manually closing {symbol} position: {pos['side']} {qty_str}")
+    cancel_all_orders(symbol)
+    res = place_market_order(symbol, side, qty_str, pos_side=pos_side, clord_id=_clord_id("exit-man"))
+
+    if res and res.get("code") == 0:
+        logger.info(f"Successfully closed {symbol} position.")
+        # Blacklist symbol after manual close to prevent immediate re-entry
+        blacklist_symbol(symbol, reason="manual_close")
+        return True
+    else:
+        logger.error(f"Failed to close {symbol} position: {res}")
+        return False
+
+
+def _close_all_positions() -> None:
+    """Manually closes every active position using market orders."""
+    positions = get_open_positions()
+    if not positions:
+        logger.info("No positions to close.")
+        return
+
+    logger.info(f"Closing {len(positions)} positions...")
+
+    for pos in positions:
+        symbol = pos["symbol"]
+        side = "Sell" if pos["side"] == "Buy" else "Buy"
+        qty_str = str(pos["size"])
+        pos_side = pos.get("pos_side", "Merged")
+
+        logger.info(f"Closing {symbol}...")
+        cancel_all_orders(symbol)
+        res = place_market_order(symbol, side, qty_str, pos_side=pos_side, clord_id=_clord_id("exit-all"))
+
+        if res and res.get("code") == 0:
+            logger.info(f"Closed {symbol}.")
+            # Blacklist symbol after manual close to prevent immediate re-entry
+            blacklist_symbol(symbol, reason="manual_all")
+        else:
+            logger.error(f"Failed to close {symbol}: {res}")
+
+    logger.info("All positions close attempts finished.")
+
+
+def _get_p_bot_cooldowns() -> Dict[str, float]:
+    """Helper to get active blacklist from p_bot_storage for Telegram."""
+    blacklist = p_bot_storage.get_blacklist()
+    # Convert datetime objects in `expires_at` to timestamps for consistency with sim_bot
+    cooldowns = {
+        symbol: datetime.datetime.fromisoformat(entry["expires_at"]).timestamp()
+        for symbol, entry in blacklist.items()
+        if entry["expires_at"]  # Ensure expires_at is not None
+    }
+    return cooldowns
+
+
+def _clear_p_bot_cooldowns() -> None:
+    """Helper to clear all blacklist entries from p_bot_storage for Telegram."""
+    blacklist = p_bot_storage.get_blacklist()
+    for symbol in blacklist:
+        p_bot_storage.remove_from_blacklist(symbol)
+    logger.info("All p_bot blacklist entries cleared.")
+
+
 # ────────────────────────────────────────────────────────────────────
 # Trade logging
 # ────────────────────────────────────────────────────────────────────
@@ -2211,6 +2288,12 @@ def log_trade(entry: dict):
                 if narration_result:
                     p_bot_storage.update_trade_narration(trade_id, narration_result)
                     logger.info(f"Narrated trade {trade_id} for {trade_record['symbol']}")
+
+            # Launch narration in a background thread
+            threading.Thread(
+                target=narrate_and_update,
+                args=(trade_id, record.copy(), record.get("market_context", {})),
+            ).start()
 
             if trade_id:
                 threading.Thread(
@@ -3249,6 +3332,10 @@ def bot_loop(args):
             run_scan_fn=_manual_tg_scan,
             get_chart_fn=_get_session_chart,
             run_backtest_fn=_run_manual_backtest,
+            close_position_fn=close_position,
+            close_all_positions_fn=_close_all_positions,
+            get_cooldowns_fn=_get_p_bot_cooldowns,
+            clear_cooldowns_fn=_clear_p_bot_cooldowns,
         )
         logger.info("[TG] Telegram controller started")
 
