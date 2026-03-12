@@ -56,6 +56,34 @@ class TestStorageManager(unittest.TestCase):
         self.assertEqual(history[0]["pnl"], 10.0)
         self.assertEqual(history[0]["signals"], ["RSI Oversold"])
 
+    def test_training_state_methods(self):
+        # Initially there should be a row with zero trades
+        state = self.storage.get_model_training_state()
+        self.assertIn("trades_since_last_training", state)
+        self.assertEqual(state["trades_since_last_training"], 0)
+        self.assertIsNone(state.get("last_training_timestamp"))
+
+        # Increment counter and verify
+        self.storage.increment_trades_since_last_training()
+        state = self.storage.get_model_training_state()
+        self.assertEqual(state["trades_since_last_training"], 1)
+
+        # Reset and update timestamp
+        self.storage.reset_trades_since_last_training()
+        state = self.storage.get_model_training_state()
+        self.assertEqual(state["trades_since_last_training"], 0)
+        self.storage.update_last_training_timestamp("2026-03-12T00:00:00Z")
+        state = self.storage.get_model_training_state()
+        self.assertEqual(state["last_training_timestamp"], "2026-03-12T00:00:00Z")
+
+    def test_count_annotated_trades(self):
+        # no annotated trades yet
+        self.assertEqual(self.storage.count_annotated_trades(), 0)
+        # add a trade with narrative
+        trade = {"symbol": "X", "direction": "LONG", "entry": 1, "exit": 2, "pnl": 1, "timestamp": "2026-03-08T20:00:00Z", "narrative": "test"}
+        self.storage.append_trade(trade)
+        self.assertEqual(self.storage.count_annotated_trades(), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

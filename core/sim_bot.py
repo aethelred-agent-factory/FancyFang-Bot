@@ -753,19 +753,19 @@ def _close_all_positions() -> None:
         print(Fore.YELLOW + "  No positions to close.")
         return
 
-            print(Fore.CYAN + f"  Closing {len(positions)} positions...")
-    
-        # --- Kill Cinematic ---
-        play_animation(animations.kill)
-        hw.bridge.signal("EXIT")
-    
-        new_balance = balance
-        now_utc = datetime.datetime.now(datetime.timezone.utc)  # Consistent timestamp for the batch
-        for pos in positions:
-            symbol = pos["symbol"]
-            side = pos["side"]
-            entry = pos["entry"]
-            size = float(pos["size"])
+    print(Fore.CYAN + f"  Closing {len(positions)} positions...")
+
+    # --- Kill Cinematic ---
+    play_animation(animations.kill)
+    hw.bridge.signal("EXIT")
+
+    new_balance = balance
+    now_utc = datetime.datetime.now(datetime.timezone.utc)  # Consistent timestamp for the batch
+    for pos in positions:
+        symbol = pos["symbol"]
+        side = pos["side"]
+        entry = pos["entry"]
+        size = float(pos["size"])
         now = state.get_price(symbol)
 
         if now is None:
@@ -1327,15 +1327,71 @@ def _log_closed_trade(
     with state.file_io_lock:
         trade_id = state.storage.append_trade(record)
         if trade_id:
+            # Increment counter used for triggering retraining
+            try:
+                state.storage.increment_trades_since_last_training()
+            except Exception as e:
+                logger.error(f"Failed to update training counter: {e}")
+
             # Launch narration in a background thread
             threading.Thread(
                 target=narrate_and_update,
                 args=(trade_id, record.copy(), market_context or {}),
             ).start()
+
+            # Maybe trigger a model retrain in background
+            try:
+                total_ann = state.storage.count_annotated_trades()
+                md = state.storage.get_model_training_state()
+                if total_ann >= 200 and md.get("trades_since_last_training", 0) >= 50:
+                    logger.info("Retraining threshold reached, scheduling retrain.")
+                    threading.Thread(target=_retrain_models_async).start()
+            except Exception as e:
+                logger.error(f"Error checking retrain conditions: {e}")
         
         # Log to separate simulation log files (JSONL and CSV)
         log_trade(record)
 
+
+
+# ---------------------------------------------------------------------------
+# Model retraining utilities (Step 14)
+# ---------------------------------------------------------------------------
+
+def _retrain_models_async() -> None:
+    """Background job that exports training data and retrains both XGB models.
+
+    This function is intentionally lightweight from the main trading loop; it
+    can be spawned a few seconds after a trade closes without impacting
+    performance. It updates the training metadata in the database when done.
+    """
+    try:
+        logger.info("Starting asynchronous model retraining...")
+        # export training set from the active database
+        from research import export_training_data as exporter
+        from research.train_classifier import train_classifier
+        from research.train_failure_model import train_failure_model
+        
+        # Determine paths
+        script_dir = Path(__file__).parent
+        csv_path = script_dir.parent / "data" / "training_data.csv"
+        model_dir = script_dir.parent / "models"
+
+        # export
+        exporter.export_data(state.storage.db_path, csv_path)
+
+        # train both models
+        train_classifier(csv_path, model_dir)
+        train_failure_model(csv_path, model_dir)
+
+        # update metadata counters
+        now_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        state.storage.update_last_training_timestamp(now_ts)
+        state.storage.reset_trades_since_last_training()
+
+        logger.info("Model retraining complete.")
+    except Exception as e:
+        logger.error(f"Retraining job failed: {e}", exc_info=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TUI — Drawing Helpers  (v2)

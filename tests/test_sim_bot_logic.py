@@ -140,6 +140,36 @@ def test_log_closed_trade_warning(tmp_path, caplog, monkeypatch):
     assert "Current sim positions" in caplog.text
 
 
+def test_retrain_trigger(monkeypatch):
+    """When enough annotated trades accumulate, retrain_models_async should be scheduled."""
+    fake_storage = MagicMock()
+    fake_storage.append_trade.return_value = 1
+    fake_storage.increment_trades_since_last_training = MagicMock()
+    fake_storage.count_annotated_trades.return_value = 250
+    fake_storage.get_model_training_state.return_value = {"trades_since_last_training": 50}
+    monkeypatch.setattr(sim_bot, "state", sim_bot.SimBotState(storage=fake_storage))
+
+    # patch the asynchronous retrain function so it doesn't actually run
+    called = False
+    def fake_retrain():
+        nonlocal called
+        called = True
+    monkeypatch.setattr(sim_bot, "_retrain_models_async", fake_retrain)
+
+    # call the log_closed_trade with minimal params
+    sim_bot._log_closed_trade(
+        symbol="X",
+        direction="Buy",
+        entry=1.0,
+        exit_price=2.0,
+        size=1.0,
+        entry_score=10,
+        entry_time=None,
+        reason="tp",
+    )
+    assert called, "Retrain should have been triggered when threshold met"
+
+
 def test_sim_account_isolation(tmp_path, monkeypatch, caplog):
     """Live p_bot positions stored in the shared DB must not appear in the sim account."""
     # point sim to a temporary JSON file

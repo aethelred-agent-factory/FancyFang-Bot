@@ -183,6 +183,23 @@ class StorageManager:
                         "ALTER TABLE trade_history ADD COLUMN ml_features_json TEXT"
                     )
 
+                # ----------------------------------------------------------------
+                # Model training metadata table (Step 14)
+                # Tracks when the ML models were last retrained and how many
+                # trades have occurred since that event. This supports the
+                # continuous retraining trigger in sim_bot.
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS model_training (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        last_training_timestamp TEXT,
+                        trades_since_last_training INTEGER NOT NULL DEFAULT 0
+                    )
+                """)
+                # Ensure a single row exists so queries can assume it.
+                cursor.execute(
+                    "INSERT OR IGNORE INTO model_training (id, trades_since_last_training) VALUES (1, 0)"
+                )
+
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to initialize database: {e}")
@@ -599,6 +616,91 @@ class StorageManager:
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to save hour stats: {e}")
+            finally:
+                conn.close()
+
+    # --- Model Training State Helpers ------------------------------------
+
+    def _ensure_training_row(self):
+        """Internal: make sure the singleton row exists in model_training."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT OR IGNORE INTO model_training (id, trades_since_last_training) VALUES (1, 0)"
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def get_model_training_state(self) -> Dict[str, Any]:
+        """Retrieve current training metadata."""
+        self._ensure_training_row()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT last_training_timestamp, trades_since_last_training FROM model_training WHERE id = 1")
+                row = cursor.fetchone()
+                return {
+                    "last_training_timestamp": row["last_training_timestamp"],
+                    "trades_since_last_training": row["trades_since_last_training"],
+                }
+            finally:
+                conn.close()
+
+    def increment_trades_since_last_training(self, n: int = 1):
+        """Atomically increment the counter of trades since the last retrain."""
+        self._ensure_training_row()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE model_training SET trades_since_last_training = trades_since_last_training + ? WHERE id = 1",
+                    (n,),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def reset_trades_since_last_training(self):
+        """Set the counter back to zero (typically after a successful retrain)."""
+        self._ensure_training_row()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                conn.execute("UPDATE model_training SET trades_since_last_training = 0 WHERE id = 1")
+                conn.commit()
+            finally:
+                conn.close()
+
+    def update_last_training_timestamp(self, timestamp: str):
+        """Record when the models were last retrained."""
+        self._ensure_training_row()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                conn.execute(
+                    "UPDATE model_training SET last_training_timestamp = ? WHERE id = 1",
+                    (timestamp,),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def count_annotated_trades(self) -> int:
+        """Returns the number of closed trades that have been narrated (at least)."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM trade_history WHERE narrative IS NOT NULL"
+                )
+                row = cursor.fetchone()
+                return row[0] if row else 0
             finally:
                 conn.close()
 
