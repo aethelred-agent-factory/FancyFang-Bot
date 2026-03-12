@@ -38,6 +38,7 @@ import signal
 import sys
 import threading
 import time
+import subprocess
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1319,6 +1320,12 @@ def _log_closed_trade(
                 logger.info(
                     f"Narrated trade {trade_id} for {trade_record['symbol']} with confidence {narration_result.get('confidence')}"
                 )
+                
+                # Check for retraining trigger after narration (annotation complete)
+                state.storage.increment_trades_since_training()
+                training_state = state.storage.get_model_training_state()
+                if training_state["trades_since_training"] >= 50:
+                    retrain_models_async()
             else:
                 logger.warning(f"Narration failed for trade {trade_record['symbol']}.")
         except Exception as e:
@@ -1327,71 +1334,63 @@ def _log_closed_trade(
     with state.file_io_lock:
         trade_id = state.storage.append_trade(record)
         if trade_id:
-            # Increment counter used for triggering retraining
-            try:
-                state.storage.increment_trades_since_last_training()
-            except Exception as e:
-                logger.error(f"Failed to update training counter: {e}")
-
             # Launch narration in a background thread
             threading.Thread(
                 target=narrate_and_update,
                 args=(trade_id, record.copy(), market_context or {}),
             ).start()
-
-            # Maybe trigger a model retrain in background
-            try:
-                total_ann = state.storage.count_annotated_trades()
-                md = state.storage.get_model_training_state()
-                if total_ann >= 200 and md.get("trades_since_last_training", 0) >= 50:
-                    logger.info("Retraining threshold reached, scheduling retrain.")
-                    threading.Thread(target=_retrain_models_async).start()
-            except Exception as e:
-                logger.error(f"Error checking retrain conditions: {e}")
         
         # Log to separate simulation log files (JSONL and CSV)
         log_trade(record)
-
 
 
 # ---------------------------------------------------------------------------
 # Model retraining utilities (Step 14)
 # ---------------------------------------------------------------------------
 
-def _retrain_models_async() -> None:
-    """Background job that exports training data and retrains both XGB models.
+def retrain_models_async():
+    """Background thread function for model retraining."""
+    def _do_retrain():
+        try:
+            total_annotated = state.storage.count_annotated_trades()
+            if total_annotated < 200:
+                tui_log(f"RETRAIN SKIP: Only {total_annotated} annotated trades (need 200).", event_type="RETRAIN")
+                return
 
-    This function is intentionally lightweight from the main trading loop; it
-    can be spawned a few seconds after a trade closes without impacting
-    performance. It updates the training metadata in the database when done.
-    """
-    try:
-        logger.info("Starting asynchronous model retraining...")
-        # export training set from the active database
-        from research import export_training_data as exporter
-        from research.train_classifier import train_classifier
-        from research.train_failure_model import train_failure_model
-        
-        # Determine paths
-        script_dir = Path(__file__).parent
-        csv_path = script_dir.parent / "data" / "training_data.csv"
-        model_dir = script_dir.parent / "models"
+            tui_log(f"RETRAIN START: Retraining models on {total_annotated} trades...", event_type="RETRAIN")
+            
+            # Determine paths
+            script_dir = Path(__file__).parent
+            csv_path = script_dir.parent / "data" / "training_data.csv"
+            model_dir = script_dir.parent / "models"
 
-        # export
-        exporter.export_data(state.storage.db_path, csv_path)
+            # Export data
+            from research import export_training_data as exporter
+            exporter.export_data(state.storage.db_path, csv_path)
 
-        # train both models
-        train_classifier(csv_path, model_dir)
-        train_failure_model(csv_path, model_dir)
+            # Train models
+            from research.train_classifier import train_classifier
+            from research.train_failure_model import train_failure_model
+            
+            train_classifier(csv_path, model_dir)
+            train_failure_model(csv_path, model_dir)
+            
+            # Reload models in memory
+            from modules.failure_guard import failure_guard
+            failure_guard.reload()
+            
+            # Reload ensemble scorer engine
+            from modules.ensemble_scorer import ensemble_scorer
+            ensemble_scorer.xgb_engine.reload()
+            
+            state.storage.reset_model_training_state()
+            tui_log("RETRAIN COMPLETE: Models updated and reloaded.", event_type="RETRAIN")
+        except Exception as e:
+            tui_log(f"RETRAIN FAIL: {e}", event_type="ERROR")
+            logger.error(f"Model retraining failed: {e}", exc_info=True)
 
-        # update metadata counters
-        now_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        state.storage.update_last_training_timestamp(now_ts)
-        state.storage.reset_trades_since_last_training()
+    threading.Thread(target=_do_retrain, daemon=True).start()
 
-        logger.info("Model retraining complete.")
-    except Exception as e:
-        logger.error(f"Retraining job failed: {e}", exc_info=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TUI — Drawing Helpers  (v2)

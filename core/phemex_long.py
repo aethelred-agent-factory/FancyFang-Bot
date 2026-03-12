@@ -44,7 +44,7 @@ import core.phemex_common as pc
 from colorama import Fore, init
 from dotenv import load_dotenv
 from modules.feature_builder import FeatureBuilder
-from modules.prediction_engine import PredictionEngine
+import numpy as np
 
 # Initialize environment & colorama
 load_dotenv()
@@ -52,7 +52,6 @@ init(autoreset=True)
 
 # Instantiate the builders
 feature_builder_long = FeatureBuilder()
-prediction_engine_long = PredictionEngine()
 
 
 # ----------------------------
@@ -111,7 +110,7 @@ logger.addHandler(logging.NullHandler())
 # ----------------------------
 # [T3-05] Use the canonical TickerData from core.phemex_common rather than a local
 # trimmed copy.  The local definition was missing rsi_4h, kalman_slope, entropy,
-# and dist_high_pct — fields populated by unified_analyse and used by scoring /
+# and dist_low_pct — fields populated by unified_analyse and used by scoring /
 # confidence functions added in the upgrade pass.
 TickerData = pc.TickerData
 
@@ -495,15 +494,16 @@ def score_long(data: TickerData) -> Tuple[int, List[str]]:
     # ── New Predictive / Ensemble Integration ───────────────────────────────
     features = feature_builder_long.build_features(data, getattr(data, 'market_context', {}))
     data.ml_features = features
+
     # ensemble-based score (now lives in phemex_common to avoid duplicate imports)
     predictive_score = pc.score_func(data, "LONG")
 
-    # Scale predictive score into the 0-200 range logic (same as before)
+    # Scale predictive score into the 0-200 range logic
     predictive_bonus = int(predictive_score * 30)
     score += predictive_bonus
 
     signals.append(f"PREDICTIVE_SCORE_RAW:{predictive_score:.4f}")
-    if predictive_score > 1.0:
+    if predictive_score > 0.5:
         signals.append("PREDICTIVE: STRONG BULLISH BIAS")
 
     # Final cap for compatibility

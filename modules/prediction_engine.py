@@ -95,3 +95,8 @@ class PredictionEngine:
             score += weight * (feature_value * directional_multiplier)
 
         return score
+
+    def reload(self):
+        """Reloads the model from disk."""
+        self.__init__()
+        logger.info("PredictionEngine model reloaded.")

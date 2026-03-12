@@ -151,11 +151,7 @@ class StorageManager:
                     )
                 """)
 
-                # ----------------------------------------------------------------
-                # Training corpus / scan dump table (Step 15+ roadmap)
-                # Stores raw scan results or feature dumps that can be used by
-                # downstream ML training pipelines.  Each row is a JSON blob
-                # since different projects may have different schemas.
+                # Training corpus / scan dump table
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS scan_corpus (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -197,23 +193,6 @@ class StorageManager:
                         "ALTER TABLE trade_history ADD COLUMN ml_features_json TEXT"
                     )
 
-                # ----------------------------------------------------------------
-                # Model training metadata table (Step 14)
-                # Tracks when the ML models were last retrained and how many
-                # trades have occurred since that event. This supports the
-                # continuous retraining trigger in sim_bot.
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS model_training (
-                        id INTEGER PRIMARY KEY CHECK (id = 1),
-                        last_training_timestamp TEXT,
-                        trades_since_last_training INTEGER NOT NULL DEFAULT 0
-                    )
-                """)
-                # Ensure a single row exists so queries can assume it.
-                cursor.execute(
-                    "INSERT OR IGNORE INTO model_training (id, trades_since_last_training) VALUES (1, 0)"
-                )
-
                 conn.commit()
             except sqlite3.Error as e:
                 logger.error(f"Failed to initialize database: {e}")
@@ -221,8 +200,7 @@ class StorageManager:
             finally:
                 conn.close()
 
-        # Initialize auxiliary ledger tables outside of the main transaction
-        # to avoid impacting core schema creation on older installs.
+        # Initialize auxiliary ledger tables
         self._init_ledger_tables()
 
     def load_account(self, initial_balance: float = 100.0) -> Dict[str, Any]:
@@ -368,7 +346,6 @@ class StorageManager:
                 logger.error(f"Failed to update trade narration for trade_id {trade_id}: {e}")
             finally:
                 conn.close()
-
 
     def get_unannotated_trades(self, limit: int = 500) -> List[Dict[str, Any]]:
         """Retrieves trades that haven't been narrated by DeepSeek yet."""
@@ -633,90 +610,80 @@ class StorageManager:
             finally:
                 conn.close()
 
-    # --- Model Training State Helpers ------------------------------------
-
-    def _ensure_training_row(self):
-        """Internal: make sure the singleton row exists in model_training."""
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT OR IGNORE INTO model_training (id, trades_since_last_training) VALUES (1, 0)"
-                )
-                conn.commit()
-            finally:
-                conn.close()
+    # --- Model Training State API -----------------------------------------
 
     def get_model_training_state(self) -> Dict[str, Any]:
-        """Retrieve current training metadata."""
-        self._ensure_training_row()
+        """Returns the current model training tracking state."""
+        self._init_ledger_tables()
         with self._lock:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("SELECT last_training_timestamp, trades_since_last_training FROM model_training WHERE id = 1")
+                cursor.execute("SELECT last_training_timestamp, trades_since_training FROM model_training_state WHERE id = 1")
                 row = cursor.fetchone()
-                return {
-                    "last_training_timestamp": row["last_training_timestamp"],
-                    "trades_since_last_training": row["trades_since_last_training"],
-                }
+                if row:
+                    return {
+                        "last_training_timestamp": row["last_training_timestamp"],
+                        "trades_since_training": row["trades_since_training"],
+                    }
+                return {"last_training_timestamp": None, "trades_since_training": 0}
             finally:
                 conn.close()
 
-    def increment_trades_since_last_training(self, n: int = 1):
-        """Atomically increment the counter of trades since the last retrain."""
-        self._ensure_training_row()
+    def count_annotated_trades(self) -> int:
+        """Counts total number of annotated trades (narrative IS NOT NULL)."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM trade_history WHERE narrative IS NOT NULL")
+                return cursor.fetchone()[0]
+            finally:
+                conn.close()
+
+    def increment_trades_since_training(self, n: int = 1):
+        """Increments the counter of trades since last model training."""
+        self._init_ledger_tables()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE model_training_state SET trades_since_training = trades_since_training + ? WHERE id = 1", (n,))
+                conn.commit()
+            finally:
+                conn.close()
+
+    def reset_model_training_state(self):
+        """Resets the trade counter and updates the last training timestamp."""
+        self._init_ledger_tables()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         with self._lock:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE model_training SET trades_since_last_training = trades_since_last_training + ? WHERE id = 1",
-                    (n,),
+                    "UPDATE model_training_state SET trades_since_training = 0, last_training_timestamp = ? WHERE id = 1",
+                    (now,)
                 )
-                conn.commit()
-            finally:
-                conn.close()
-
-    def reset_trades_since_last_training(self):
-        """Set the counter back to zero (typically after a successful retrain)."""
-        self._ensure_training_row()
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                conn.execute("UPDATE model_training SET trades_since_last_training = 0 WHERE id = 1")
                 conn.commit()
             finally:
                 conn.close()
 
     def update_last_training_timestamp(self, timestamp: str):
         """Record when the models were last retrained."""
-        self._ensure_training_row()
+        self._init_ledger_tables()
         with self._lock:
             conn = self._get_connection()
             try:
                 conn.execute(
-                    "UPDATE model_training SET last_training_timestamp = ? WHERE id = 1",
+                    "UPDATE model_training_state SET last_training_timestamp = ? WHERE id = 1",
                     (timestamp,),
                 )
                 conn.commit()
             finally:
                 conn.close()
 
-    def count_annotated_trades(self) -> int:
-        """Returns the number of closed trades that have been narrated (at least)."""
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT COUNT(*) FROM trade_history WHERE narrative IS NOT NULL"
-                )
-                row = cursor.fetchone()
-                return row[0] if row else 0
-            finally:
-                conn.close()
+    # Correlation Matrix API -----------------------------------------------
 
     def save_correlation_matrix(self, matrix: Dict[str, Dict[str, float]]):
         """Saves a symmetric correlation matrix to the database."""
@@ -725,7 +692,6 @@ class StorageManager:
             try:
                 cursor = conn.cursor()
                 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                # Use a transaction for efficiency
                 cursor.execute("DELETE FROM correlation_matrix")
                 for s1, row in matrix.items():
                     for s2, corr in row.items():
@@ -765,13 +731,14 @@ class StorageManager:
             finally:
                 conn.close()
 
+    # Events API -----------------------------------------------------------
+
     def save_events(self, events: List[Dict[str, Any]]):
         """Saves events to the database (replacing old ones)."""
         with self._lock:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                # Simple strategy: clear and replace
                 cursor.execute("DELETE FROM events")
                 for e in events:
                     cursor.execute(
@@ -794,10 +761,40 @@ class StorageManager:
             finally:
                 conn.close()
 
-    # --- Sovereign Ledger: Blacklist & Config & State ---
+    def get_upcoming_events(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Retrieves upcoming events."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                cursor.execute(
+                    """
+                    SELECT * FROM events WHERE time > ? ORDER BY time ASC LIMIT ?
+                """,
+                    (now, limit),
+                )
+                rows = cursor.fetchall()
+                events = []
+                for r in rows:
+                    events.append(
+                        {
+                            "name": r["name"],
+                            "time": r["time"],
+                            "buffer_before": r["buffer_before_mins"],
+                            "buffer_after": r["buffer_after_mins"],
+                            "impact": r["impact"],
+                            "source": r["source"],
+                        }
+                    )
+                return events
+            finally:
+                conn.close()
+
+    # --- Auxiliary Ledger Tables ---
 
     def _init_ledger_tables(self):
-        """Ensures auxiliary ledger tables exist (blacklist, system_config, sim_state)."""
+        """Ensures auxiliary ledger tables exist (blacklist, system_config, sim_state, training_state)."""
         with self._lock:
             conn = self._get_connection()
             try:
@@ -834,7 +831,69 @@ class StorageManager:
                     )
                 """)
 
+                # Model training state
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS model_training_state (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        last_training_timestamp TEXT,
+                        trades_since_training INTEGER DEFAULT 0
+                    )
+                """)
+                cursor.execute("""
+                    INSERT OR IGNORE INTO model_training_state (id, last_training_timestamp, trades_since_training)
+                    VALUES (1, NULL, 0)
+                """)
+
+                # Training Corpus table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS training_corpus (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        symbol TEXT NOT NULL,
+                        direction TEXT NOT NULL,
+                        features_json TEXT,
+                        sequence_json TEXT,
+                        score REAL,
+                        narrative TEXT,
+                        outcome_pnl REAL,
+                        market_context_json TEXT
+                    )
+                """)
+
                 conn.commit()
+            finally:
+                conn.close()
+
+    # Training Corpus API --------------------------------------------------
+
+    def append_to_corpus(self, record: Dict[str, Any]):
+        """Appends a scan result or trade outcome to the training corpus."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO training_corpus (
+                        timestamp, symbol, direction, features_json, sequence_json,
+                        score, narrative, outcome_pnl, market_context_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        record.get("timestamp", datetime.datetime.now(datetime.timezone.utc).isoformat()),
+                        record.get("symbol"),
+                        record.get("direction"),
+                        json.dumps(record.get("features", {})),
+                        json.dumps(record.get("sequence", [])),
+                        record.get("score"),
+                        record.get("narrative"),
+                        record.get("outcome_pnl"),
+                        json.dumps(record.get("market_context", {})),
+                    ),
+                )
+                conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Failed to append to corpus: {e}")
             finally:
                 conn.close()
 
@@ -997,7 +1056,6 @@ class StorageManager:
     def save_sim_state(self, snapshot: Dict[str, Any]):
         """
         Persists a full simulation bot snapshot.
-        Callers are responsible for providing a fully serializable dict.
         """
         self._init_ledger_tables()
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -1034,35 +1092,5 @@ class StorageManager:
                 if not row:
                     return None
                 return json.loads(row["snapshot_json"])
-            finally:
-                conn.close()
-
-    def get_upcoming_events(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """Retrieves upcoming events."""
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                cursor.execute(
-                    """
-                    SELECT * FROM events WHERE time > ? ORDER BY time ASC LIMIT ?
-                """,
-                    (now, limit),
-                )
-                rows = cursor.fetchall()
-                events = []
-                for r in rows:
-                    events.append(
-                        {
-                            "name": r["name"],
-                            "time": r["time"],
-                            "buffer_before": r["buffer_before_mins"],
-                            "buffer_after": r["buffer_after_mins"],
-                            "impact": r["impact"],
-                            "source": r["source"],
-                        }
-                    )
-                return events
             finally:
                 conn.close()

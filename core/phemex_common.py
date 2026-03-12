@@ -369,20 +369,32 @@ def score_func(data: TickerData, direction: str = "LONG") -> float:
     # features dict is either stored on the data object or empty
     features = data.ml_features or {}
 
-    # build a dummy sequence if none is available; ensemble expects shape
-    # (L,7).  ``build_sequences`` in ``research`` uses 7 columns so we pad
-    # accordingly.  Real pipelines should supply a proper numpy array.
+    # Build sequence for LSTM (expecting 7 columns: OHLCV, FR, OI)
     import numpy as np
 
-    if data.raw_ohlc:
-        seq = np.array(data.raw_ohlc, dtype=np.float32)
-        if seq.ndim == 2 and seq.shape[1] < 7:
-            padding = np.zeros((seq.shape[0], 7 - seq.shape[1]), dtype=np.float32)
-            seq = np.hstack([seq, padding])
+    sequence = None
+    if data.raw_ohlc and len(data.raw_ohlc) >= 60:
+        # Phemex raw_ohlc is (time, open, high, low, close, volume) -> 6 columns
+        # We need (open, high, low, close, volume, funding_rate, open_interest)
+        ohlcv = np.array([c[1:6] for c in data.raw_ohlc[-60:]], dtype=np.float32)
+        fr = np.full((60, 1), data.funding_rate or 0.0, dtype=np.float32)
+        oi = np.zeros((60, 1), dtype=np.float32)  # Placeholder for OI
+        sequence = np.hstack([ohlcv, fr, oi])
+        sequence = normalize_sequence_for_model(sequence)
+    elif data.raw_ohlc:
+        # Fallback for shorter sequences or padding
+        seq = np.array([c[1:6] for c in data.raw_ohlc], dtype=np.float32)
+        fr = np.full((seq.shape[0], 1), data.funding_rate or 0.0, dtype=np.float32)
+        oi = np.zeros((seq.shape[0], 1), dtype=np.float32)
+        sequence = np.hstack([seq, fr, oi])
+        if sequence.shape[1] < 7:
+            padding = np.zeros((sequence.shape[0], 7 - sequence.shape[1]), dtype=np.float32)
+            sequence = np.hstack([sequence, padding])
+        sequence = normalize_sequence_for_model(sequence)
     else:
-        seq = np.zeros((1, 7), dtype=np.float32)
+        sequence = np.zeros((1, 7), dtype=np.float32)
 
-    raw = ensemble_scorer.score(features, seq, direction, data.regime)
+    raw = ensemble_scorer.score(features, sequence, direction, data.regime)
     # ensure we never leak a value outside the expected bounds
     if raw < -1.0:
         return -1.0
@@ -1484,22 +1496,50 @@ def select_top_pairs(
             if daily_range_pct < min_volatility_pct:
                 continue
 
-        # Composite rank: normalise log of volume + ATR-based vol score
-        vol_score = math.log1p(vol24)
-        atr = (atr_cache or {}).get(symbol, 0.0)
-        atr_score = (atr / last * 100.0) if (atr and last > 0) else 0.0
-        composite = vol_score * 0.6 + atr_score * 0.4
-        candidates.append((composite, t))
-
-    candidates.sort(key=lambda x: x[0], reverse=True)
-    selected = [t for _, t in candidates[:top_n]]
-    logger.info(
-        f"select_top_pairs: {len(tickers)} → {len(selected)} "
-        f"(top_n={top_n}, min_vol={min_volume:.0f})"
-    )
-    return selected
-
-
+            # Composite rank: normalise log of volume + ATR-based vol score
+            vol_score = math.log1p(vol24)
+            atr = (atr_cache or {}).get(symbol, 0.0)
+            atr_score = (atr / last * 100.0) if (atr and last > 0) else 0.0
+            composite = vol_score * 0.6 + atr_score * 0.4
+            candidates.append((composite, t))
+        
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            selected = [t for _, t in candidates[:top_n]]
+            logger.info(
+                f"select_top_pairs: {len(tickers)} → {len(selected)} "
+                f"(top_n={top_n}, min_vol={min_volume:.0f})"
+            )
+            return selected
+        
+        
+        def normalize_sequence_for_model(seq: np.ndarray) -> np.ndarray:
+            """
+            Per-sample normalization for sequence models.
+            OHLC: Relative to entry price (last candle close).
+            Volume: Relative to sequence mean.
+            FR/OI: Absolute values (standardized if possible).
+            """
+            if seq.shape[0] == 0:
+                return seq
+                
+            entry_price = seq[-1, 3] or 1.0 # Close of last candle
+            if entry_price == 0:
+                entry_price = 1.0
+            
+            normalized = np.zeros_like(seq)
+            # OHLC relative to entry price
+            normalized[:, :4] = (seq[:, :4] - entry_price) / entry_price
+            
+            # Volume relative to mean
+            vol_mean = np.mean(seq[:, 4]) or 1.0
+            normalized[:, 4] = seq[:, 4] / vol_mean
+            
+            # FR and OI - absolute values
+            normalized[:, 5] = seq[:, 5]
+            normalized[:, 6] = seq[:, 6]
+            
+            return normalized
+        
 # ══════════════════════════════════════════════════════════════════════════════
 # END OF UPGRADE BLOCK
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2160,7 +2200,7 @@ def unified_analyse(
             slope_change=slope_change,
             adx=adx,
             poc_price=None,
-            raw_ohlc=ohlc[-10:],
+            raw_ohlc=ohlc[-60:],
             vol_24h=vol24,
             regime=regime,
             entropy=entropy,
@@ -2243,7 +2283,7 @@ def unified_analyse(
             dist_to_node_above=dist_to_node_above,
             ema_slope=ema_slope,
             slope_change=slope_change,
-            raw_ohlc=ohlc[-10:],
+            raw_ohlc=ohlc[-60:],
             vol_24h=vol24,
             regime=regime,
             entropy=entropy,

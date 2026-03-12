@@ -44,7 +44,7 @@ import core.phemex_common as pc
 from colorama import Fore, init
 from dotenv import load_dotenv
 from modules.feature_builder import FeatureBuilder
-from modules.prediction_engine import PredictionEngine
+import numpy as np
 
 # Initialize environment & colorama
 load_dotenv()
@@ -52,7 +52,6 @@ init(autoreset=True)
 
 # Instantiate the builders
 feature_builder_short = FeatureBuilder()
-prediction_engine_short = PredictionEngine()
 
 
 # ----------------------------
@@ -500,6 +499,7 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
     # ── New Predictive / Ensemble Integration ───────────────────────────────
     features = feature_builder_short.build_features(data, getattr(data, 'market_context', {}))
     data.ml_features = features
+    
     predictive_score = pc.score_func(data, "SHORT")
 
     # Scale predictive score into the 0-200 range logic
@@ -507,7 +507,7 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
     score += predictive_bonus
 
     signals.append(f"PREDICTIVE_SCORE_RAW:{predictive_score:.4f}")
-    if predictive_score > 1.0:
+    if predictive_score > 0.5:
         signals.append("PREDICTIVE: STRONG BEARISH BIAS")
 
     # Final cap for compatibility
