@@ -73,6 +73,10 @@ try:
 except ImportError as e:
     print(Fore.RED + f"[ERROR] Could not import scanner modules: {e}")
     sys.exit(1)
+try:
+    import core.p_bot as p_bot
+except Exception:
+    p_bot = None
 
 
 # ────────────────────────────────────────────────────────────────────
@@ -502,35 +506,38 @@ def main():
         print(Fore.YELLOW + f"  ⚠️  ENTRY SUPPRESSED: {reason}. Skipping scan.")
         sys.exit(0)
 
-    # Apply high-speed funding gate at the ticker fetch stage
-    # If short-only or long-only, we can pass that to get_tickers
-    direction_pref = None
-    if args.short_only: direction_pref = "SHORT"
-    elif args.long_only: direction_pref = "LONG"
+    # Informative count: fetch tickers and show how many pass volume filter
+    try:
+        raw_tickers = pc.get_tickers(rps=cfg["RATE_LIMIT_RPS"])
+        filtered = [
+            t for t in raw_tickers
+            if float(t.get("turnoverRv") or 0.0) >= cfg["MIN_VOLUME"]
+        ]
+        print(f"  {len(filtered)} instruments pass volume filter. Running scanners...\n")
+    except Exception:
+        filtered = []
 
-    raw_tickers = pc.get_tickers(rps=cfg["RATE_LIMIT_RPS"], direction_filter=direction_pref)
-    filtered = [
-        t for t in raw_tickers
-        if float(t.get("turnoverRv") or 0.0) >= cfg["MIN_VOLUME"]
-    ]
-
-    if run_long and run_short:
-        print(f"  {len(filtered)} instruments pass volume filter. "
-              f"Running LONG & SHORT scanners in parallel...\n")
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exe:
-            fut_long  = exe.submit(run_scan, scanner_long,  "LONG",  cfg, args, filtered)
-            fut_short = exe.submit(run_scan, scanner_short, "SHORT", cfg, args, filtered)
-            long_results  = fut_long.result()
-            short_results = fut_short.result()
-
-    elif run_long:
-        print(Fore.GREEN + "  Running LONG scanner only...\n")
-        long_results = run_scan(scanner_long, "LONG", cfg, args, filtered)
-
+    # Prefer shared scanner implementation from p_bot when available so
+    # scans are identical between backtest, sim and standalone scanner.
+    if p_bot is not None:
+        long_results, short_results = p_bot.run_scanner_both(cfg, args)
+        # If user requested single-direction, blank the other
+        if not run_long:
+            long_results = []
+        if not run_short:
+            short_results = []
     else:
-        print(Fore.RED + "  Running SHORT scanner only...\n")
-        short_results = run_scan(scanner_short, "SHORT", cfg, args, filtered)
+        # Fallback to local scanning (legacy behavior)
+        if run_long and run_short:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exe:
+                fut_long  = exe.submit(run_scan, scanner_long,  "LONG",  cfg, args, filtered)
+                fut_short = exe.submit(run_scan, scanner_short, "SHORT", cfg, args, filtered)
+                long_results  = fut_long.result()
+                short_results = fut_short.result()
+        elif run_long:
+            long_results = run_scan(scanner_long, "LONG", cfg, args, filtered)
+        else:
+            short_results = run_scan(scanner_short, "SHORT", cfg, args, filtered)
 
     elapsed = time.time() - start
     print()
