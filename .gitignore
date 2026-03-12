@@ -18,23 +18,25 @@ build/
 dist/
 *.egg-info/
 
-# Runtime state
+# Runtime state (logs, DBs, temp)
 data/logs/
 data/state/
 *.db
 *.tmp
 
-# Research artifacts
-research/master_results.json
-*.log
-*.jsonl
-!paper_account.json
-!paper_account.json.example
-
-# Backtest outputs
+# Research outputs (generated files)
+research/results/
 research/*.csv
 research/*.json
-data/backtest_results/
+research/*.txt
+
+# Keep important sample/account files tracked
+!paper_account.json
+
+# Logs and backup files
+*.log
+logs/
+*.bak
 
 # Pytest / type checkers
 .pytest_cache/
@@ -44,22 +46,14 @@ data/backtest_results/
 .DS_Store
 .vscode/
 .idea/
-<<<<<<< HEAD
 
 # Docker
 docker-compose.override.yml
 
-# Logs and backups
-logs/
-*.bak
-
 # Node
 node_modules/
 
-# Other
+# Misc
 *.so
 *.c
 
-=======
-research/master_results.json
->>>>>>> origin/main

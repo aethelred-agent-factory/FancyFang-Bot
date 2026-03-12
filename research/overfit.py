@@ -42,8 +42,11 @@ BAR_WIDTH = 30
 def _run(sym_data, kwargs) -> List[bt.Trade]:
     all_trades = []
     for sym, candles, spread, funding, rsi_1h in sym_data:
+        # Do not forward internal debug flag to backtest_symbol (it doesn't accept it)
+        kw = dict(kwargs)
+        kw.pop('debug', None)
         all_trades.extend(bt.backtest_symbol(
-            sym, candles, spread, funding, rsi_1h, **kwargs
+            sym, candles, spread, funding, rsi_1h, **kw
         ))
     return all_trades
 
@@ -141,6 +144,9 @@ def run_permutation(sym_data_full, kwargs, n_permutations=100) -> dict:
         shuffled = [(s, _shuffle_candles(c), sp, f, r)
                     for s, c, sp, f, r in sym_data_full]
         null_pnls.append(_metrics(_run(shuffled, kwargs))['pnl'])
+        if kwargs.get('debug'):
+            if (i + 1) % max(1, int(n_permutations/10)) == 0 or i == 0:
+                print(f"[debug] Permutation {i+1}/{n_permutations}")
 
     null_arr  = np.array(null_pnls)
     null_mean = float(np.mean(null_arr))
@@ -182,8 +188,8 @@ def run_permutation(sym_data_full, kwargs, n_permutations=100) -> dict:
 
 
 def run_random_entry(sym_data_full, kwargs, n_runs=50) -> dict:
-    orig_long  = bt.score_long_window
-    orig_short = bt.score_short_window
+    orig_long  = getattr(bt, 'score_long_window', None)
+    orig_short = getattr(bt, 'score_short_window', None)
 
     min_sigs = kwargs.get("min_signals", 3)
     dummy_signals = [f"random_signal_{i}" for i in range(max(min_sigs, 5))]
@@ -211,11 +217,31 @@ def run_random_entry(sym_data_full, kwargs, n_runs=50) -> dict:
             trades = _run(sym_data_full, kw_rand)
             random_results.append(_metrics(trades)['pnl'])
         finally:
-            bt.score_long_window  = orig_long
-            bt.score_short_window = orig_short
+            if orig_long is not None:
+                bt.score_long_window = orig_long
+            else:
+                if hasattr(bt, 'score_long_window'):
+                    delattr(bt, 'score_long_window')
+            if orig_short is not None:
+                bt.score_short_window = orig_short
+            else:
+                if hasattr(bt, 'score_short_window'):
+                    delattr(bt, 'score_short_window')
 
-    bt.score_long_window  = orig_long
-    bt.score_short_window = orig_short
+        if kwargs.get('debug'):
+            if (run_i + 1) % max(1, int(n_runs/10)) == 0 or run_i == 0:
+                print(f"[debug] Random-run {run_i+1}/{n_runs}")
+
+    if orig_long is not None:
+        bt.score_long_window = orig_long
+    else:
+        if hasattr(bt, 'score_long_window'):
+            delattr(bt, 'score_long_window')
+    if orig_short is not None:
+        bt.score_short_window = orig_short
+    else:
+        if hasattr(bt, 'score_short_window'):
+            delattr(bt, 'score_short_window')
 
     arr       = np.array(random_results)
     mean_rand = float(np.mean(arr))
@@ -411,6 +437,10 @@ def main():
     # Compatibility option used by some callers; currently unused here
     parser.add_argument("--window",         type=int,   default=150,     dest="window",
                         help="Compatibility: window size (unused)")
+    parser.add_argument("--debug", action="store_true", dest="debug",
+                        help="Enable verbose debug output (progress updates)")
+    parser.add_argument("--pretty", action="store_true", dest="pretty",
+                        help="Pretty terminal output with colors and bars")
     args = parser.parse_args()
 
     if os.environ.get("OVERFIT_TEST_WEB_MODE") == "1":
@@ -427,6 +457,7 @@ def main():
 
     sym_data = []
     lock = threading.Lock()
+    done = [0]
 
     def fetch(sym):
         candles = bt.get_candles(sym, timeframe=args.timeframe, limit=args.candles)
@@ -435,6 +466,9 @@ def main():
         rsi_1h  = None if args.no_htf else bt.get_htf_rsi(sym)
         with lock:
             sym_data.append((sym, candles, spread, funding, rsi_1h))
+            done[0] += 1
+            if args.debug:
+                print(f"[debug] Fetched {done[0]}/{len(symbols)}: {sym} (candles={len(candles)})")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as ex:
         ex.map(fetch, symbols)
@@ -456,16 +490,25 @@ def main():
         direction       = args.direction,
         min_score_gap   = args.min_score_gap,
         min_signals     = args.min_signals,
+        debug           = args.debug,
     )
 
+    if args.debug:
+        print("[debug] Starting Test 1 — Regime Slices")
     regime   = run_regime_slices(valid, bt_kwargs)
+    if args.debug:
+        print("[debug] Starting Test 2 — Permutation Test")
     perm     = run_permutation(valid, bt_kwargs, n_permutations=args.permutations)
+    if args.debug:
+        print("[debug] Starting Test 3 — Random Entry Baseline")
     rand_ent = run_random_entry(valid, bt_kwargs, n_runs=args.random_runs)
+    if args.debug:
+        print("[debug] Starting Test 4 — Parameter Sensitivity")
     sens     = run_sensitivity(valid, bt_kwargs)
 
     final_verdict = run_final_verdict(regime, perm, rand_ent, sens)
 
-    return {
+    results = {
         "params": {k: getattr(args, k) for k in vars(args) if k not in ["symbols", "permutations", "random_runs", "workers", "no_htf"]},
         "regime_analysis": regime,
         "permutation_test": perm,
@@ -474,8 +517,83 @@ def main():
         "final_verdict": final_verdict,
     }
 
+    return results, args
+
+
+def print_pretty(results: dict) -> None:
+    params = results.get('params', {})
+    regime = results.get('regime_analysis', {})
+    perm = results.get('permutation_test', {})
+    rand = results.get('random_entry_baseline', {})
+    sens = results.get('parameter_sensitivity', {})
+    final = results.get('final_verdict', {})
+
+    print(f"{CYAN}{BOLD}  ╔═══════════════════════════════════════════════════╗{RESET}")
+    print(f"{CYAN}{BOLD}  ║  FancyFangBot OVERFIT DIAGNOSTIC                   ║{RESET}")
+    print(f"{CYAN}{BOLD}  ║  Regime · Permutation · Random Entry · Sensitivity ║{RESET}")
+    print(f"{CYAN}{BOLD}  ╚═══════════════════════════════════════════════════╝{RESET}\n")
+
+    # Regime slices
+    print_header("TEST 1 — REGIME SLICE ANALYSIS  (candles split into quarters)")
+    slices = regime.get('slices', [])
+    max_abs_pnl = max((abs(s.get('pnl', 0)) for s in slices), default=1.0)
+    print(f"  {'Slice':<14} {'Trades':>7} {'WR%':>7} {'PnL':>12} {'Exp':>9}   Chart")
+    print(f"  {'─'*75}")
+    labels = [s.get('label', f"Q{i+1}") for i, s in enumerate(slices)]
+    for m, label in zip(slices, labels):
+        pnl = m.get('pnl', 0.0)
+        pnl_col = GREEN if pnl > 0 else RED
+        bar = _bar(pnl, max_abs_pnl)
+        print(f"  {label:<14} {m.get('trades',0):>7} {m.get('win_rate',0.0):>6.1f}% {pnl_col}{pnl:>+12.4f}{RESET} {m.get('expectancy',0.0):>+9.4f}   {pnl_col}{bar}{RESET}")
+    print()
+
+    # Permutation summary
+    print_header("TEST 2 — PERMUTATION TEST")
+    print(f"  Real PnL : {GREEN if perm.get('real_pnl',0)>0 else RED}{perm.get('real_pnl',0):+10.4f}{RESET}")
+    print(f"  Null mean: {perm.get('null_mean',0):+10.4f}  std={perm.get('null_std',0):.4f}  p={perm.get('p_value',0):.3f}  z={perm.get('z_score','nan')}")
+    if perm.get('drift_warning'):
+        print(f"  {YELLOW}{perm.get('drift_warning')}{RESET}")
+    print(f"  Verdict: {perm.get('verdict')}")
+    print()
+
+    # Random entry
+    print_header("TEST 3 — RANDOM ENTRY BASELINE")
+    print(f"  Random mean PnL: {rand.get('mean_random_pnl',0):+10.4f}  std={rand.get('std_random_pnl',0):.4f}")
+    print(f"  Profitable runs: {rand.get('profitable_random_runs',0)}/{rand.get('total_random_runs',0)}")
+    print(f"  Real PnL: {GREEN if rand.get('real_pnl',0)>0 else RED}{rand.get('real_pnl',0):+10.4f}{RESET}")
+    print(f"  Signal-only edge: {rand.get('signal_contribution',0):+10.4f}  ({rand.get('random_pct_of_real',0):.0f}% random) ")
+    print(f"  Verdict: {rand.get('verdict')}")
+    print()
+
+    # Sensitivity
+    print_header("TEST 4 — PARAMETER SENSITIVITY")
+    print(f"  Base PnL: {sens.get('base_pnl',0):+10.4f}  Verdict: {sens.get('verdict')}")
+    print(f"  {'Perturbation':<34} {'PnL':>12}   {'WR%':>7}   {'Δ PnL':>11}   Stability")
+    print(f"  {'─'*78}")
+    for p in sens.get('perturbations', []):
+        pnl = p.get('pnl',0)
+        stab = p.get('stability','nan')
+        delta = p.get('delta_pnl',0)
+        id_note = f" {YELLOW}[IDENTICAL]{RESET}" if p.get('identical') else ""
+        pnl_col = GREEN if pnl > 0 else RED
+        print(f"  {p.get('label'):<34} {pnl_col}{pnl:>+12.4f}{RESET}   {stab:>6}   {delta:>+11.4f}   {stab:>6}{id_note}")
+    print()
+
+    # Final verdict
+    print_header("FINAL VERDICT")
+    overall = final.get('overall_verdict', '')
+    print(f"  {BOLD}{overall}{RESET}")
+    for c in final.get('checks', []):
+        status = c.get('status')
+        col = GREEN if status == 'PASS' else (YELLOW if status == 'WARN' else RED)
+        print(f"  {col}{status}{RESET}: {c.get('message')}")
+
 
 if __name__ == "__main__":
-    results = main()
+    results, args = main()
     if results:
-        print(json.dumps(results, indent=2))
+        if getattr(args, 'pretty', False):
+            print_pretty(results)
+        else:
+            print(json.dumps(results, indent=2))
+
