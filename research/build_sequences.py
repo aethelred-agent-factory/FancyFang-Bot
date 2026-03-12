@@ -64,6 +64,10 @@ def build_sequences(
     db_path: Path, timeframe: str = "1H", seq_len: int = 60
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Return (X, y, trade_ids, symbols) arrays."""
+    # ensure the provided database path actually exists
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database file not found: {db_path}. "
+                                "Make sure you pass the correct path (e.g. data/state/fancybot.db).")
     storage = StorageManager(db_path)
 
     with storage._lock:
@@ -152,7 +156,12 @@ def build_sequences(
 
 if __name__ == "__main__":
     args = parse_args()
-    X, y, tids, syms = build_sequences(args.db, args.timeframe, args.length)
+    try:
+        X, y, tids, syms = build_sequences(args.db, args.timeframe, args.length)
+    except FileNotFoundError as e:
+        logger.error(e)
+        sys.exit(1)
+
     if X.size == 0:
         logger.error("No sequences generated. Exiting.")
         sys.exit(1)
