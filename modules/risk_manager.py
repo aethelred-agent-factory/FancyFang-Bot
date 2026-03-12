@@ -72,12 +72,27 @@ class RiskManager:
         logger.debug(f"risk_manager: recorded trade PnL={pnl:+.4f}")
 
     def get_open_position_risk(self, open_positions: List[Dict[str, Any]]) -> float:
-        """Estimate the total current risk (in USD) committed to open positions."""
+        """Estimate the total current risk (in USD) committed to open positions.
+
+        Calculates risk per position as stop_distance × qty (the actual USD amount
+        that can be lost if the position hits its stop). If stop or entry data is
+        missing, falls back to margin as a conservative estimate.
+        """
         # REF: [Tier 3] Descriptive Naming
         total_risk = 0.0
         for position in open_positions:
-            margin = float(position.get("margin", 0.0))
-            total_risk += margin
+            entry = float(position.get("entry", 0.0))
+            stop_price = float(position.get("stop_price", 0.0))
+            size = float(position.get("size", 0.0))
+
+            if entry > 0 and stop_price > 0 and size > 0:
+                # Use actual risk: distance from entry to stop × quantity
+                risk_per_position = abs(entry - stop_price) * size
+                total_risk += risk_per_position
+            else:
+                # Fallback to margin if stop/entry data is missing
+                margin = float(position.get("margin", 0.0))
+                total_risk += margin
         return total_risk
 
     def _adaptive_risk_pct(self, account_balance: float) -> float:

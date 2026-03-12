@@ -1,5 +1,7 @@
-# Env & Keys
+# Environment & secrets
 .env
+.env.*
+.env.local
 *.key
 *.pem
 
@@ -10,8 +12,11 @@ __pycache__/
 venv/
 .venv/
 env/
-.env/
-*.tar.gz
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
 
 # Runtime state
 data/logs/
@@ -24,9 +29,30 @@ data/state/
 !paper_account.json.example
 
 # Backtest outputs
+research/*.csv
+research/*.json
 data/backtest_results/
 
-# OS / IDE
+# Pytest / type checkers
+.pytest_cache/
+.mypy_cache/
+
+# Editors
 .DS_Store
 .vscode/
 .idea/
+
+# Docker
+docker-compose.override.yml
+
+# Logs and backups
+logs/
+*.bak
+
+# Node
+node_modules/
+
+# Other
+*.so
+*.c
+

@@ -1,59 +1,34 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+"""Simple CLI wrapper for FancyFang Bot.
 
-# FancyFangBot (ffb) CLI Dispatcher
-# -----------------------------------------------------------------------------
-# This script provides a unified interface for all FancyFangBot components.
+Usage: ./ffb sim [options]
+Delegates the `sim` subcommand to `core.sim_bot.main()`.
+"""
+import sys
+import os
 
-# Get the directory where this script is located
-BOT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: ffb <command> [args]")
+        sys.exit(1)
 
-show_help() {
-    python3 -c "from modules.banner import get_gradient_banner; from core.ui import gradient_text; print('\n' + get_gradient_banner() + '\n' + gradient_text('  FancyFangBot (ffb) CLI'.center(92), (0, 255, 255), (255, 0, 255)) + '\n')"
-    echo "  Usage: ffb <command> [options]"
-    echo ""
-    echo "  Commands:"
-    echo "    run       - Run the live trading bot (core/p_bot.py run)"
-    echo "    sim       - Run the simulation/paper bot (core/sim_bot.py)"
-    echo "    scan      - Run the market scanner (core/phemex_scanner.py)"
-    echo "    backtest  - Run the backtester (research/backtest.py)"
-    echo "    overfit   - Run the overfit diagnostics (research/overfit_test.py)"
-    echo "    optimize  - Run the parameter optimizer (research/param_optimizer.py)"
-    echo "    test      - Run the test suite (pytest)"
-    echo "    -h, --help - Show this help message"
-    echo ""
-}
+    cmd = sys.argv[1]
+    if cmd != "sim":
+        print(f"Unknown command: {cmd}\nSupported: sim")
+        sys.exit(2)
 
-# Ensure we're running from the root for relative imports to work correctly
-cd "$BOT_ROOT"
+    # Drop the subcommand and delegate remaining args to core.sim_bot
+    sys.argv = [sys.argv[0]] + sys.argv[2:]
 
-case "$1" in
-    run)
-        shift; python3 core/p_bot.py run "$@"
-        ;;
-    sim)
-        shift; python3 core/sim_bot.py "$@"
-        ;;
-    scan)
-        shift; python3 core/phemex_scanner.py "$@"
-        ;;
-    backtest)
-        shift; python3 research/backtest.py "$@"
-        ;;
-    overfit)
-        shift; python3 research/overfit_test.py "$@"
-        ;;
-    optimize)
-        shift; python3 research/param_optimizer.py "$@"
-        ;;
-    test)
-        shift; pytest tests/ "$@"
-        ;;
-    -h|--help|"")
-        show_help
-        ;;
-    *)
-        echo "Unknown command: $1"
-        show_help
-        exit 1
-        ;;
-esac
+    # Ensure project root is on sys.path so `core` package can be imported
+    PROJ_ROOT = os.path.dirname(__file__)
+    if PROJ_ROOT not in sys.path:
+        sys.path.insert(0, PROJ_ROOT)
+
+    try:
+        from core import sim_bot
+    except Exception as e:
+        print(f"Failed to import sim_bot: {e}")
+        raise
+
+    sim_bot.main()

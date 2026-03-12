@@ -1,0 +1,5 @@
+[33m233f820[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m feat: add comprehensive backtesting suite and strategy research tools (excluding large results)
+[33mff3254c[m fix: TUI rendering issues in p_bot.py by using draw_panel and handling hidden positions
+[33maea90bc[m fix: resolve UnboundLocalError on shutdown in sim_bot.py
+[33m8ef89f1[m feat: set 'Reaper 1H Alpha' as default strategy for sim and production bots
+[33mfbd6c3a[m Merge pull request #13 from aethelred-agent-factory/trading-intelligence-upgrade-12611268938034439476

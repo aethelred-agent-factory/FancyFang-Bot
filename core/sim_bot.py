@@ -271,25 +271,76 @@ class SimBotState:
     storage: StorageManager = field(default_factory=lambda: StorageManager(SCRIPT_DIR.parent / "data" / "state" / "fancybot.db"))
 
     def load_account(self):
-        """Loads paper account from storage into memory."""
+        """Loads paper account from disk into memory.
+
+        Historically the simulation used a shared SQLite database which
+        allowed the live `p_bot` process to write its own positions into the
+        same tables.  That proved to be the root cause of the "ghost trade"
+        reconciliation bug: a position opened/closed by the live bot would
+        appear inside the sim ledger and then later generate a spurious
+        close event.
+
+        To guarantee complete separation we now persist the paper account to a
+        dedicated JSON file (`PAPER_ACCOUNT_FILE`).  The old database is only
+        consulted when the JSON file doesn't exist (migration path).
+        """
         # REF: [Tier 1] Lock Hierarchy (file_io_lock -> lock)
         with self.file_io_lock:
-            account_data = self.storage.load_account(initial_balance=INITIAL_BALANCE)
+            if PAPER_ACCOUNT_FILE.exists():
+                try:
+                    data = json.loads(PAPER_ACCOUNT_FILE.read_text())
+                except Exception as e:
+                    logger.error(f"Failed to parse paper account JSON: {e}")
+                    data = {"balance": INITIAL_BALANCE, "positions": []}
+            else:
+                # no JSON file means this is a brand-new sim run; start fresh
+                # but we still peek into the shared DB to detect any existing
+                # positions that may have been left by a live bot so we can
+                # log a warning and make it obvious to the operator.  We do
+                # *not* import them, just alert.
+                try:
+                    db_check = self.storage.load_account(initial_balance=INITIAL_BALANCE)
+                    if db_check.get("positions"):
+                        logger.warning(
+                            "Shared DB contains positions (%s) but JSON file is "
+                            "missing – ignoring to avoid bleed-over from live bot.",
+                            db_check.get("positions")
+                        )
+                except Exception:
+                    # ignore DB errors; we aren't relying on it anymore
+                    pass
+                data = {"balance": INITIAL_BALANCE, "positions": []}
+
             with self.lock:
-                self.balance = account_data["balance"]
-                self.positions = account_data["positions"]
+                self.balance = data.get("balance", self.balance)
+                self.positions = data.get("positions", self.positions)
 
     def save_account(self):
-        """Flushes in-memory account state to storage."""
+        """Flushes in-memory account state to disk.
+
+        The primary representation is a JSON file.  We continue to update the
+        shared SQLite database for compatibility with analytics/risk modules
+        that may still query it, but the sim's own account load routines ignore
+        the DB when the JSON file exists (see ``load_account``).
+        """
         # REF: [Tier 1] Lock Hierarchy (file_io_lock -> lock)
         with self.file_io_lock:
             with self.lock:
                 balance = self.balance
                 positions = self.positions[:]
+
+            # write JSON first so reads are consistent
+            try:
+                PAPER_ACCOUNT_FILE.parent.mkdir(parents=True, exist_ok=True)
+                PAPER_ACCOUNT_FILE.write_text(json.dumps({"balance": balance, "positions": positions}))
+            except Exception as error:
+                logging.getLogger("sim_bot").error(f"Failed to save paper account JSON: {error}")
+
+            # legacy path: still update DB in case other code expects it
             try:
                 self.storage.save_account_state(balance, positions)
             except Exception as error:
-                logging.getLogger("sim_bot").error(f"Failed to save paper account: {error}")
+                logging.getLogger("sim_bot").error(f"Failed to save paper account to DB: {error}")
 
     def update_price(self, symbol: str, price: float):
         """Thread-safe update of live prices."""
@@ -911,7 +962,35 @@ def _log_closed_trade(
     slippage: float = 0.0,
     raw_signals: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Appends a closed-trade record to storage."""
+    """Appends a closed-trade record to storage.
+
+    When unexpected values are supplied we log a warning so that the
+    originating position can be traced.  In particular if the direction is
+    not a normal "Buy"/"Sell" string (which would produce a history record of
+    "LONG"/"SHORT"), or if the entry score is zero, we may be dealing with
+    a ghost trade.  The warning includes the current in-memory positions plus
+    a snapshot of what is stored in the database for additional forensic
+    information.
+    """
+    # -- sanity checks --------------------------------------------------
+    if direction not in ("Buy", "Sell") or entry_score == 0:
+        warn_msg = (
+            f"Suspicious close record: symbol={symbol} direction={direction} "
+            f"score={entry_score} reason={reason}"
+        )
+        logger.warning(warn_msg)
+        # dump current in-memory positions to help trace back where the
+        # close originated
+        with state.lock:
+            logger.warning(f"Current sim positions (in-memory): {state.positions}")
+        # also look at what the storage layer currently holds
+        try:
+            with state.file_io_lock:
+                stored = state.storage.load_account(initial_balance=INITIAL_BALANCE)
+            logger.warning(f"Current sim positions (storage): {stored.get('positions')}")
+        except Exception as e:
+            logger.warning(f"Failed to read storage during warning: {e}")
+
     pnl = (exit_price - entry) * size if direction == "Buy" else (entry - exit_price) * size
 
     hold_time_seconds = 0
@@ -1564,6 +1643,12 @@ def execute_sim_setup(result: dict, direction: str) -> bool:
 
     # ── Upgrade #7: Daily drawdown kill switch ────────────────────────────────
     if _DD_OK:
+        # Defensive check: ensure balance is positive before calling can_open_trade
+        # The function requires current_balance to assess daily PnL relative to start.
+        # If balance is 0 or negative, skip the trade (already in trouble).
+        if state.balance <= 0:
+            tui_log(f"FATAL: {symbol} blocked — account balance ${state.balance:.2f} is invalid", event_type="SKIP")
+            return False
         allowed, dd_reason = drawdown_guard.can_open_trade(current_balance=state.balance)
         if not allowed:
             tui_log(f"KILL SWITCH: {symbol} blocked — {dd_reason}", event_type="SKIP")
@@ -1967,7 +2052,7 @@ def on_scan_result(scan_res: dict, direction: str) -> None:
         current_penalty = state.entropy_penalty
     
     predictive_score = scan_res.get("predictive_score", 0.0)
-    effective_fast_track = p_bot.FAST_TRACK_PREDICTIVE_SCORE + hawkes_penalty + current_penalty
+    effective_fast_track = min(p_bot.FAST_TRACK_PREDICTIVE_SCORE + hawkes_penalty + current_penalty, 200)
     if predictive_score < effective_fast_track:
         if hawkes_penalty > 0 or current_penalty > 0:
             tui_log(f"FT THROTTLE: {scan_res['inst_id']} pred_score {predictive_score:.2f} < dynamic FT threshold {effective_fast_track:.2f} (λ={intensity:.2f}, H_pen={current_penalty:.2f})")
@@ -2042,7 +2127,7 @@ def sim_bot_loop(args) -> None:
         "MIN_SCORE":      0,
         "MAX_WORKERS":    args.workers,
         "RATE_LIMIT_RPS": args.rate,
-        "CANDLES":        500,
+        "CANDLES":        getattr(args, 'candles', 500),
     }
 
     _ensure_ws_started()
@@ -2160,7 +2245,13 @@ def sim_bot_loop(args) -> None:
                 direction_filter=args.direction,
                 symbols_in_position=in_pos_updated,
                 available_slots=9999,
+                min_signals=getattr(args, 'min_signals', 3),
             )
+
+            # If a symbols whitelist was provided, restrict candidates to it
+            if getattr(args, 'symbols', None):
+                wanted = {s.strip().upper() for s in args.symbols.split(",") if s.strip()}
+                candidates = [c for c in candidates if c[0].get('inst_id','').upper() in wanted]
 
             if candidates:
                 tui_log(f"Picked {len(candidates)} candidate(s).")
@@ -2244,7 +2335,38 @@ def main() -> None:
     parser.add_argument("--web",            action="store_true", help="Enable web dashboard backend")
     parser.add_argument("--web-port",       type=int, default=8080, help="Port for web dashboard backend")
     parser.add_argument("--no-tui",         action="store_true", help="Run without the full-screen TUI dashboard")
+    # Additional runtime options requested by CLI
+    parser.add_argument("--candles",        type=int,   default=500, help="Number of historical candles to fetch per scan")
+    parser.add_argument("--symbols",        type=str,   default=None, help="Comma-separated list of symbols to restrict to (e.g. BTCUSDT,ETHUSDT)")
+    parser.add_argument("--min-signals",    type=int,   default=3, help="Minimum number of signals required for a candidate")
+    parser.add_argument("--margin",         type=float, default=p_bot.MARGIN_USDT, help="Margin (USDT) to use per trade")
+    parser.add_argument("--max-margin",     type=float, default=MAX_MARGIN_PER_SYMBOL, help="Max margin per symbol allowed in sim")
+    parser.add_argument("--stop-loss-pct",  type=float, default=p_bot.TRAIL_PCT, help="Trailing stop percent (e.g. 0.03 for 3%%)")
+    parser.add_argument("--take-profit-pct",type=float, default=p_bot.TAKE_PROFIT_PCT, help="Take profit percent (e.g. 0.04 for 4%%)")
+    parser.add_argument("--no-htf",         action="store_true", help="Disable HTF alignment checks (best-effort)")
+    parser.add_argument("--csv",            action="store_true", help="Export scan/backtest results to CSV (if implemented)")
     args = parser.parse_args()
+
+    # Apply user-supplied overrides into runtime modules
+    try:
+        # margin and leverage
+        p_bot.MARGIN_USDT = float(args.margin)
+        p_bot.LEVERAGE = int(args.leverage)
+    except Exception:
+        pass
+
+    # stop / take profit
+    try:
+        p_bot.TRAIL_PCT = float(args.stop_loss_pct)
+        p_bot.TAKE_PROFIT_PCT = float(args.take_profit_pct)
+    except Exception:
+        pass
+
+    # max margin per symbol for sim
+    try:
+        globals()['MAX_MARGIN_PER_SYMBOL'] = float(args.max_margin)
+    except Exception:
+        pass
 
     print(Fore.GREEN + Style.BRIGHT + "  🚀 Phemex SIMULATION Bot Starting (Paper Trading)")
     print("  Market   : LIVE (api.phemex.com)")
