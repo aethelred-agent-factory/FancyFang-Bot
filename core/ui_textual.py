@@ -152,10 +152,18 @@ class FancyBotApp(App):
 
     BINDINGS = [
         ("q", "quit", "Quit"),
+        ("o", "force_scan", "Scan Now"),
         ("1", "switch_tab('dashboard')", "Dashboard"),
         ("2", "switch_tab('performance')", "Stats"),
         ("3", "switch_tab('logs')", "Logs"),
     ]
+
+    def action_force_scan(self) -> None:
+        """Manually triggers a new scan cycle."""
+        if self.bot_logs is not None:
+            self.bot_logs.append("MANUAL SCAN: Triggered via keyboard [O]")
+        if self.bot_state:
+            self.bot_state.force_scan_event.set()
 
     def __init__(self, bot_state=None, bot_logs=None, initial_balance=1000.0):
         super().__init__()

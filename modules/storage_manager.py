@@ -21,6 +21,8 @@ class StorageManager:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
+        # Ensure parent directory exists to avoid sqlite3.OperationalError
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._init_db()
 
@@ -77,7 +79,12 @@ class StorageManager:
                         timestamp TEXT NOT NULL,
                         signals_json TEXT,
                         slippage REAL,
-                        raw_signals_json TEXT
+                        raw_signals_json TEXT,
+                        narrative TEXT,
+                        tags_json TEXT,
+                        primary_driver TEXT,
+                        failure_mode TEXT,
+                        market_context_json TEXT
                     )
                 """)
 
@@ -157,6 +164,18 @@ class StorageManager:
                 if "slippage" not in cols:
                     cursor.execute(
                         "ALTER TABLE trade_history ADD COLUMN slippage REAL DEFAULT 0.0"
+                    )
+                if "narrative" not in cols:
+                    cursor.execute("ALTER TABLE trade_history ADD COLUMN narrative TEXT")
+                if "tags_json" not in cols:
+                    cursor.execute("ALTER TABLE trade_history ADD COLUMN tags_json TEXT")
+                if "primary_driver" not in cols:
+                    cursor.execute("ALTER TABLE trade_history ADD COLUMN primary_driver TEXT")
+                if "failure_mode" not in cols:
+                    cursor.execute("ALTER TABLE trade_history ADD COLUMN failure_mode TEXT")
+                if "market_context_json" not in cols:
+                    cursor.execute(
+                        "ALTER TABLE trade_history ADD COLUMN market_context_json TEXT"
                     )
 
                 conn.commit()
@@ -246,8 +265,9 @@ class StorageManager:
                     """
                     INSERT INTO trade_history (
                         symbol, direction, entry, exit, pnl, hold_time_s,
-                        score, reason, timestamp, signals_json, slippage, raw_signals_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        score, reason, timestamp, signals_json, slippage, raw_signals_json,
+                        narrative, tags_json, primary_driver, failure_mode, market_context_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         record.get("symbol", "UNKNOWN"),
@@ -265,11 +285,88 @@ class StorageManager:
                         json.dumps(record.get("signals", [])),
                         record.get("slippage", 0.0),
                         json.dumps(record.get("raw_signals", {})),
+                        record.get("narrative"),
+                        json.dumps(record.get("tags", [])),
+                        record.get("primary_driver"),
+                        record.get("failure_mode"),
+                        json.dumps(record.get("market_context", {})),
+                    ),
+                )
+                trade_id = cursor.lastrowid
+                conn.commit()
+                return trade_id
+            except sqlite3.Error as e:
+                logger.error(f"Failed to append trade: {e}")
+                return None
+            finally:
+                conn.close()
+
+    def update_trade_narration(self, trade_id: int, narration_data: Dict[str, Any]):
+        """Updates a trade record with narration data from the TradeNarrator."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE trade_history
+                    SET
+                        narrative = ?,
+                        tags_json = ?,
+                        primary_driver = ?,
+                        failure_mode = ?
+                    WHERE id = ?
+                """,
+                    (
+                        narration_data.get("narrative"),
+                        json.dumps(narration_data.get("tags", [])),
+                        narration_data.get("primary_driver"),
+                        narration_data.get("failure_mode"),
+                        trade_id,
                     ),
                 )
                 conn.commit()
             except sqlite3.Error as e:
-                logger.error(f"Failed to append trade: {e}")
+                logger.error(f"Failed to update trade narration for trade_id {trade_id}: {e}")
+            finally:
+                conn.close()
+
+
+    def get_unannotated_trades(self, limit: int = 500) -> List[Dict[str, Any]]:
+        """Retrieves trades that haven't been narrated by DeepSeek yet."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT * FROM trade_history 
+                    WHERE narrative IS NULL 
+                    ORDER BY timestamp DESC 
+                    LIMIT ?
+                """,
+                    (limit,),
+                )
+                rows = cursor.fetchall()
+                history = []
+                for r in rows:
+                    item = dict(r)
+                    signals_json = item.pop("signals_json", None)
+                    item["signals"] = json.loads(signals_json) if signals_json else []
+
+                    raw_sig = item.pop("raw_signals_json", None)
+                    item["raw_signals"] = json.loads(raw_sig) if raw_sig else {}
+
+                    tags_json = item.pop("tags_json", None)
+                    item["tags"] = json.loads(tags_json) if tags_json else []
+
+                    market_ctx_json = item.pop("market_context_json", None)
+                    item["market_context"] = (
+                        json.loads(market_ctx_json) if market_ctx_json else {}
+                    )
+
+                    history.append(item)
+                return history
             finally:
                 conn.close()
 
@@ -291,8 +388,16 @@ class StorageManager:
                     item = dict(r)
                     signals_json = item.pop("signals_json", None)
                     item["signals"] = json.loads(signals_json) if signals_json else []
+                    
                     raw_sig = item.pop("raw_signals_json", None)
                     item["raw_signals"] = json.loads(raw_sig) if raw_sig else {}
+
+                    tags_json = item.pop("tags_json", None)
+                    item["tags"] = json.loads(tags_json) if tags_json else []
+
+                    market_ctx_json = item.pop("market_context_json", None)
+                    item["market_context"] = json.loads(market_ctx_json) if market_ctx_json else {}
+
                     history.append(item)
                 return history
             finally:

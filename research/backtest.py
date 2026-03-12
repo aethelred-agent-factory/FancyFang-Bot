@@ -72,11 +72,14 @@ from core.phemex_short import detect_patterns as detect_patterns_short
 from core.phemex_short import feature_builder_short, score_short
 from dotenv import load_dotenv
 from modules.banner import BANNER
+from modules.trade_narrator import TradeNarrator
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 load_dotenv()
 init(autoreset=True)
+
+narrator = TradeNarrator()
 
 BASE_URL = os.getenv("PHEMEX_BASE_URL", "https://api.phemex.com").replace(
     "testnet-api.phemex.com", "api.phemex.com"  # always use mainnet for market data
@@ -324,7 +327,27 @@ def score_window_unified(
         kalman_slope=kalman_slope,
     )
 
-    return score_func(data)
+    score, signals = score_func(data)
+    
+    market_ctx = {
+        "regime": regime,
+        "global_entropy": entropy,
+        "btc_momentum_1h": rsi_1h,
+    }
+
+    raw_signals = {
+        "rsi": rsi,
+        "adx": adx,
+        "ema_slope": ema_slope,
+        "vol_spike": vol_spike,
+        "entropy": entropy,
+        "kalman_slope": kalman_slope,
+        "funding_rate": funding,
+        "spread": spread,
+        "poc_price": poc_price,
+    }
+    
+    return score, signals, market_ctx, raw_signals
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -350,6 +373,12 @@ class Trade:
     margin: float = 10.0
     trail_pct: float = 0.005
     is_low_liq: bool = False
+    market_context: Dict[str, Any] = field(default_factory=dict)
+    raw_signals: Dict[str, Any] = field(default_factory=dict)
+    narrative: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
+    primary_driver: Optional[str] = None
+    failure_mode: Optional[str] = None
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -447,15 +476,15 @@ def backtest_symbol(
         lows_window = [x[2] for x in window_data]
         vols_window = [x[4] for x in window_data]
 
-        long_score, long_signals = (
-            (0, [])
+        long_score, long_signals, long_ctx, long_raw = (
+            (0, [], {}, {})
             if direction_upper == "SHORT"
             else score_window_unified(
                 symbol, window_data, "LONG", rsi_1h, funding, spread
             )
         )
-        short_score, short_signals = (
-            (0, [])
+        short_score, short_signals, short_ctx, short_raw = (
+            (0, [], {}, {})
             if direction_upper == "LONG"
             else score_window_unified(
                 symbol, window_data, "SHORT", rsi_1h, funding, spread
@@ -736,6 +765,7 @@ def backtest_symbol(
                             active_position.entry_price = avg_entry
                             active_position.size = new_total_size
                             active_position.margin += unit_margin
+                            active_position.market_context = long_ctx if new_direction == "LONG" else short_ctx
 
                             # Reset watermarks and stops
                             atr_stop_dist = (
@@ -762,15 +792,15 @@ def backtest_symbol(
         lows_window = [x[2] for x in window_data]
         vols_window = [x[4] for x in window_data]
 
-        long_score, long_signals = (
-            (0, [])
+        long_score, long_signals, long_ctx, long_raw = (
+            (0, [], {}, {})
             if direction_upper == "SHORT"
             else score_window_unified(
                 symbol, window_data, "LONG", rsi_1h, funding, spread
             )
         )
-        short_score, short_signals = (
-            (0, [])
+        short_score, short_signals, short_ctx, short_raw = (
+            (0, [], {}, {})
             if direction_upper == "LONG"
             else score_window_unified(
                 symbol, window_data, "SHORT", rsi_1h, funding, spread
@@ -788,18 +818,22 @@ def backtest_symbol(
         if long_score >= short_score:
             if len(long_signals) < min_signals:
                 continue
-            direction_trade, entry_score, entry_signals = (
+            direction_trade, entry_score, entry_signals, entry_market_ctx, entry_raw_signals = (
                 "LONG",
                 long_score,
                 long_signals,
+                long_ctx,
+                long_raw,
             )
         else:
             if len(short_signals) < min_signals:
                 continue
-            direction_trade, entry_score, entry_signals = (
+            direction_trade, entry_score, entry_signals, entry_market_ctx, entry_raw_signals = (
                 "SHORT",
                 short_score,
                 short_signals,
+                short_ctx,
+                short_raw,
             )
 
         # ── Upgrade #3: Spread filter ─────────────────────────────────────────
@@ -856,6 +890,8 @@ def backtest_symbol(
             margin=margin,
             trail_pct=trail_pct,
             is_low_liq=is_low_liq,
+            market_context=entry_market_ctx,
+            raw_signals=entry_raw_signals,
         )
         is_in_position = True
 
@@ -1502,6 +1538,11 @@ def main():
         help="Also save trade log as CSV alongside JSON output",
     )
     parser.add_argument(
+        "--annotate",
+        action="store_true",
+        help="Run DeepSeek narration on every closed trade",
+    )
+    parser.add_argument(
         "--no-htf", action="store_true", help="Skip 1H RSI fetch (faster)"
     )
     parser.add_argument(
@@ -1726,6 +1767,31 @@ def main():
         # Individual trade log
         closed_trades = [trade for trade in all_trades if trade.pnl_usdt is not None]
         if closed_trades:
+            if args.annotate:
+                print(Fore.CYAN + f"  Annotating {len(closed_trades)} trades with DeepSeek...")
+                for i, trade in enumerate(closed_trades):
+                    print(f"\r  Progress: {i+1}/{len(closed_trades)}", end="", flush=True)
+                    # Convert Trade dataclass to dict for narrator
+                    trade_dict = {
+                        "symbol": trade.symbol,
+                        "direction": trade.direction,
+                        "entry": trade.entry_price,
+                        "exit": trade.exit_price,
+                        "pnl": trade.pnl_usdt,
+                        "hold_time_s": trade.hold_candles * TIMEFRAME_MAP.get(args.timeframe, 900),
+                        "score": trade.score,
+                        "reason": trade.exit_reason,
+                        "signals": trade.signals,
+                        "raw_signals": trade.raw_signals
+                    }
+                    narration = narrator.narrate_closed_trade(trade_dict, trade.market_context)
+                    if narration:
+                        trade.narrative = narration.get("narrative")
+                        trade.tags = narration.get("tags", [])
+                        trade.primary_driver = narration.get("primary_driver")
+                        trade.failure_mode = narration.get("failure_mode")
+                print()
+
             print(Fore.CYAN + "\n  TRADE LOG (worst → best, last 40):")
             print(
                 f"  {'Symbol':<14} {'Dir':>5} {'Score':>6} {'PnL':>9} "
@@ -1757,6 +1823,10 @@ def main():
                         "signals": trade.signals,
                         "slippage_pct": trade.slippage_pct,
                         "is_low_liq": trade.is_low_liq,
+                        "narrative": trade.narrative,
+                        "tags": trade.tags,
+                        "primary_driver": trade.primary_driver,
+                        "failure_mode": trade.failure_mode,
                     }
                     for trade in closed_trades
                 ],

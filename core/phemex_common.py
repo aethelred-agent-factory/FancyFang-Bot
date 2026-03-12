@@ -119,6 +119,7 @@ def _audit_worker():
 
             # Ensure the directory exists
             try:
+                SYSTEM_AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
                 with open(SYSTEM_AUDIT_LOG, "a", encoding="utf-8") as audit_file:
                     audit_file.write(msg + "\n")
             except Exception as error:
@@ -197,9 +198,13 @@ def is_hour_blocked() -> bool:
     return current_hour in BLOCKED_HOURS
 
 
+
 CRYPTOPANIC_API_KEY = os.getenv("CRYPTOPANIC_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 ENTITY_API_KEY = os.getenv("ENTITY_API_KEY")
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
+REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT")
 ENTITY_API_BASE_URL = os.getenv(
     "ENTITY_API_BASE_URL", "https://acoustic-trade-scan-now.base44.app"
 )
@@ -283,6 +288,7 @@ def setup_colored_logging(
 
     # File Handler
     if log_file:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(
             logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
@@ -2232,6 +2238,26 @@ def unified_analyse(
         # 9. Final Scoring
         try:
             score, signals = score_func(data)
+            # ── News Sentiment Modification (Phase 2, Step 9) ───────────────
+            from modules.trade_narrator import TradeNarrator
+            from modules.market_context import market_ctx_manager
+
+            narrator = TradeNarrator()
+            cached_headlines = market_ctx_manager.fetch_cryptopanic_important()
+            news_sentiment = 0.0
+            if cached_headlines:
+                news_sentiment = narrator.get_news_sentiment(cached_headlines)
+                # Range: -1.0 (bearish) to +1.0 (bullish)
+                # For SHORT, we want higher score on bearish news (negative sentiment)
+                # For LONG, we want higher score on bullish news (positive sentiment)
+                sentiment_multiplier = 1.0 if direction == "LONG" else -1.0
+                sentiment_delta = int(news_sentiment * sentiment_multiplier * 15)
+                if sentiment_delta != 0:
+                    score += sentiment_delta
+                    signals.append(
+                        f"News Sentiment ({news_sentiment:+.2f}) -> {sentiment_delta:+} score"
+                    )
+
             # Update sector momentum
             sector_manager.update_momentum(symbol, score)
         except Exception as e:
@@ -2286,13 +2312,12 @@ def unified_analyse(
             "entropy": entropy,
             "kalman_price": kalman_price,
             "kalman_slope": kalman_slope,
-            "adx": adx,
-            "poc_price": poc_price,
             "ema200": ema200,
             "adx": adx,
             "poc_price": poc_price,
             "sector": data.sector,
             "spectre_score": data.spectre_score,
+            "news_sentiment": news_sentiment,
             # ── Upgrade fields ────────────────────────────────────────────────
             "best_bid": best_bid,  # Upgrade #1 slippage / #10 imbalance
             "best_ask": best_ask,
@@ -2313,6 +2338,7 @@ def unified_analyse(
                 "ema200": ema200,
                 "adx": adx,
                 "poc_price": poc_price,
+                "news_sentiment": news_sentiment,
             },
         }
 

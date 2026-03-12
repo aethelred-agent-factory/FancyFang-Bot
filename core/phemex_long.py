@@ -493,7 +493,7 @@ def score_long(data: TickerData) -> Tuple[int, List[str]]:
         signals.append("Regime: Bullish Trending")
 
     # ── New Predictive Engine Integration ────────────────────────────────────
-    features = feature_builder_long.build_features(data)
+    features = feature_builder_long.build_features(data, getattr(data, 'market_context', {}))
     predictive_score = prediction_engine_long.get_prediction_score(features, "LONG")
 
     # Scale predictive score into the 0-200 range logic

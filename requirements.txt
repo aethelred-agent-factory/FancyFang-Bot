@@ -12,3 +12,9 @@ matplotlib
 fastapi
 uvicorn
 rich
+praw
+textual
+pandas
+scikit-learn
+xgboost
+joblib

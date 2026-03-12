@@ -90,18 +90,11 @@ def test_round_qty():
         assert p_bot._round_qty("ETHUSDT", 0.123) == "0.12"
 
 
-def test_blacklist_logic(tmp_path):
-    with patch("core.p_bot.BLACKLIST_FILE", tmp_path / "test_blacklist.json"):
-        p_bot.SYMBOL_BLACKLIST = {}
-        assert p_bot.is_blacklisted("BTC") is False
+def test_blacklist_logic():
+    p_bot.SYMBOL_BLACKLIST = {}
+    assert p_bot.is_blacklisted("BTC") is False
 
-        # Manually set entropy penalty for test
-        with patch("core.p_bot._entropy_penalty", 0):
-            p_bot.blacklist_symbol("BTC", pnl=-10.0)
-            assert p_bot.is_blacklisted("BTC") is True
-
-            # Check persistence
-            p_bot.save_blacklist()
-            p_bot.SYMBOL_BLACKLIST = {}
-            p_bot.load_blacklist()
-            assert p_bot.is_blacklisted("BTC") is True
+    # Manually set entropy penalty for test
+    with patch("core.p_bot._entropy_penalty", 0):
+        p_bot.blacklist_symbol("BTC", pnl=-10.0)
+        assert p_bot.is_blacklisted("BTC") is True

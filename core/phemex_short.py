@@ -498,7 +498,7 @@ def score_short(data: TickerData) -> Tuple[int, List[str]]:
         signals.append("Regime: Bearish Trending")
 
     # ── New Predictive Engine Integration ────────────────────────────────────
-    features = feature_builder_short.build_features(data)
+    features = feature_builder_short.build_features(data, getattr(data, 'market_context', {}))
     predictive_score = prediction_engine_short.get_prediction_score(features, "SHORT")
 
     # Scale predictive score into the 0-200 range logic

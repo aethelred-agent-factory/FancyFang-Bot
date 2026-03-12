@@ -90,10 +90,12 @@ import core.phemex_common as pc
 import core.ui as ui
 import core.web_bridge as web_bridge
 import modules.animations as animations
+import modules.market_context as market_context
 import requests
 from colorama import Fore, Style, init
 from dotenv import load_dotenv
 from modules.storage_manager import StorageManager
+from modules.trade_narrator import TradeNarrator
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from websocket import WebSocketApp
@@ -125,6 +127,7 @@ _session_losses = 0
 _session_total_pnl = 0.0
 _session_equity_history = []
 _equity_lock = threading.Lock()
+narrator = TradeNarrator()
 
 
 def handle_exit(signum, frame):
@@ -241,6 +244,7 @@ BASE_URL = os.getenv("PHEMEX_BASE_URL", "https://testnet-api.phemex.com")
 API_KEY = os.getenv("PHEMEX_API_KEY", "")
 API_SECRET = os.getenv("PHEMEX_API_SECRET", "")
 BOT_LOG_FILE = Path(SCRIPT_DIR).parent / "data" / "backtest_results" / "bot_trades.json"
+BOT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 # Entity API Configuration
 ENTITY_API_KEY = os.getenv("ENTITY_API_KEY", "")
@@ -1152,6 +1156,7 @@ def _cache_refresher():
                                     "hold_time_seconds": int(hold_secs),
                                     "signals": local_state.get("signals", []),
                                     "raw_signals": local_state.get("raw_signals", {}),
+                                    "market_context": local_state.get("market_context", {}),
                                 }
                             )
 
@@ -2173,9 +2178,7 @@ _log_lock = threading.Lock()
 
 
 def log_trade(entry: dict):
-    """Append trade entry to the JSON Lines log (O(1) per write).
-    All readers (dashboard, history recovery) use the .jsonl file.
-    """
+    """Append trade entry to the JSON Lines log and trigger narration."""
     with _log_lock:
         log_file_jsonl = BOT_LOG_FILE.with_suffix(".jsonl")
         try:
@@ -2184,10 +2187,8 @@ def log_trade(entry: dict):
         except Exception as e:
             logger.error(f"Failed to append to trade log: {e}")
 
-    # ── SQLite History Integration (Upgrade #9) ──────────────────────
     if entry.get("status") == "closed":
         try:
-            # Map p_bot entry to StorageManager record
             record = {
                 "symbol": entry.get("symbol"),
                 "direction": entry.get("direction"),
@@ -2201,8 +2202,22 @@ def log_trade(entry: dict):
                 "signals": entry.get("signals", []),
                 "slippage": entry.get("slippage", 0.0),
                 "raw_signals": entry.get("raw_signals", {}),
+                "market_context": entry.get("market_context", {}),
             }
-            p_bot_storage.append_trade(record)
+            trade_id = p_bot_storage.append_trade(record)
+
+            def narrate_and_update(trade_id, trade_record, ctx):
+                narration_result = narrator.narrate_closed_trade(trade_record, ctx)
+                if narration_result:
+                    p_bot_storage.update_trade_narration(trade_id, narration_result)
+                    logger.info(f"Narrated trade {trade_id} for {trade_record['symbol']}")
+
+            if trade_id:
+                threading.Thread(
+                    target=narrate_and_update,
+                    args=(trade_id, record, record["market_context"]),
+                ).start()
+
         except Exception as e:
             logger.error(f"Failed to append trade to SQLite: {e}")
 
@@ -2547,6 +2562,9 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
         )
         return True
 
+    # ── Market Context Snapshot (Phase 1, Step 2) ──────────────────
+    market_ctx = market_context.get_market_context_snapshot()
+
     # ── Set position mode ───────────────────────────────────────────
     target_mode = "MergedSingle" if POSITION_MODE == "OneWay" else "BothSide"
     mode_ok = _switch_pos_mode(symbol, target_mode)
@@ -2607,6 +2625,24 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
     exec_status = order_resp.get("data", {}).get("execStatus", "?")
     avg_price = float(order_resp.get("data", {}).get("avgPriceRp") or price)
 
+    # ── Record Local Stop State ──────────────────────────────────────
+    # We store the intended stop price and current watermarks in memory
+    # for high-frequency WebSocket monitoring.
+    stop_price = avg_price * (1.0 + active_trail_pct if side == "Sell" else 1.0 - active_trail_pct)
+    with _stop_states_lock:
+        _local_stop_states[symbol] = {
+            "stop_price": stop_price,
+            "high_water": avg_price if side == "Buy" else 0.0,
+            "low_water": avg_price if side == "Sell" else 999999999.0,
+            "entry_time": datetime.datetime.now(datetime.timezone.utc),
+            "entry_score": result.get("score", 0),
+            "entry_predictive_score": predictive_score,
+            "direction": direction,
+            "signals": signals,
+            "raw_signals": result.get("raw_signals", {}),
+            "market_context": market_ctx,
+        }
+
     # Entity API Hook: Order
     # REF: Tier 3: Temporal Inconsistency
     make_entity_request(
@@ -2631,7 +2667,11 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
         "trade",
         method="PUT",
         entity_id=trade_id,
-        data={"status": "ENTERED", "entry": avg_price},
+        data={
+            "status": "ENTERED",
+            "entry": avg_price,
+            "market_context": market_ctx,
+        },
     )
 
     tui_log(
@@ -2834,6 +2874,7 @@ def execute_setup(result: dict, direction: str, dry_run: bool = False) -> bool:
             "dry_run": False,
             "status": "entered",
             "pnl": 0,  # Entry has 0 realized PnL
+            "market_context": market_ctx,
         }
     )
     return True
