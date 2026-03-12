@@ -1066,3 +1066,86 @@ class StorageManager:
                 return events
             finally:
                 conn.close()
+
+    # -------------------------------------------------------------------------
+    # VoltAgent helper APIs (Appendix A)
+    # -------------------------------------------------------------------------
+
+    def get_trade_by_id(self, trade_id: int) -> Optional[Dict[str, Any]]:
+        """Return a single trade record by its ID, with JSON fields decoded."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM trade_history WHERE id = ?", (trade_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                item = dict(row)
+                # decode JSON fields
+                for field in [
+                    "signals_json",
+                    "raw_signals_json",
+                    "tags_json",
+                    "market_context_json",
+                    "ml_features_json",
+                ]:
+                    if item.get(field) is not None:
+                        try:
+                            item[field.replace("_json", "")] = json.loads(item[field])
+                        except Exception:
+                            item[field.replace("_json", "")] = None
+                    else:
+                        item[field.replace("_json", "")] = None
+                    item.pop(field, None)
+                return item
+            finally:
+                conn.close()
+
+    def get_failure_mode_distribution(self) -> Dict[str, int]:
+        """Return counts of each failure mode observed in trade_history.
+
+        Used by the FailureGuardAgent to understand historical frequencies.
+        """
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT failure_mode, COUNT(*) as cnt FROM trade_history GROUP BY failure_mode"
+                )
+                rows = cursor.fetchall()
+                dist: Dict[str, int] = {}
+                for r in rows:
+                    mode = r["failure_mode"] or "NONE"
+                    dist[mode] = r["cnt"]
+                return dist
+            finally:
+                conn.close()
+
+    def get_latest_features(self, symbol: str) -> Dict[str, Any]:
+        """Fetch the most recent ml_features for a given symbol.
+
+        VoltAgent uses this to inspect a candidate's feature vector.
+        """
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT ml_features_json FROM trade_history
+                    WHERE symbol = ? AND ml_features_json IS NOT NULL
+                    ORDER BY timestamp DESC LIMIT 1
+                """,
+                    (symbol,)
+                )
+                row = cursor.fetchone()
+                if not row or not row["ml_features_json"]:
+                    return {}
+                try:
+                    return json.loads(row["ml_features_json"])
+                except Exception:
+                    return {}
+            finally:
+                conn.close()
