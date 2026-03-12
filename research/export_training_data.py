@@ -105,6 +105,30 @@ def export_data(db_path: Path, output_csv: Path):
 
     logger.info(f"Successfully exported data to {output_csv}")
 
+    # Also export to numpy .npz for model training convenience
+    try:
+        import numpy as np
+        import pandas as pd
+
+        df = pd.read_csv(output_csv)
+        # determine feature columns automatically
+        feature_cols = [c for c in df.columns if c.startswith("sig_") or c.startswith("ctx_")]
+        npz_path = output_csv.with_suffix(".npz")
+        np.savez_compressed(
+            npz_path,
+            X=df[feature_cols].values,
+            y=df["is_win"].values,
+            pnl=df["pnl"].values,
+            hold_time_s=df["hold_time_s"].values,
+            primary_driver=df["primary_driver"].fillna("").values,
+            failure_mode=df["failure_mode"].fillna("").values,
+            tags=df["tags"].fillna("").values,
+            feature_names=np.array(feature_cols),
+        )
+        logger.info(f"Also exported numpy dataset to {npz_path}")
+    except Exception as e:
+        logger.warning(f"Failed to export numpy dataset: {e}")
+
 if __name__ == "__main__":
     SCRIPT_DIR = Path(__file__).parent
     DB_PATH = SCRIPT_DIR.parent / "data" / "state" / "backtest.db"
