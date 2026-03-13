@@ -498,10 +498,10 @@ def main():
         "--min-signals", type=int, default=3, help="Minimum signals required"
     )
     parser.add_argument(
-        "--workers", type=int, default=100, help="Worker threads per scanner"
+        "--workers", type=int, default=20, help="Worker threads per scanner"
     )
     parser.add_argument(
-        "--rate", type=float, default=100.0, help="Requests/sec per scanner"
+        "--rate", type=float, default=5.0, help="Requests/sec per scanner"
     )
     parser.add_argument(
         "--combined", type=int, default=10, help="Unified top-N table (0 = off)"
@@ -535,12 +535,12 @@ def main():
     parser.add_argument(
         "--max-margin", type=float, default=150.0, help="Max margin for simulated cards"
     )
-    parser.add_argument("--trail-pct", type=float, default=0.01, help="Trailing stop %")
+    parser.add_argument("--trail-pct", type=float, default=0.01, help="Trailing stop %%")
     parser.add_argument(
-        "--stop-loss-pct", type=float, default=None, help="Hard stop loss %"
+        "--stop-loss-pct", type=float, default=None, help="Hard stop loss %%"
     )
     parser.add_argument(
-        "--take-profit-pct", type=float, default=None, help="Take profit %"
+        "--take-profit-pct", type=float, default=None, help="Take profit %%"
     )
     parser.add_argument(
         "--max-hold", type=int, default=None, help="Max hold time in hours"
@@ -660,31 +660,23 @@ def main():
     except Exception:
         filtered = []
 
-    # Prefer shared scanner implementation from p_bot when available so
-    # scans are identical between backtest, sim and standalone scanner.
-    if p_bot is not None:
-        long_results, short_results = p_bot.run_scanner_both(cfg, args)
-        # If user requested single-direction, blank the other
-        if not run_long:
-            long_results = []
-        if not run_short:
-            short_results = []
-    else:
-        # Fallback to local scanning (legacy behavior)
-        if run_long and run_short:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exe:
-                fut_long = exe.submit(
-                    run_scan, scanner_long, "LONG", cfg, args, filtered
-                )
-                fut_short = exe.submit(
-                    run_scan, scanner_short, "SHORT", cfg, args, filtered
-                )
-                long_results = fut_long.result()
-                short_results = fut_short.result()
-        elif run_long:
-            long_results = run_scan(scanner_long, "LONG", cfg, args, filtered)
-        else:
-            short_results = run_scan(scanner_short, "SHORT", cfg, args, filtered)
+    long_results, short_results = [], []
+
+    # Use local scanning for better progress visibility and direct control
+    if run_long and run_short:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as exe:
+            fut_long = exe.submit(
+                run_scan, scanner_long, "LONG", cfg, args, filtered
+            )
+            fut_short = exe.submit(
+                run_scan, scanner_short, "SHORT", cfg, args, filtered
+            )
+            long_results = fut_long.result()
+            short_results = fut_short.result()
+    elif run_long:
+        long_results = run_scan(scanner_long, "LONG", cfg, args, filtered)
+    elif run_short:
+        short_results = run_scan(scanner_short, "SHORT", cfg, args, filtered)
 
     elapsed = time.time() - start
     print()

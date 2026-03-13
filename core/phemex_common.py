@@ -70,6 +70,11 @@ BASE_URL = os.getenv("PHEMEX_BASE_URL", "https://api.phemex.com")
 FUNDING_FILTER_ENABLED = os.getenv("BOT_FUNDING_FILTER", "true").lower() == "true"
 WEEKEND_GUARD_ENABLED = os.getenv("BOT_WEEKEND_GUARD", "true").lower() == "true"
 
+# Fallback trading constants (can be overridden by p_bot or .env)
+STOP_LOSS_PCT = float(os.getenv("BOT_STOP_LOSS_PCT", "0.03"))
+TAKE_PROFIT_PCT = float(os.getenv("BOT_TAKE_PROFIT_PCT", "0.50"))
+TRAIL_PCT = float(os.getenv("BOT_TRAIL_PCT", "0.01"))
+
 TIMEFRAME_MAP = {
     "1m": 60,
     "3m": 180,
@@ -374,16 +379,16 @@ def score_func(data: TickerData, direction: str = "LONG") -> float:
 
     sequence = None
     if data.raw_ohlc and len(data.raw_ohlc) >= 60:
-        # Phemex raw_ohlc is (time, open, high, low, close, volume) -> 6 columns
+        # Phemex raw_ohlc is (open, high, low, close, volume) -> 5 columns
         # We need (open, high, low, close, volume, funding_rate, open_interest)
-        ohlcv = np.array([c[1:6] for c in data.raw_ohlc[-60:]], dtype=np.float32)
+        ohlcv = np.array([c[0:5] for c in data.raw_ohlc[-60:]], dtype=np.float32)
         fr = np.full((60, 1), data.funding_rate or 0.0, dtype=np.float32)
         oi = np.zeros((60, 1), dtype=np.float32)  # Placeholder for OI
         sequence = np.hstack([ohlcv, fr, oi])
         sequence = normalize_sequence_for_model(sequence)
     elif data.raw_ohlc:
         # Fallback for shorter sequences or padding
-        seq = np.array([c[1:6] for c in data.raw_ohlc], dtype=np.float32)
+        seq = np.array([c[0:5] for c in data.raw_ohlc], dtype=np.float32)
         fr = np.full((seq.shape[0], 1), data.funding_rate or 0.0, dtype=np.float32)
         oi = np.zeros((seq.shape[0], 1), dtype=np.float32)
         sequence = np.hstack([seq, fr, oi])
@@ -1459,6 +1464,38 @@ def get_order_book_with_volumes(symbol: str, rps: float = None) -> Tuple[
 # ── Upgrade #9: Dynamic Pair Selection Helpers ────────────────────────────────
 
 
+def normalize_sequence_for_model(seq: np.ndarray) -> np.ndarray:
+    """
+    Per-sample normalization for sequence models.
+    OHLC: Relative to entry price (last candle close).
+    Volume: Relative to sequence mean.
+    FR/OI: Absolute values (standardized if possible).
+    """
+    if seq.shape[0] == 0:
+        return seq
+
+    entry_price = seq[-1, 3] or 1.0  # Close of last candle
+    if entry_price == 0:
+        entry_price = 1.0
+
+    normalized = np.zeros_like(seq)
+    # OHLC relative to entry price
+    normalized[:, :4] = (seq[:, :4] - entry_price) / entry_price
+
+    # Volume relative to mean
+    vol_mean = np.mean(seq[:, 4]) or 1.0
+    normalized[:, 4] = seq[:, 4] / vol_mean
+
+    # FR and OI - absolute values
+    normalized[:, 5] = seq[:, 5]
+    normalized[:, 6] = seq[:, 6]
+
+    return normalized
+
+
+# ── Upgrade #9: Dynamic Pair Selection Helpers ────────────────────────────────
+
+
 def select_top_pairs(
     tickers: List[Dict],
     top_n: int = 20,
@@ -1491,55 +1528,30 @@ def select_top_pairs(
         last = float(t.get("lastRp") or t.get("closeRp") or 0.0)
         high = float(t.get("highRp") or last)
         low = float(t.get("lowRp") or last)
-        if last > 0 and min_volatility_pct > 0:
-            daily_range_pct = (high - low) / last * 100.0
-            if daily_range_pct < min_volatility_pct:
-                continue
 
-            # Composite rank: normalise log of volume + ATR-based vol score
-            vol_score = math.log1p(vol24)
-            atr = (atr_cache or {}).get(symbol, 0.0)
-            atr_score = (atr / last * 100.0) if (atr and last > 0) else 0.0
-            composite = vol_score * 0.6 + atr_score * 0.4
-            candidates.append((composite, t))
-        
-            candidates.sort(key=lambda x: x[0], reverse=True)
-            selected = [t for _, t in candidates[:top_n]]
-            logger.info(
-                f"select_top_pairs: {len(tickers)} → {len(selected)} "
-                f"(top_n={top_n}, min_vol={min_volume:.0f})"
-            )
-            return selected
-        
-        
-        def normalize_sequence_for_model(seq: np.ndarray) -> np.ndarray:
-            """
-            Per-sample normalization for sequence models.
-            OHLC: Relative to entry price (last candle close).
-            Volume: Relative to sequence mean.
-            FR/OI: Absolute values (standardized if possible).
-            """
-            if seq.shape[0] == 0:
-                return seq
-                
-            entry_price = seq[-1, 3] or 1.0 # Close of last candle
-            if entry_price == 0:
-                entry_price = 1.0
-            
-            normalized = np.zeros_like(seq)
-            # OHLC relative to entry price
-            normalized[:, :4] = (seq[:, :4] - entry_price) / entry_price
-            
-            # Volume relative to mean
-            vol_mean = np.mean(seq[:, 4]) or 1.0
-            normalized[:, 4] = seq[:, 4] / vol_mean
-            
-            # FR and OI - absolute values
-            normalized[:, 5] = seq[:, 5]
-            normalized[:, 6] = seq[:, 6]
-            
-            return normalized
-        
+        daily_range_pct = 0.0
+        if last > 0:
+            daily_range_pct = (high - low) / last * 100.0
+
+        if min_volatility_pct > 0 and daily_range_pct < min_volatility_pct:
+            continue
+
+        # Composite rank: normalise log of volume + ATR-based vol score
+        vol_score = math.log1p(vol24)
+        atr = (atr_cache or {}).get(symbol, 0.0)
+        atr_score = (atr / last * 100.0) if (atr and last > 0) else 0.0
+        composite = vol_score * 0.6 + atr_score * 0.4
+        candidates.append((composite, t))
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    selected = [t for _, t in candidates[:top_n]]
+    logger.info(
+        f"select_top_pairs: {len(tickers)} → {len(selected)} "
+        f"(top_n={top_n}, min_vol={min_volume:.0f})"
+    )
+    return selected
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # END OF UPGRADE BLOCK
 # ══════════════════════════════════════════════════════════════════════════════
