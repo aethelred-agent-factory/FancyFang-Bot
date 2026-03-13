@@ -1352,12 +1352,6 @@ def _log_closed_trade(
             except Exception:
                 pass
 
-            # Increment counter used for triggering retraining
-            try:
-                state.storage.increment_trades_since_last_training()
-            except Exception as e:
-                logger.error(f"Failed to update training counter: {e}")
-
             # Launch narration in a background thread
             threading.Thread(
                 target=narrate_and_update,

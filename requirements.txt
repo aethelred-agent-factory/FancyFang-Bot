@@ -18,4 +18,3 @@ pandas
 scikit-learn
 xgboost
 joblib
-torch

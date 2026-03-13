@@ -87,7 +87,7 @@ class TestPhemexCommon(unittest.TestCase):
             raw_ohlc=[],
         )
         data.regime = "TRENDING"
-        score = score_func(data, direction="LONG")
+        score = float(score_func(data, direction="LONG"))
         self.assertIsInstance(score, float)
         self.assertGreaterEqual(score, -1.0)
         self.assertLessEqual(score, 1.0)

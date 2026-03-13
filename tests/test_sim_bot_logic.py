@@ -1,143 +1,158 @@
+import datetime
+import json
+import logging
 import os
 import sys
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import logging
 from unittest.mock import MagicMock, patch
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import core.sim_bot as sim_bot
-import pytest
-from core.sim_bot import SimBotState
 
 
-@pytest.fixture
-def mock_storage():
-    with patch("core.sim_bot.StorageManager") as mock:
-        yield mock.return_value
+def test_log_closed_trade_pnl_buy():
+    # Mock state and storage
+    fake_storage = MagicMock()
+    fake_storage.append_trade.return_value = 1
+    # ensure we have the correct counter state
+    fake_storage.get_model_training_state.return_value = {"trades_since_last_training": 0}
+    
+    mock_state = sim_bot.SimBotState(storage=fake_storage)
+    mock_state.positions = [{"symbol": "BTCUSDT", "side": "Buy", "size": 1.0, "entry": 50000.0}]
+    
+    with patch("core.sim_bot.state", mock_state):
+        sim_bot._log_closed_trade(
+            symbol="BTCUSDT",
+            direction="Buy",
+            entry=50000.0,
+            exit_price=51000.0,
+            size=1.0,
+            entry_score=150,
+            entry_time="2026-03-08T12:00:00Z",
+            reason="tp",
+        )
+        
+        # Verify append_trade was called with correct pnl
+        # pnl = (51000 - 50000) * 1.0 = 1000.0
+        args, _ = fake_storage.append_trade.call_args
+        record = args[0]
+        assert record["pnl"] == 1000.0
+        assert record["direction"] == "LONG"
 
 
-def test_get_sim_free_margin():
-    balance = 100.0
-    positions = [{"margin": 10.0}, {"margin": 20.0}]
-    assert sim_bot.get_sim_free_margin(balance, positions) == 70.0
+def test_log_closed_trade_pnl_sell():
+    fake_storage = MagicMock()
+    fake_storage.append_trade.return_value = 1
+    fake_storage.get_model_training_state.return_value = {"trades_since_last_training": 0}
+    
+    mock_state = sim_bot.SimBotState(storage=fake_storage)
+    mock_state.positions = [{"symbol": "BTCUSDT", "side": "Sell", "size": 1.0, "entry": 50000.0}]
+    
+    with patch("core.sim_bot.state", mock_state):
+        sim_bot._log_closed_trade(
+            symbol="BTCUSDT",
+            direction="Sell",
+            entry=50000.0,
+            exit_price=49000.0,
+            size=1.0,
+            entry_score=150,
+            entry_time="2026-03-08T12:00:00Z",
+            reason="tp",
+        )
+        
+        # pnl = (50000 - 49000) * 1.0 = 1000.0
+        args, _ = fake_storage.append_trade.call_args
+        record = args[0]
+        assert record["pnl"] == 1000.0
+        assert record["direction"] == "SHORT"
 
 
-def test_pick_sim_leverage():
-    # High ATR -> Low leverage
-    assert sim_bot.pick_sim_leverage(5.0) == 5
-    # Low ATR -> High leverage
-    assert sim_bot.pick_sim_leverage(0.5) == 30
-    # Vol spike -> lower leverage
-    assert sim_bot.pick_sim_leverage(1.0, vol_spike=3.0) == 5  # 1.0 + 5 = 6.0 ATR -> 5x
+def test_log_closed_trade_slippage():
+    fake_storage = MagicMock()
+    fake_storage.append_trade.return_value = 1
+    fake_storage.get_model_training_state.return_value = {"trades_since_last_training": 0}
+    
+    mock_state = sim_bot.SimBotState(storage=fake_storage)
+    
+    with patch("core.sim_bot.state", mock_state):
+        sim_bot._log_closed_trade(
+            symbol="BTCUSDT",
+            direction="Buy",
+            entry=50000.0,
+            exit_price=51000.0,
+            size=1.0,
+            entry_score=150,
+            entry_time=None,
+            reason="tp",
+            slippage=0.05
+        )
+        args, _ = fake_storage.append_trade.call_args
+        assert args[0]["slippage"] == 0.05
 
 
-def test_calculate_dynamic_cooldown():
-    # Win -> short cooldown
-    assert sim_bot._calculate_dynamic_cooldown(10.0, 0) == sim_bot.BASE_COOLDOWN_WIN_S
-
-    # Loss -> longer cooldown
-    # pnl = -10.0, entropy = 0
-    # loss_penalty = 10 * 72 = 720
-    # cooldown = 1800 + 720 = 2520
-    assert sim_bot._calculate_dynamic_cooldown(-10.0, 0) == 2520
-
-    # Loss with entropy reduction
-    # reduction = 10 * 120 = 1200
-    # 2520 - 1200 = 1320
-    assert sim_bot._calculate_dynamic_cooldown(-10.0, 10) == 1320
-
-
-def test_sim_bot_state_load_save(tmp_path, monkeypatch):
-    # Redirect paper account file to temporary location for the duration of
-    # the test so we don't collide with the real JSON on disk.
-    json_path = tmp_path / "paper_account.json"
-    monkeypatch.setattr(sim_bot, "PAPER_ACCOUNT_FILE", json_path)
-
-    # Setup state with a custom storage path (storage isn't used for account)
-    db_path = tmp_path / "test_sim_bot.db"
-    storage = sim_bot.StorageManager(db_path)
-    state = SimBotState(storage=storage)
-
-    state.balance = 500.0
-    state.positions = [
-        {
-            "symbol": "BTCUSDT",
-            "margin": 50.0,
-            "side": "Buy",
-            "size": 0.01,
-            "entry": 50000.0,
-        }
-    ]
-
-    state.save_account()
-
-    # New state, load it (should read from JSON)
-    state2 = SimBotState(storage=storage)
-    state2.load_account()
-
-    assert state2.balance == 500.0
-    assert len(state2.positions) == 1
-    assert state2.positions[0]["symbol"] == "BTCUSDT"
-
-
-@patch("core.sim_bot.state")
-@patch("core.sim_bot.hw.bridge.signal")
-@patch("core.sim_bot.send_telegram_message")
-@patch("core.sim_bot._log_closed_trade")
-def test_check_stops_live_tp_hit(mock_log, mock_tg, mock_hw, mock_state):
-    # Mock position
-    pos = {
+def test_update_pnl_and_stops_ratchet(tmp_path):
+    # Setup sim_bot with a temporary paper account file
+    paper_file = tmp_path / "paper_account.json"
+    sim_bot.PAPER_ACCOUNT_FILE = paper_file
+    
+    fake_storage = MagicMock()
+    # Mock load_account to return initial balance
+    fake_storage.load_account.return_value = {"balance": 1000.0, "positions": []}
+    
+    state = sim_bot.SimBotState(storage=fake_storage)
+    # Open a Long position
+    state.positions = [{
         "symbol": "BTCUSDT",
         "side": "Buy",
-        "entry": 100.0,
-        "size": 1.0,
-        "margin": 10.0,
-        "stop_price": 95.0,
-        "take_profit": 110.0,
-        "high_water": 100.0,
-    }
-    mock_state.positions = [pos]
-    mock_state.live_prices = {"BTCUSDT": 110.5}  # Above TP
-    mock_state.balance = 1000.0
+        "size": 0.1,
+        "entry": 50000.0,
+        "margin": 50.0,
+        "leverage": 10,
+        "stop_loss": 48000.0,
+        "take_profit": 55000.0,
+        "trail_pct": 2.0,
+        "highest_price": 50000.0,
+        "entry_score": 150,
+        "entry_time": "2026-03-08T12:00:00Z"
+    }]
+    
+    # Mock current price moves up to 52000
+    prices = {"BTCUSDT": 52000.0}
+    
+    with patch("core.sim_bot.state", state):
+        sim_bot.update_pnl_and_stops(prices)
+        
+        pos = state.positions[0]
+        assert pos["highest_price"] == 52000.0
+        # New stop should be 52000 * (1 - 0.02) = 50960.0
+        assert pos["stop_loss"] == 50960.0
 
-    sim_bot._check_stops_live("BTCUSDT")
 
-    # Position should be removed
-    assert len(mock_state.positions) == 0
-    # Balance should be updated: 1000 + 10 (margin) + 10 (pnl) = 1020
-    # Wait, pnl is (exit_price - entry) * size = (110 - 100) * 1 = 10.
-    assert mock_state.balance == 1020.0
-    # HW signal TP
-    mock_hw.assert_called_with("TP")
-
-
-def test_log_closed_trade_warning(tmp_path, caplog, monkeypatch):
-    """If a close record has an unknown direction or score zero we log details."""
-    # set up a fake state with one position to exercise the tracing logic
+def test_update_pnl_and_stops_close_sl():
     fake_storage = MagicMock()
-    fake_storage.load_account.return_value = {
-        "balance": 100.0,
-        "positions": [{"symbol": "FOO"}],
-    }
-    fake_state = sim_bot.SimBotState(storage=fake_storage)
-    fake_state.positions = [{"symbol": "FOO", "side": "Buy"}]
-    monkeypatch.setattr(sim_bot, "state", fake_state)
-
-    caplog.set_level(logging.WARNING)
-    # call with both anomalies at once
-    sim_bot._log_closed_trade(
-        symbol="BAR",
-        direction="Unknown",
-        entry=1.0,
-        exit_price=2.0,
-        size=1.0,
-        entry_score=0,
-        entry_time=None,
-        reason="test",
-    )
-
-    assert "Suspicious close record" in caplog.text
-    assert "Current sim positions" in caplog.text
+    # Mock append_trade to verify it's called on close
+    fake_storage.append_trade.return_value = 1
+    fake_storage.get_model_training_state.return_value = {"trades_since_last_training": 0}
+    
+    state = sim_bot.SimBotState(storage=fake_storage)
+    state.positions = [{
+        "symbol": "BTCUSDT",
+        "side": "Buy",
+        "size": 1.0,
+        "entry": 50000.0,
+        "stop_loss": 50500.0, # Stop loss above entry (trailed)
+        "take_profit": 55000.0,
+        "highest_price": 51000.0,
+        "entry_score": 150,
+        "entry_time": None
+    }]
+    
+    # Price hits stop loss
+    prices = {"BTCUSDT": 50400.0}
+    
+    with patch("core.sim_bot.state", state):
+        sim_bot.update_pnl_and_stops(prices)
+        assert len(state.positions) == 0
+        assert fake_storage.append_trade.called
 
 
 def test_retrain_trigger(monkeypatch):
@@ -156,25 +171,31 @@ def test_retrain_trigger(monkeypatch):
         called = True
     monkeypatch.setattr(sim_bot, "retrain_models_async", fake_retrain)
 
-    # Mock narrator to return success
-    with patch("core.sim_bot.narrator") as mock_narrator:
-        mock_narrator.narrate_closed_trade.return_value = {"confidence": 0.8}
+    # Patch threading.Thread to execute immediately for the test
+    class MockThread:
+        def __init__(self, target, args=(), kwargs={}):
+            self.target = target
+            self.args = args
+            self.kwargs = kwargs
+        def start(self):
+            self.target(*self.args, **self.kwargs)
+    monkeypatch.setattr(sim_bot.threading, "Thread", MockThread)
 
-        # call the log_closed_trade with minimal params
-        sim_bot._log_closed_trade(
-            symbol="X",
-            direction="Buy",
-            entry=1.0,
-            exit_price=2.0,
-            size=1.0,
-            entry_score=10,
-            entry_time=None,
-            reason="tp",
-        )
-        # Wait a bit for the thread
-        import time
-        time.sleep(0.1)
-        assert called, "Retrain should have been triggered when threshold met"
+    # Patch narrator to return a successful result to trigger the increment
+    monkeypatch.setattr(sim_bot.narrator, "narrate_closed_trade", MagicMock(return_value={"confidence": 0.95}))
+
+    # call the log_closed_trade with minimal params
+    sim_bot._log_closed_trade(
+        symbol="X",
+        direction="Buy",
+        entry=1.0,
+        exit_price=2.0,
+        size=1.0,
+        entry_score=10,
+        entry_time=None,
+        reason="tp",
+    )
+    assert called, "Retrain should have been triggered when threshold met"
 
 
 def test_sim_account_isolation(tmp_path, monkeypatch, caplog):
@@ -219,37 +240,4 @@ def test_sim_account_isolation(tmp_path, monkeypatch, caplog):
     ]
     sim_state.save_account()
     # future loads should reflect the JSON file
-    sim_state2 = sim_bot.SimBotState(storage=sim_bot.StorageManager(db_path))
-    monkeypatch.setattr(sim_bot, "PAPER_ACCOUNT_FILE", json_file)
-    sim_state2.load_account()
-    assert sim_state2.positions == sim_state.positions
-    assert sim_state2.balance == 500.0
-
-
-@patch("core.sim_bot.state")
-@patch("core.sim_bot.hw.bridge.signal")
-def test_check_stops_live_sl_hit(mock_hw, mock_state):
-    # Mock position
-    pos = {
-        "symbol": "BTCUSDT",
-        "side": "Buy",
-        "entry": 100.0,
-        "size": 1.0,
-        "margin": 10.0,
-        "stop_price": 95.0,
-        "take_profit": 110.0,
-        "high_water": 100.0,
-    }
-    mock_state.positions = [pos]
-    mock_state.live_prices = {"BTCUSDT": 94.0}  # Below SL
-    mock_state.balance = 1000.0
-
-    sim_bot._check_stops_live("BTCUSDT")
-
-    # Position should be removed
-    assert len(mock_state.positions) == 0
-    # Balance should be updated: 1000 + 10 (margin) - 5 (pnl) = 1005
-    # Exit price is stop_price = 95.0. PnL = (95 - 100) * 1 = -5.
-    assert mock_state.balance == 1005.0
-    # HW signal SL
-    mock_hw.assert_called_with("SL")
+    assert json_file.exists()

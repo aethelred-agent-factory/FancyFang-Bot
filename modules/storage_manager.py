@@ -1,7 +1,5 @@
-import os
-import sys
+from __future__ import annotations
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import datetime
 import json
 import logging
@@ -15,57 +13,43 @@ logger = logging.getLogger("storage_manager")
 
 class StorageManager:
     """
-    SQLite-based storage manager for FancyBot.
-    Provides a clean abstraction for account state and trade history.
+    Unified SQLite storage layer for FancyBot.
+    Handles account state, trade history, drawdown guard state, and signal analytics.
     """
 
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path = Path("data/state/FancyFangBot.db")):
         self.db_path = db_path
-        # Ensure parent directory exists to avoid sqlite3.OperationalError
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._init_db()
 
     def _get_connection(self):
-        """Returns a thread-local SQLite connection."""
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
         return conn
 
     def _init_db(self):
-        """Initializes the database schema."""
+        """Initializes the database schema if it doesn't exist."""
         with self._lock:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                # Account table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS account (
-                        id INTEGER PRIMARY KEY CHECK (id = 1),
+
+                # Account state table
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS account_state (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
                         balance REAL NOT NULL,
-                        updated_at TEXT NOT NULL
+                        positions_json TEXT NOT NULL,
+                        timestamp TEXT NOT NULL
                     )
-                """)
+                """
+                )
 
-                # Positions table (JSON blob for simplicity or structured)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS positions (
-                        symbol TEXT PRIMARY KEY,
-                        side TEXT NOT NULL,
-                        size REAL NOT NULL,
-                        margin REAL NOT NULL,
-                        leverage INTEGER NOT NULL,
-                        entry REAL NOT NULL,
-                        stop_price REAL,
-                        take_profit REAL,
-                        entry_time TEXT NOT NULL,
-                        entry_score REAL,
-                        data_json TEXT
-                    )
-                """)
-
-                # Trades (History) table
-                cursor.execute("""
+                # Trade history table
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS trade_history (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         symbol TEXT NOT NULL,
@@ -73,204 +57,126 @@ class StorageManager:
                         entry REAL NOT NULL,
                         exit REAL NOT NULL,
                         pnl REAL NOT NULL,
-                        hold_time_s INTEGER,
-                        score REAL,
-                        reason TEXT,
+                        hold_time_s INTEGER NOT NULL,
+                        score REAL NOT NULL,
+                        reason TEXT NOT NULL,
                         timestamp TEXT NOT NULL,
                         signals_json TEXT,
-                        slippage REAL,
+                        slippage REAL DEFAULT 0.0,
                         raw_signals_json TEXT,
-                        narrative TEXT,
-                        tags_json TEXT,
-                        primary_driver TEXT,
-                        failure_mode TEXT,
                         market_context_json TEXT,
-                        ml_features_json TEXT
+                        ml_features_json TEXT,
+                        narrative TEXT,
+                        failure_mode TEXT
                     )
-                """)
+                """
+                )
 
                 # Drawdown state table
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS drawdown_state (
                         day TEXT PRIMARY KEY,
                         start_balance REAL NOT NULL,
                         daily_pnl REAL NOT NULL,
-                        killed INTEGER NOT NULL,
+                        killed INTEGER NOT NULL DEFAULT 0,
                         kill_reason TEXT,
-                        kill_count_today INTEGER NOT NULL
+                        kill_count_today INTEGER DEFAULT 0
                     )
-                """)
+                """
+                )
 
-                # Signal stats table
-                cursor.execute("""
+                # Signal statistics table
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS signal_stats (
                         signal_name TEXT PRIMARY KEY,
-                        trade_count INTEGER NOT NULL,
-                        win_count INTEGER NOT NULL,
-                        loss_count INTEGER NOT NULL,
-                        gross_wins REAL NOT NULL,
-                        gross_losses REAL NOT NULL,
+                        trade_count INTEGER DEFAULT 0,
+                        win_count INTEGER DEFAULT 0,
+                        loss_count INTEGER DEFAULT 0,
+                        gross_wins REAL DEFAULT 0.0,
+                        gross_losses REAL DEFAULT 0.0,
                         pnl_list_json TEXT
                     )
-                """)
+                """
+                )
 
-                # Hour stats table
-                cursor.execute("""
+                # Hour statistics table
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS hour_stats (
                         hour INTEGER PRIMARY KEY,
-                        trade_count INTEGER NOT NULL,
-                        win_count INTEGER NOT NULL,
-                        loss_count INTEGER NOT NULL,
-                        gross_wins REAL NOT NULL,
-                        gross_losses REAL NOT NULL,
+                        trade_count INTEGER DEFAULT 0,
+                        win_count INTEGER DEFAULT 0,
+                        loss_count INTEGER DEFAULT 0,
+                        gross_wins REAL DEFAULT 0.0,
+                        gross_losses REAL DEFAULT 0.0,
                         pnl_list_json TEXT
                     )
-                """)
+                """
+                )
 
-                # Correlation matrix table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS correlation_matrix (
-                        symbol1 TEXT NOT NULL,
-                        symbol2 TEXT NOT NULL,
-                        correlation REAL NOT NULL,
-                        updated_at TEXT NOT NULL,
-                        PRIMARY KEY (symbol1, symbol2)
-                    )
-                """)
-
-                # Events table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS events (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT NOT NULL,
-                        time TEXT NOT NULL,
-                        buffer_before_mins INTEGER DEFAULT 90,
-                        buffer_after_mins INTEGER DEFAULT 30,
-                        impact TEXT,
-                        source TEXT
-                    )
-                """)
-
-                # Training corpus / scan dump table
-                cursor.execute("""
+                # Scan Corpus table (Upgrade #16 Audit)
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS scan_corpus (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         symbol TEXT NOT NULL,
                         timestamp TEXT NOT NULL,
                         data_json TEXT NOT NULL
                     )
-                """)
-
-                # Ensure columns exist in trade_history (Migration)
-                cursor.execute("PRAGMA table_info(trade_history)")
-                cols = [c[1] for c in cursor.fetchall()]
-                if "signals_json" not in cols:
-                    cursor.execute(
-                        "ALTER TABLE trade_history ADD COLUMN signals_json TEXT"
-                    )
-                if "raw_signals_json" not in cols:
-                    cursor.execute(
-                        "ALTER TABLE trade_history ADD COLUMN raw_signals_json TEXT"
-                    )
-                if "slippage" not in cols:
-                    cursor.execute(
-                        "ALTER TABLE trade_history ADD COLUMN slippage REAL DEFAULT 0.0"
-                    )
-                if "narrative" not in cols:
-                    cursor.execute("ALTER TABLE trade_history ADD COLUMN narrative TEXT")
-                if "tags_json" not in cols:
-                    cursor.execute("ALTER TABLE trade_history ADD COLUMN tags_json TEXT")
-                if "primary_driver" not in cols:
-                    cursor.execute("ALTER TABLE trade_history ADD COLUMN primary_driver TEXT")
-                if "failure_mode" not in cols:
-                    cursor.execute("ALTER TABLE trade_history ADD COLUMN failure_mode TEXT")
-                if "market_context_json" not in cols:
-                    cursor.execute(
-                        "ALTER TABLE trade_history ADD COLUMN market_context_json TEXT"
-                    )
-                if "ml_features_json" not in cols:
-                    cursor.execute(
-                        "ALTER TABLE trade_history ADD COLUMN ml_features_json TEXT"
-                    )
-
-                conn.commit()
-            except sqlite3.Error as e:
-                logger.error(f"Failed to initialize database: {e}")
-                raise
-            finally:
-                conn.close()
-
-        # Initialize auxiliary ledger tables
-        self._init_ledger_tables()
-
-    def load_account(self, initial_balance: float = 100.0) -> Dict[str, Any]:
-        """Loads account balance and positions."""
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute("SELECT balance FROM account WHERE id = 1")
-                row = cursor.fetchone()
-                balance = float(row["balance"]) if row else initial_balance
-
-                cursor.execute("SELECT data_json FROM positions")
-                positions = [json.loads(r["data_json"]) for r in cursor.fetchall()]
-
-                return {"balance": balance, "positions": positions}
-            finally:
-                conn.close()
-
-    def save_account_state(self, balance: float, positions: List[Dict[str, Any]]):
-        """Saves both balance and current positions atomically."""
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-                # Update balance
-                cursor.execute(
-                    """
-                    INSERT INTO account (id, balance, updated_at)
-                    VALUES (1, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET balance=excluded.balance, updated_at=excluded.updated_at
-                """,
-                    (balance, now),
+                """
                 )
 
-                # Update positions
-                cursor.execute("DELETE FROM positions")
-                for pos in positions:
-                    cursor.execute(
-                        """
-                        INSERT INTO positions (
-                            symbol, side, size, margin, leverage, entry,
-                            stop_price, take_profit, entry_time, entry_score, data_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                        (
-                            pos["symbol"],
-                            pos["side"],
-                            pos["size"],
-                            pos["margin"],
-                            pos.get("leverage", 0),
-                            pos["entry"],
-                            pos.get("stop_price"),
-                            pos.get("take_profit"),
-                            pos.get("entry_time", now),
-                            pos.get("entry_score", 0),
-                            json.dumps(pos),
-                        ),
-                    )
+                # Initialize model training state
+                self._init_ledger_tables()
+
                 conn.commit()
             except sqlite3.Error as e:
-                conn.rollback()
-                logger.error(f"Failed to save account state: {e}")
+                logger.error(f"Database initialization failed: {e}")
             finally:
                 conn.close()
 
-    def append_trade(self, record: Dict[str, Any]):
-        """Appends a closed trade to the history table."""
+    # --- Account API ---
+
+    def save_account_state(self, balance: float, positions: List[Dict[str, Any]]):
+        """Saves current account balance and open positions."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                conn.execute(
+                    "INSERT INTO account_state (balance, positions_json, timestamp) VALUES (?, ?, ?)",
+                    (balance, json.dumps(positions), now),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+    def load_account(self) -> Dict[str, Any]:
+        """Loads the most recent account state."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT * FROM account_state ORDER BY timestamp DESC LIMIT 1"
+                )
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        "balance": row["balance"],
+                        "positions": json.loads(row["positions_json"]),
+                        "timestamp": row["timestamp"],
+                    }
+                return {"balance": 1000.0, "positions": [], "timestamp": None}
+            finally:
+                conn.close()
+
+    # --- Trade History API ---
+
+    def append_trade(self, trade_record: Dict[str, Any]) -> int:
+        """Appends a closed trade to history and returns its ID."""
         with self._lock:
             conn = self._get_connection()
             try:
@@ -279,119 +185,60 @@ class StorageManager:
                     """
                     INSERT INTO trade_history (
                         symbol, direction, entry, exit, pnl, hold_time_s,
-                        score, reason, timestamp, signals_json, slippage, raw_signals_json,
-                        narrative, tags_json, primary_driver, failure_mode, market_context_json,
-                        ml_features_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        score, reason, timestamp, signals_json, slippage,
+                        raw_signals_json, market_context_json, ml_features_json,
+                        narrative, failure_mode
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
-                        record.get("symbol", "UNKNOWN"),
-                        record.get("direction", "UNKNOWN"),
-                        record.get("entry", 0.0),
-                        record.get("exit", 0.0),
-                        record.get("pnl", 0.0),
-                        record.get("hold_time_s"),
-                        record.get("score"),
-                        record.get("reason"),
-                        record.get(
-                            "timestamp",
-                            datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                        ),
-                        json.dumps(record.get("signals", [])),
-                        record.get("slippage", 0.0),
-                        json.dumps(record.get("raw_signals", {})),
-                        record.get("narrative"),
-                        json.dumps(record.get("tags", [])),
-                        record.get("primary_driver"),
-                        record.get("failure_mode"),
-                        json.dumps(record.get("market_context", {})),
-                        json.dumps(record.get("ml_features", {})),
+                        trade_record["symbol"],
+                        trade_record["direction"],
+                        trade_record["entry"],
+                        trade_record["exit"],
+                        trade_record["pnl"],
+                        trade_record.get("hold_time_s", 0),
+                        trade_record["score"],
+                        trade_record["reason"],
+                        trade_record["timestamp"],
+                        json.dumps(trade_record.get("signals", [])),
+                        trade_record.get("slippage", 0.0),
+                        json.dumps(trade_record.get("raw_signals", {})),
+                        json.dumps(trade_record.get("market_context", {})),
+                        json.dumps(trade_record.get("ml_features", {})),
+                        trade_record.get("narrative"),
+                        trade_record.get("failure_mode"),
                     ),
                 )
-                trade_id = cursor.lastrowid
                 conn.commit()
-                return trade_id
-            except sqlite3.Error as e:
-                logger.error(f"Failed to append trade: {e}")
-                return None
+                return cursor.lastrowid
             finally:
                 conn.close()
 
     def update_trade_narration(self, trade_id: int, narration_data: Dict[str, Any]):
-        """Updates a trade record with narration data from the TradeNarrator."""
+        """Updates an existing trade record with AI narration results."""
         with self._lock:
             conn = self._get_connection()
             try:
-                cursor = conn.cursor()
-                cursor.execute(
+                conn.execute(
                     """
-                    UPDATE trade_history
-                    SET
-                        narrative = ?,
-                        tags_json = ?,
-                        primary_driver = ?,
-                        failure_mode = ?
+                    UPDATE trade_history 
+                    SET narrative = ?, failure_mode = ? 
                     WHERE id = ?
                 """,
                     (
                         narration_data.get("narrative"),
-                        json.dumps(narration_data.get("tags", [])),
-                        narration_data.get("primary_driver"),
                         narration_data.get("failure_mode"),
                         trade_id,
                     ),
                 )
                 conn.commit()
             except sqlite3.Error as e:
-                logger.error(f"Failed to update trade narration for trade_id {trade_id}: {e}")
-            finally:
-                conn.close()
-
-    def get_unannotated_trades(self, limit: int = 500) -> List[Dict[str, Any]]:
-        """Retrieves trades that haven't been narrated by DeepSeek yet."""
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    SELECT * FROM trade_history 
-                    WHERE narrative IS NULL 
-                    ORDER BY timestamp DESC 
-                    LIMIT ?
-                """,
-                    (limit,),
-                )
-                rows = cursor.fetchall()
-                history = []
-                for r in rows:
-                    item = dict(r)
-                    signals_json = item.pop("signals_json", None)
-                    item["signals"] = json.loads(signals_json) if signals_json else []
-
-                    raw_sig = item.pop("raw_signals_json", None)
-                    item["raw_signals"] = json.loads(raw_sig) if raw_sig else {}
-
-                    tags_json = item.pop("tags_json", None)
-                    item["tags"] = json.loads(tags_json) if tags_json else []
-
-                    market_ctx_json = item.pop("market_context_json", None)
-                    item["market_context"] = (
-                        json.loads(market_ctx_json) if market_ctx_json else {}
-                    )
-
-                    ml_feat_json = item.pop("ml_features_json", None)
-                    item["ml_features"] = (
-                        json.loads(ml_feat_json) if ml_feat_json else {}
-                    )
-
-                    history.append(item)
-                return history
+                logger.error(f"Failed to update trade narration for {trade_id}: {e}")
             finally:
                 conn.close()
 
     def get_trade_history(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Retrieves recent trade history."""
+        """Retrieves historical trade records."""
         with self._lock:
             conn = self._get_connection()
             try:
@@ -619,12 +466,12 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("SELECT last_training_timestamp, trades_since_training FROM model_training_state WHERE id = 1")
+                cursor.execute("SELECT last_training_timestamp, trades_since_last_training FROM model_training_state WHERE id = 1")
                 row = cursor.fetchone()
                 if row:
                     return {
                         "last_training_timestamp": row["last_training_timestamp"],
-                        "trades_since_last_training": row["trades_since_training"],
+                        "trades_since_last_training": row["trades_since_last_training"],
                     }
                 return {"last_training_timestamp": None, "trades_since_last_training": 0}
             finally:
@@ -648,36 +495,12 @@ class StorageManager:
             conn = self._get_connection()
             try:
                 cursor = conn.cursor()
-                cursor.execute("UPDATE model_training_state SET trades_since_training = trades_since_training + ? WHERE id = 1", (n,))
+                cursor.execute("UPDATE model_training_state SET trades_since_last_training = trades_since_last_training + ? WHERE id = 1", (n,))
                 conn.commit()
             finally:
                 conn.close()
 
     def reset_trades_since_last_training(self):
-        """Resets the trade counter to zero."""
-        self._init_ledger_tables()
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute("UPDATE model_training_state SET trades_since_training = 0 WHERE id = 1")
-                conn.commit()
-            finally:
-                conn.close()
-
-    def update_last_training_timestamp(self, timestamp: str):
-        """Updates the last training timestamp."""
-        self._init_ledger_tables()
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                cursor.execute("UPDATE model_training_state SET last_training_timestamp = ? WHERE id = 1", (timestamp,))
-                conn.commit()
-            finally:
-                conn.close()
-
-    def reset_model_training_state(self):
         """Resets the trade counter and updates the last training timestamp."""
         self._init_ledger_tables()
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -686,7 +509,7 @@ class StorageManager:
             try:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "UPDATE model_training_state SET trades_since_training = 0, last_training_timestamp = ? WHERE id = 1",
+                    "UPDATE model_training_state SET trades_since_last_training = 0, last_training_timestamp = ? WHERE id = 1",
                     (now,)
                 )
                 conn.commit()
@@ -860,11 +683,11 @@ class StorageManager:
                     CREATE TABLE IF NOT EXISTS model_training_state (
                         id INTEGER PRIMARY KEY CHECK (id = 1),
                         last_training_timestamp TEXT,
-                        trades_since_training INTEGER DEFAULT 0
+                        trades_since_last_training INTEGER DEFAULT 0
                     )
                 """)
                 cursor.execute("""
-                    INSERT OR IGNORE INTO model_training_state (id, last_training_timestamp, trades_since_training)
+                    INSERT OR IGNORE INTO model_training_state (id, last_training_timestamp, trades_since_last_training)
                     VALUES (1, NULL, 0)
                 """)
 
@@ -1116,36 +939,6 @@ class StorageManager:
                 if not row:
                     return None
                 return json.loads(row["snapshot_json"])
-            finally:
-                conn.close()
-
-    def get_upcoming_events(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """Retrieves upcoming events."""
-        with self._lock:
-            conn = self._get_connection()
-            try:
-                cursor = conn.cursor()
-                now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                cursor.execute(
-                    """
-                    SELECT * FROM events WHERE time > ? ORDER BY time ASC LIMIT ?
-                """,
-                    (now, limit),
-                )
-                rows = cursor.fetchall()
-                events = []
-                for r in rows:
-                    events.append(
-                        {
-                            "name": r["name"],
-                            "time": r["time"],
-                            "buffer_before": r["buffer_before_mins"],
-                            "buffer_after": r["buffer_after_mins"],
-                            "impact": r["impact"],
-                            "source": r["source"],
-                        }
-                    )
-                return events
             finally:
                 conn.close()
 

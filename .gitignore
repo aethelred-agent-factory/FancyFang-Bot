@@ -2,6 +2,7 @@
 .env
 .env.*
 .env.local
+@.env
 *.key
 *.pem
 
@@ -18,20 +19,21 @@ build/
 dist/
 *.egg-info/
 
-# Runtime state (logs, DBs, temp)
-data/logs/
-data/state/
+# Runtime state (logs, DBs, temp, and large data)
+data/
 *.db
 *.tmp
+*.csv
+*.jsonl
+
+# Keep important sample/account files tracked
+!data/state/paper_account.json
 
 # Research outputs (generated files)
 research/results/
 research/*.csv
 research/*.json
 research/*.txt
-
-# Keep important sample/account files tracked
-!paper_account.json
 
 # Logs and backup files
 *.log
@@ -52,6 +54,7 @@ docker-compose.override.yml
 
 # Node
 node_modules/
+FancyFang_Volt_Agent/node_modules/
 
 # Misc
 *.so
