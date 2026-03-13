@@ -70,14 +70,6 @@ from collections import deque
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Regex to strip ANSI escape codes for accurate string length calculation
-ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-
-
-def strip_ansi(s):
-    return ANSI_ESCAPE.sub("", s)
-
-
 import matplotlib
 
 matplotlib.use("Agg")
@@ -91,7 +83,6 @@ import core.ui as ui
 import core.web_bridge as web_bridge
 import modules.animations as animations
 import modules.market_context as market_context
-import modules.failure_guard as failure_guard
 import requests
 from colorama import Fore, Style, init
 from dotenv import load_dotenv
@@ -100,6 +91,13 @@ from modules.trade_narrator import TradeNarrator
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from websocket import WebSocketApp
+
+# Regex to strip ANSI escape codes for accurate string length calculation
+ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+
+def strip_ansi(s):
+    return ANSI_ESCAPE.sub("", s)
 
 
 # ── Global Control ───────────────────────────────────────────────────
@@ -423,7 +421,6 @@ def load_blacklist() -> None:
         logger.error(f"Failed to load legacy blacklist file: {e}")
         return
 
-    now = datetime.datetime.now(datetime.timezone.utc)
     migrated = 0
     with _blacklist_lock:
         SYMBOL_BLACKLIST = {}

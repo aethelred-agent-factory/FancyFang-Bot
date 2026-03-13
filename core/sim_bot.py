@@ -38,7 +38,6 @@ import signal
 import sys
 import threading
 import time
-import subprocess
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -65,12 +64,11 @@ import websocket
 from colorama import Fore, Style, init
 from dotenv import load_dotenv
 from core.ui_textual import FancyBotApp
-
-load_dotenv()
-
 from modules.banner import BANNER
 from modules.storage_manager import StorageManager
 from modules.trade_narrator import TradeNarrator
+
+load_dotenv()
 
 # ── Global Control ───────────────────────────────────────────────────
 _running = True
@@ -1278,6 +1276,11 @@ def _log_closed_trade(
         else (entry - exit_price) * size
     )
 
+    # Log suspicious records
+    if direction not in ["Buy", "Sell"] or entry_score == 0:
+        logger.warning(f"Suspicious close record for {symbol}: direction={direction}, score={entry_score}")
+        logger.warning(f"Current sim positions: {len(state.positions)}")
+
     # Emit closed-trade event to VoltAgent
     try:
         from modules.event_emitter import emit
@@ -1330,9 +1333,9 @@ def _log_closed_trade(
                 )
                 
                 # Check for retraining trigger after narration (annotation complete)
-                state.storage.increment_trades_since_training()
+                state.storage.increment_trades_since_last_training()
                 training_state = state.storage.get_model_training_state()
-                if training_state["trades_since_training"] >= 50:
+                if training_state["trades_since_last_training"] >= 50:
                     retrain_models_async()
             else:
                 logger.warning(f"Narration failed for trade {trade_record['symbol']}.")
@@ -1566,16 +1569,12 @@ def _live_pnl_display() -> None:
                     rsi_val = raw.get("rsi")
                     adx_val = raw.get("adx")
                     poc_px = raw.get("poc_price")
-                    spread = pos.get("spread")
 
                     rsi_str = (
                         f"RSI: {rsi_val:.1f}" if rsi_val is not None else "RSI: N/A"
                     )
                     adx_str = (
                         f"ADX: {adx_val:.1f}" if adx_val is not None else "ADX: N/A"
-                    )
-                    spr_str = (
-                        f"Spr: {spread:.3f}%" if spread is not None else "Spr: N/A"
                     )
 
                     header = f"{'▲' if pos['side']=='Buy' else '▼'} {sym} {ui.pnl_color(upnl)}{upnl:+.4f}{Style.RESET_ALL}"

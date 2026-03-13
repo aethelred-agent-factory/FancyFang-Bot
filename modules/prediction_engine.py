@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import logging
 import os
 import sys
-import joblib
+import joblib  # noqa: F401
 from typing import Dict, Any
 
 # Add project root to path

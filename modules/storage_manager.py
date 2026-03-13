@@ -624,9 +624,9 @@ class StorageManager:
                 if row:
                     return {
                         "last_training_timestamp": row["last_training_timestamp"],
-                        "trades_since_training": row["trades_since_training"],
+                        "trades_since_last_training": row["trades_since_training"],
                     }
-                return {"last_training_timestamp": None, "trades_since_training": 0}
+                return {"last_training_timestamp": None, "trades_since_last_training": 0}
             finally:
                 conn.close()
 
@@ -641,7 +641,7 @@ class StorageManager:
             finally:
                 conn.close()
 
-    def increment_trades_since_training(self, n: int = 1):
+    def increment_trades_since_last_training(self, n: int = 1):
         """Increments the counter of trades since last model training."""
         self._init_ledger_tables()
         with self._lock:
@@ -649,6 +649,30 @@ class StorageManager:
             try:
                 cursor = conn.cursor()
                 cursor.execute("UPDATE model_training_state SET trades_since_training = trades_since_training + ? WHERE id = 1", (n,))
+                conn.commit()
+            finally:
+                conn.close()
+
+    def reset_trades_since_last_training(self):
+        """Resets the trade counter to zero."""
+        self._init_ledger_tables()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE model_training_state SET trades_since_training = 0 WHERE id = 1")
+                conn.commit()
+            finally:
+                conn.close()
+
+    def update_last_training_timestamp(self, timestamp: str):
+        """Updates the last training timestamp."""
+        self._init_ledger_tables()
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE model_training_state SET last_training_timestamp = ? WHERE id = 1", (timestamp,))
                 conn.commit()
             finally:
                 conn.close()

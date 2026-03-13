@@ -44,6 +44,7 @@ import requests
 from colorama import Fore, Style
 from modules.liquidity_spectre import spectre
 from modules.sector_manager import sector_manager
+from modules.ensemble_scorer import ensemble_scorer
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -405,10 +406,8 @@ def score_func(data: TickerData, direction: str = "LONG") -> float:
         return -1.0
     if raw > 1.0:
         return 1.0
-    return raw
+    return float(raw)
 
-
-from modules.ensemble_scorer import ensemble_scorer
 
 # ----------------------------
 # Thread-local session

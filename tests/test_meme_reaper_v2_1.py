@@ -23,7 +23,7 @@ class TestMemeReaperV21(unittest.TestCase):
             return_value=(0.0001, 0.0001, 0.0),
         ), patch(
             "core.phemex_common.get_order_book_with_volumes",
-            return_value=(49999, 50001, 0.01, 1000, 1.0),
+            return_value=(49999, 50001, 0.01, 1000, 1.0, [], []),
         ):
 
             # Use a dummy score function

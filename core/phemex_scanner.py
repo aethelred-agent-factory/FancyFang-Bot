@@ -375,7 +375,6 @@ def print_combined(
         fp_str = f"{fp:+.5f}" if fp is not None else "   N/A  "
 
         rsi_val = r.get("rsi")
-        rsi_str = f"{rsi_val:.1f}" if rsi_val is not None else " N/A"
         rsi_bar = ui.braille_progress_bar(rsi_val, width=10) if rsi_val else " " * 10
 
         atr_stop = r.get("atr_stop_pct", 0.0)

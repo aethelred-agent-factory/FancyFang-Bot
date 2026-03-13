@@ -154,20 +154,27 @@ def test_retrain_trigger(monkeypatch):
     def fake_retrain():
         nonlocal called
         called = True
-    monkeypatch.setattr(sim_bot, "_retrain_models_async", fake_retrain)
+    monkeypatch.setattr(sim_bot, "retrain_models_async", fake_retrain)
 
-    # call the log_closed_trade with minimal params
-    sim_bot._log_closed_trade(
-        symbol="X",
-        direction="Buy",
-        entry=1.0,
-        exit_price=2.0,
-        size=1.0,
-        entry_score=10,
-        entry_time=None,
-        reason="tp",
-    )
-    assert called, "Retrain should have been triggered when threshold met"
+    # Mock narrator to return success
+    with patch("core.sim_bot.narrator") as mock_narrator:
+        mock_narrator.narrate_closed_trade.return_value = {"confidence": 0.8}
+
+        # call the log_closed_trade with minimal params
+        sim_bot._log_closed_trade(
+            symbol="X",
+            direction="Buy",
+            entry=1.0,
+            exit_price=2.0,
+            size=1.0,
+            entry_score=10,
+            entry_time=None,
+            reason="tp",
+        )
+        # Wait a bit for the thread
+        import time
+        time.sleep(0.1)
+        assert called, "Retrain should have been triggered when threshold met"
 
 
 def test_sim_account_isolation(tmp_path, monkeypatch, caplog):

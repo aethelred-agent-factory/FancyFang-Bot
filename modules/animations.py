@@ -2,21 +2,21 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import math
+import random
+import shutil
+import threading
+import time
+
+from modules.banner import BANNER
+
 """
 animations.py — FANCYBOT v3 ULTRA TERMINAL FX
 ╔══════════════════════════════════════════════════════════════╗
 ║  CINEMATIC ASCII ENGINE  ·  TRUECOLOR  ·  60fps  ·  INSANE  ║
 ╚══════════════════════════════════════════════════════════════╝
 """
-
-import math
-import random
-import shutil
-import sys
-import threading
-import time
-
-from modules.banner import BANNER
 
 # ══════════════════════════════════════════════════════════════
 #  TERMINAL CONTROL

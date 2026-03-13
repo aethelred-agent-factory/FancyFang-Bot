@@ -3,6 +3,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import re
+
+from colorama import Fore, Style
+
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  FancyFangBot                            ║
 # ║                                                                              ║
@@ -23,10 +28,6 @@ FancyFangBot UI Kit
 Shared terminal display primitives used across all FancyFangBot scripts.
 Import with:  import core.ui
 """
-
-import re
-
-from colorama import Fore, Style
 
 # Regex to strip ANSI escape codes for accurate string length calculation
 ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -387,7 +388,6 @@ def render_price_line(
     start_label = max(0, min(inner_w - pnl_len, start_label))
 
     # Construct the line with the PnL label embedded
-    line_chars = list("─" * inner_w)
     # We can't easily embed colored text into a list of chars without breaking index math
     # So we'll slice strings
 

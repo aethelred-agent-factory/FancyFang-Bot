@@ -1,10 +1,7 @@
-"""Stub for the performance monitoring subsystem.
+"""Performance monitoring subsystem for tracking trade-level metrics.
 
-Steps 22--24 of the design doc call for a component that tracks trade-level
-metrics (win rate, drawdown, expectancy, etc.) and exposes a simple
-interface for the rest of the system.  This file provides the skeleton; the
-real calculations are left as ``TODO`` placeholders until the exact
-requirements are fleshed out.
+Provides comprehensive tracking of win/loss rates, PnL series, drawdown calculations,
+and other key performance indicators for the trading system.
 """
 
 from __future__ import annotations
@@ -13,36 +10,64 @@ from typing import Any, Dict, List, Optional
 
 
 class PerformanceMonitor:
-    def __init__(self):
+    def __init__(self, initial_balance: float = 1000.0):
         # internal state for accumulated statistics
         self.trades: List[Dict[str, Any]] = []
-        # TODO: add fields for win/loss counters, PnL series, drawdown, etc.
+        self.initial_balance = initial_balance
+        self.current_balance = initial_balance
+        self.win_count = 0
+        self.loss_count = 0
+        self.total_pnl = 0.0
+        self.pnl_series: List[float] = []
+        self.peak_balance = initial_balance
+        self.current_drawdown = 0.0
+        self.max_drawdown = 0.0
 
     def record_trade(self, trade_record: Dict[str, Any]) -> None:
         """Add a new closed trade to the performance ledger.
 
-        ``trade_record`` is expected to be the same dictionary produced by the
-        strategy modules when a position is closed.  Calling code (p_bot,
-        backtest, etc.) should invoke this immediately after the trade is
-        persisted.
-
-        TODO: update cumulative metrics, recalc drawdown, win rate, etc.
+        ``trade_record`` is expected to contain at least a 'pnl' key with the profit/loss amount.
+        Updates cumulative metrics, drawdown calculations, win/loss counters, etc.
         """
         self.trades.append(trade_record)
-        # TODO: update derived statistics here
+        pnl = trade_record.get('pnl', 0.0)
+        self.total_pnl += pnl
+        self.pnl_series.append(pnl)
+        self.current_balance += pnl
+
+        if pnl > 0:
+            self.win_count += 1
+        else:
+            self.loss_count += 1
+
+        # Update drawdown
+        if self.current_balance > self.peak_balance:
+            self.peak_balance = self.current_balance
+            self.current_drawdown = 0.0
+        else:
+            self.current_drawdown = (self.peak_balance - self.current_balance) / self.peak_balance
+            if self.current_drawdown > self.max_drawdown:
+                self.max_drawdown = self.current_drawdown
 
     def get_summary(self) -> Dict[str, Any]:
         """Return a dictionary summarising current performance.
 
-        Example keys might include ``win_rate``, ``avg_pnl``, ``max_drawdown``
-        and ``trades`` (number of records).  The exact schema is TBD.
+        Includes win_rate, avg_pnl, max_drawdown, total_trades, etc.
         """
-        # TODO: compute and return real metrics
+        total_trades = len(self.trades)
+        win_rate = self.win_count / total_trades if total_trades > 0 else 0.0
+        avg_pnl = self.total_pnl / total_trades if total_trades > 0 else 0.0
+
         return {
-            "trades": len(self.trades),
-            "win_rate": None,
-            "avg_pnl": None,
-            "max_drawdown": None,
+            "total_trades": total_trades,
+            "win_count": self.win_count,
+            "loss_count": self.loss_count,
+            "win_rate": win_rate,
+            "total_pnl": self.total_pnl,
+            "avg_pnl": avg_pnl,
+            "current_balance": self.current_balance,
+            "max_drawdown": self.max_drawdown,
+            "current_drawdown": self.current_drawdown,
         }
 
 

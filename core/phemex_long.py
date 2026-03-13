@@ -44,7 +44,6 @@ import core.phemex_common as pc
 from colorama import Fore, init
 from dotenv import load_dotenv
 from modules.feature_builder import FeatureBuilder
-import numpy as np
 
 # Initialize environment & colorama
 load_dotenv()

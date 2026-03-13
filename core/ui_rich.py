@@ -76,7 +76,7 @@ def get_account_summary(
             ),
             expand=True,
         )
-        task = progress.add_task("", total=100, completed=min(100, max(0, pct)))
+        progress.add_task("", total=100, completed=min(100, max(0, pct)))
         table.add_row(
             Text(label.upper(), style=C_CYAN),
             progress,

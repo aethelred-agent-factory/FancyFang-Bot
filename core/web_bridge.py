@@ -14,6 +14,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from modules.storage_manager import StorageManager
+from pathlib import Path
+from typing import List, Optional
+from pydantic import BaseModel
 
 app = FastAPI(title="FancyBot Web Bridge")
 
@@ -33,16 +37,8 @@ app.add_middleware(
 _bot_state = None
 _bot_logs = []
 
-# storage helper used by VoltAgent endpoints; instantiate lazily
-from modules.storage_manager import StorageManager
-from pathlib import Path
-
 DB_PATH = Path(__file__).parent.parent / "data" / "state" / "fancybot.db"
 _storage = StorageManager(DB_PATH)
-
-# Pydantic models for VoltAgent payloads
-from typing import List, Optional
-from pydantic import BaseModel
 
 class AnnotationPayload(BaseModel):
     trade_id: int

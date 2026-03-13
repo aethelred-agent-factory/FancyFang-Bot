@@ -4,6 +4,7 @@ from modules.prediction_engine import PredictionEngine
 
 def test_prediction_engine_regimes():
     engine = PredictionEngine()
+    engine.model = None  # Force heuristic path for regime testing
 
     # Common features for testing
     features = {
@@ -57,6 +58,7 @@ def test_prediction_engine_regimes():
 
 def test_prediction_engine_short_direction():
     engine = PredictionEngine()
+    engine.model = None  # Force heuristic path
     features = {"norm_rsi": 2.0}  # Overbought
 
     # For SHORT, higher RSI is bearish -> positive score contribution
